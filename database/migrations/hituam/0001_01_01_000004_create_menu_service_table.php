@@ -49,9 +49,10 @@ return new class extends Migration
             $table->string('VMETHOD', 32);
             $table->date('DBEGINEFF');
             $table->date('DENDEFF');
-            $table->bigInteger('IAPPLICATIONID')->nullable()->after('VMENUID');
+            $table->bigInteger('IAPPLICATIONID');
             $table->foreign('IAPPLICATIONID')
-                ->references('IID');
+                ->references('IID')
+                ->on('HITUAM_MSHAPPLICATION');
             $table->string('VMENUID');
             $table->foreign('VMENUID')
                 ->references('VAPPID')

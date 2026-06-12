@@ -34,7 +34,7 @@ class PermissionSeeder extends Seeder
 
             // Get application ID from menu's NSORTPROJECT
             $application = Application::find($menu->NSORTPROJECT);
-            $applicationDesc = $application?->VPROJECTDESC;
+            $applicationId = $application?->IID;
 
             foreach ($mapPermission as $perm) {
                 $url = strtolower($menu->VAPPDESC) . '/' . strtolower($perm);
@@ -46,7 +46,7 @@ class PermissionSeeder extends Seeder
                     "DBEGINEFF" => '2025-01-01',
                     "DENDEFF" => '2999-01-01',
                     "VMENUID" => $menu->VAPPID,
-                    "VAPPLICATION_DESC" => $applicationDesc,
+                    "IAPPLICATIONID" => $applicationId,
                     "VCREA" => 'Seeder',
                     "DCREA" => now()
                 ];
@@ -62,7 +62,7 @@ class PermissionSeeder extends Seeder
                         "DBEGINEFF" => '2025-01-01',
                         "DENDEFF" => '2999-01-01',
                         "VMENUID" => $menu->VAPPID,
-                        "VAPPLICATION_DESC" => $applicationDesc,
+                        "IAPPLICATIONID" => $applicationId,
                         "VCREA" => 'Seeder',
                         "DCREA" => now()
                     ];
@@ -75,7 +75,7 @@ class PermissionSeeder extends Seeder
                         "DBEGINEFF" => '2025-01-01',
                         "DENDEFF" => '2999-01-01',
                         "VMENUID" => $menu->VAPPID,
-                        "VAPPLICATION_DESC" => $applicationDesc,
+                        "IAPPLICATIONID" => $applicationId,
                         "VCREA" => 'Seeder',
                         "DCREA" => now()
                     ];
