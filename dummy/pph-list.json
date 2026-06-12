@@ -1,0 +1,51 @@
+[
+    {
+        "value": "24-101-01",
+        "text": "Dividen",
+        "vpph_pasal": "PPH23",
+        "itarif": "2",
+        "vcode_map": "411128-403"
+    },
+    {
+        "value": "24-103-01",
+        "text": "Royalti",
+        "vpph_pasal": "PPH23",
+        "itarif": "2",
+        "vcode_map": "411128-409"
+    },
+    {
+        "value": "24-104-01",
+        "text": "Jasa Teknik",
+        "vpph_pasal": "PPH23",
+        "itarif": "2",
+        "vcode_map": "411128-409"
+    },
+    {
+        "value": "28-403-02",
+        "text": "Persewaan Tanah dan/atau Bangunan",
+        "vpph_pasal": "PPh4-2",
+        "itarif": "10",
+        "vcode_map": "411128-409"
+    },
+    {
+        "value": "28-409-22",
+        "text": "Pekerjaan Konstruksi yang Dilakukan oleh Penyedia Jasa yang Memiliki Sertifikat Badan Usaha Kualifikasi Kecil atau Sertifikat Kompetensi Kerja untuk Usaha Orang Perseorangan",
+        "vpph_pasal": "PPh4-2",
+        "itarif": "1.75",
+        "vcode_map": "411128-409"
+    },
+    {
+        "value": "28-409-23",
+        "text": "Pekerjaan Konstruksi yang Dilakukan oleh Penyedia Jasa yang Tidak Memiliki Sertifikat Badan Usaha Atau Sertifikat Kompetensi Kerja untuk Usaha Orang Perseorangan",
+        "vpph_pasal": "PPh4-2",
+        "itarif": "4",
+        "vcode_map": "411128-409"
+    },
+    {
+        "value": "22-100-22",
+        "text": "Penjualan Pelumas oleh Importir/Produsen",
+        "vpph_pasal": "PPh22",
+        "itarif": "2",
+        "vcode_map": "411128-409"
+    }
+]

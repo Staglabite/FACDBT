@@ -1,0 +1,13 @@
+/* teks loading datatable biar ditengah */
+
+.dt-empty {
+    text-align: center;
+}
+
+.info-text img {
+    max-width: 100%;
+    width: 800px;
+    /* default width */
+    height: auto;
+    border-radius: 10px;
+}

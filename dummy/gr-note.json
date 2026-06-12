@@ -1,0 +1,145 @@
+[
+    {
+        "id": 1,
+        "status_grn": "New",
+        "grn_no": "0001051111",
+        "grn_date": "2025-11-15",
+        "delivery_no": "SJ123",
+        "po_no": "N301111",
+        "currency": "IDR",
+        "vendor_code": "V-001",
+        "vendor_name": "PT. Kelola",
+        "ammount_before_pph": 6650000,
+        "aging_grn": 51,
+        "items": [
+            {
+                "part_number": "0002100282",
+                "description": "NATRIUM CHLORIDE (NA CL)",
+                "qty": 10,
+                "price": 150000,
+                "currency": "IDR",
+                "sub_total": 1500000,
+                "dpp_nilai_lain": 150000,
+                "ppn": 150000
+            },
+            {
+                "part_number": "0002100283",
+                "description": "OLI",
+                "qty": 100,
+                "price": 50000,
+                "currency": "IDR",
+                "sub_total": 5000000,
+                "dpp_nilai_lain": 500000,
+                "ppn": 500000
+            }
+        ]
+    },
+    {
+        "id": 2,
+        "status_grn": "New",
+        "grn_no": "0001051111",
+        "grn_date": "2025-11-15",
+        "delivery_no": "SJ123",
+        "po_no": "N301111",
+        "currency": "IDR",
+        "vendor_code": "V-002",
+        "vendor_name": "PT. ABC",
+        "ammount_before_pph": 3500000,
+        "aging_grn": 45,
+        "items": [
+            {
+                "part_number": "0002100284",
+                "description": "BEARING",
+                "qty": 20,
+                "price": 75000,
+                "currency": "IDR",
+                "sub_total": 1500000,
+                "dpp_nilai_lain": 150000,
+                "ppn": 150000
+            },
+            {
+                "part_number": "0002100285",
+                "description": "GASKET",
+                "qty": 50,
+                "price": 40000,
+                "currency": "IDR",
+                "sub_total": 2000000,
+                "dpp_nilai_lain": 200000,
+                "ppn": 200000
+            }
+        ]
+    },
+    {
+        "id": 3,
+        "status_grn": "Closed",
+        "grn_no": "-",
+        "grn_date": null,
+        "delivery_no": "-",
+        "po_no": "-",
+        "currency": "IDR",
+        "vendor_code": "V-003",
+        "vendor_name": "PT. DEF",
+        "ammount_before_pph": 0,
+        "aging_grn": null,
+        "items": []
+    },
+    {
+        "id": 4,
+        "status_grn": "Approved",
+        "grn_no": "0001051111",
+        "grn_date": "2025-11-15",
+        "delivery_no": "SJ123",
+        "po_no": "N301111",
+        "currency": "IDR",
+        "vendor_code": "V-004",
+        "vendor_name": "PT. GHI",
+        "ammount_before_pph": 8900000,
+        "aging_grn": 30,
+        "items": [
+            {
+                "part_number": "0002100286",
+                "description": "FILTER OIL",
+                "qty": 15,
+                "price": 120000,
+                "currency": "IDR",
+                "sub_total": 1800000,
+                "dpp_nilai_lain": 180000,
+                "ppn": 180000
+            },
+            {
+                "part_number": "0002100287",
+                "description": "BELT V",
+                "qty": 30,
+                "price": 95000,
+                "currency": "IDR",
+                "sub_total": 2850000,
+                "dpp_nilai_lain": 285000,
+                "ppn": 285000
+            },
+            {
+                "part_number": "0002100288",
+                "description": "SEAL KIT",
+                "qty": 25,
+                "price": 170000,
+                "currency": "IDR",
+                "sub_total": 4250000,
+                "dpp_nilai_lain": 425000,
+                "ppn": 425000
+            }
+        ]
+    },
+    {
+        "id": 5,
+        "status_grn": "Dispute",
+        "grn_no": "0",
+        "grn_date": null,
+        "delivery_no": "0",
+        "po_no": "0",
+        "currency": "USD",
+        "vendor_code": "V-005",
+        "vendor_name": "PT. JKL",
+        "ammount_before_pph": 0,
+        "aging_grn": null,
+        "items": []
+    }
+]

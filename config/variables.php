@@ -1,0 +1,33 @@
+<?php
+
+// Variables
+return [
+    'creatorName' => 'KelolaBiz',
+    'creatorUrl' => 'https://kelola.dev',
+    'templateName' => '3 Way Matching',
+    'templateSuffix' => '',
+    'templateVersion' => '3.0.0',
+    'templateFree' => false,
+    'templateDescription' => '3 Way Matching adalah sebuah sistem yang digunakan untuk memverifikasi dan mencocokkan tiga dokumen penting dalam proses pengadaan barang atau jasa, yaitu Purchase Order (PO), Goods Receipt Note (GRN), dan Invoice. Sistem ini memastikan bahwa informasi yang tercantum dalam ketiga dokumen tersebut konsisten dan sesuai dengan ketentuan yang telah ditetapkan, sehingga dapat mencegah terjadinya kesalahan, penipuan, atau ketidaksesuaian dalam proses pembayaran.',
+    'templateKeyword' => '3 Way Matching, Purchase Order, Goods Receipt Note, Invoice, Verifikasi Dokumen, Pengadaan Barang, Proses Pembayaran',
+    'licenseUrl' => 'https://themeforest.net/licenses/standard',
+    'livePreview' => 'https://demos.pixinvent.com/vuexy-html-laravel-admin-template/demo-1/',
+    'productPage' => 'https://themeforest.net/item/vuexy-vuejs-html-laravel-admin-dashboard-template/23328599',
+    'support' => 'https://pixinvent.ticksy.com/',
+    'moreThemes' => 'https://themeforest.net/user/pixinvent/portfolio',
+    'ogTitle' => 'IDBM Tri Way Matching',
+    'ogImage' => 'https://pixinvent.com/wp-content/uploads/2023/06/vuexy-hero-image.png',
+    'ogType' => 'product',
+    'documentation' => 'https://demos.pixinvent.com/vuexy-html-admin-template/documentation',
+    'generator' => '',
+    'changelog' => 'https://demos.pixinvent.com/vuexy/changelog.html',
+    'repository' => 'https://github.com/pixinvent/vuexy-html-laravel-admin-template',
+    'gitRepo' => 'vuexy-html-laravel-admin-template',
+    'gitRepoAccess' => 'https://tools.pixinvent.com/github/github-access',
+    'githubFreeUrl' => 'https://github.com/pixinvent',
+    'facebookUrl' => 'https://www.facebook.com/pixinvents/',
+    'twitterUrl' => 'https://x.com/pixinvents',
+    'githubUrl' => 'https://github.com/pixinvent',
+    'dribbbleUrl' => 'https://dribbble.com/pixinvent',
+    'instagramUrl' => 'https://www.instagram.com/pixinvents/',
+];
