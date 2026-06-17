@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\HITUAM\Auth\LoginRequest;
 use App\Mail\ForgotPasswordMail;
 use App\Models\HITUAM01\HITUAM_MSHCONFIGURATION as Config;
-use App\Models\HITUAM01\HITUAM_LOGLOGIN_HISTORY as LoginHistory;
+use App\Models\HITUAM01\HITUAM_LOGLOGINHISTORY as LoginHistory;
 use App\Models\HITUAM01\HITUAM_MSDUSER_REMEMBER_TOKEN as UserRememberToken;
 use App\Models\HITUAM01\HITUAM_MSHUSER as User;
 use App\Services\HITUAM\LoginHistoryService;

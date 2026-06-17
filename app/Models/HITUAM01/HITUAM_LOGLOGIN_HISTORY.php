@@ -5,11 +5,11 @@ namespace App\Models\HITUAM01;
 use App\Models\BaseModel;
 use Illuminate\Support\Facades\Auth;
 
-class HITUAM_LOGLOGIN_HISTORY extends BaseModel
+class HITUAM_LOGLOGINHISTORY extends BaseModel
 {
     protected $connection = 'hituam';
     
-    protected $table = 'HITUAM_LOGLOGIN_HISTORY';
+    protected $table = 'HITUAM_LOGLOGINHISTORY';
 
     protected $fillable = [
         'VUSERNAME',

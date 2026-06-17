@@ -3,7 +3,7 @@
 namespace App\Services\HITUAM;
 
 // use App\Models\FACTWM03\FACTWM_LOGLOGIN_HISTORY as LoginHistory;
-use App\Models\HITUAM01\HITUAM_LOGLOGIN_HISTORY as LoginHistory;
+use App\Models\HITUAM01\HITUAM_LOGLOGINHISTORY as LoginHistory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 

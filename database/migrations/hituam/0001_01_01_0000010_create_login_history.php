@@ -14,7 +14,7 @@ return new class extends Migration
     {
         DB::statement('CREATE SEQUENCE IF NOT EXISTS "SQ_LOGLOGINHISTORY_IID" START 1 INCREMENT 1');
 
-        Schema::create('HITUAM_LOGLOGIN_HISTORY', function (Blueprint $table) {
+        Schema::create('HITUAM_LOGLOGINHISTORY', function (Blueprint $table) {
             $table->bigInteger('IID')->primary()->default(DB::raw('nextval(\'"SQ_LOGLOGINHISTORY_IID"\')'));
             $table->string('VUSERNAME', 100)->nullable();
             $table->string('VFULLNAME', 225)->nullable();
@@ -38,7 +38,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('HITUAM_LOGLOGIN_HISTORY');
+        Schema::dropIfExists('HITUAM_LOGLOGINHISTORY');
 
         DB::statement('DROP SEQUENCE IF EXISTS "SQ_LOGLOGINHISTORY_IID"');
     }
