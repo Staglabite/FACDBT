@@ -8,6 +8,7 @@ use App\Http\Controllers\pages\HomePage;
 use App\Http\Controllers\pages\MiscError;
 use App\Http\Controllers\pages\Page2;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\HITUAM\SsoController;
 
 // Main Page Route
 Route::get('/', [HomePage::class, 'index'])->name('pages-home');
@@ -31,4 +32,9 @@ Route::group(['prefix' => 'general', 'middleware' => 'auth', 'controller' => Gen
     Route::get('/menus', 'menus');
     Route::get('/pph-list', 'pphList');
     Route::post('/store-cache', 'storeCache');
+});
+
+Route::group(['prefix' => 'auth/sso', 'controller' => SsoController::class], function () {
+    Route::get('/send', 'send')->middleware('auth')->name('auth.sso.send');
+    Route::match(['get', 'post'], '/receive', 'receive')->name('auth.sso.receive');
 });

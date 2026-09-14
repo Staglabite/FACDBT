@@ -32,10 +32,10 @@ Route::group(['prefix' => 'ts', 'middleware' => 'auth'], function () {
 
 });
 
-Route::group(['prefix' => 'auth/sso', 'controller' => SsoController::class], function () {
-    Route::get('/send', 'send')->middleware('auth')->name('auth.sso.send');
-    Route::match(['get', 'post'], '/receive', 'receive')->name('auth.sso.receive');
-});
+// Route::group(['prefix' => 'auth/sso', 'controller' => SsoController::class], function () {
+//     Route::get('/send', 'send')->middleware('auth')->name('auth.sso.send');
+//     Route::match(['get', 'post'], '/receive', 'receive')->name('auth.sso.receive');
+// });
 
 Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
     Route::group(['prefix' => 'master-application', 'controller' => HITUAMF001::class], function () {
