@@ -18,7 +18,7 @@ return new class extends Migration
             $table->bigInteger('IID')->primary()->default(DB::raw('nextval(\'"SQ_MSHNEWS_IID"\')'));
             $table->string('VTITLE', 100); // title
             $table->string('VSUBJECT', 100); // subject
-            $table->string('AVIEWERS')->nullable(); // viewers as published to vendor/customer/all
+            $table->text('AVIEWERS')->nullable(); // viewers as published to vendor/customer/all
             $table->integer('ITOTALVIEW')->nullable(); // total view
             $table->text('VCONTENT')->nullable(); // content
             $table->string('VIMAGE_PATH')->nullable();
