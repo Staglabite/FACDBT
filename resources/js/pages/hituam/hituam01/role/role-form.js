@@ -117,7 +117,9 @@ export default class RoleForm {
         menus.forEach(app => {
             self.#appIds.push(app.IID);
 
-            app.menus.forEach(menu => {
+            const menuTree = self.#buildMenuTree(app.menus);
+
+            menuTree.forEach(menu => {
                 html += self.#menusContent(menu, app.IID);
             });
 
@@ -159,32 +161,89 @@ export default class RoleForm {
         this.#menuListEvents();
     }
 
-    #menusContent(menu, appId) {
-        const buttons = menu.services;
+    #menusContent(menu, appId, level = 0) {
+        const buttons = menu.services || [];
 
         let buttonHtml = '';
 
         buttons.forEach(button => {
             buttonHtml += `
-                        <td>
-                            <input type="checkbox" class="form-check-input service-list" id="menu-button-${button.IID}" data-id="app-${appId}" value="${button.IID}">
-                            <label for="menu-button-${button.IID}" class="form-check-label">${this.#accessNameBeautify(button.VNAME)}</label>
-                        </td>
-                    `;
+            <td>
+                <input type="checkbox"
+                       class="form-check-input service-list"
+                       id="menu-button-${button.IID}"
+                       data-id="app-${appId}"
+                       value="${button.IID}">
+
+                <label for="menu-button-${button.IID}"
+                       class="form-check-label">
+                    ${this.#accessNameBeautify(button.VNAME)}
+                </label>
+            </td>
+        `;
         });
 
-        const html = `
-                    <tr class="menu-list-row">
-                        <td>${menu.VAPPDESC}</td>
-                        <td>
-                            <input type="checkbox" class="form-check-input menu-list" id="menu-${menu.IID}" data-id="app-${appId}" value="${menu.IID}">
-                            <label for="menu-${menu.IID}" class="form-check-label">Read</label>
-                        </td>
-                        ${buttonHtml}
-                    </tr>
-                `;
+        // Indent untuk submenu
+        const paddingLeft = level * 25;
+
+        let html = `
+        <tr class="menu-list-row">
+            <td style="padding-left: ${paddingLeft}px;">
+                ${level > 0 ? '└─ ' : ''}
+                ${menu.VAPPDESC}
+            </td>
+
+            <td>
+                <input type="checkbox"
+                       class="form-check-input menu-list"
+                       id="menu-${menu.IID}"
+                       data-id="app-${appId}"
+                       value="${menu.IID}">
+
+                <label for="menu-${menu.IID}"
+                       class="form-check-label">
+                    Read
+                </label>
+            </td>
+
+            ${buttonHtml}
+        </tr>
+    `;
+
+        // Cari child menu
+        const children = menu.children || [];
+
+        children.forEach(child => {
+            html += this.#menusContent(child, appId, level + 1);
+        });
 
         return html;
+    }
+
+    #buildMenuTree(menus) {
+        const menuMap = {};
+        const rootMenus = [];
+
+        // Buat map berdasarkan VAPPID
+        menus.forEach(menu => {
+            menu.children = [];
+            menuMap[menu.VAPPID] = menu;
+        });
+
+        // Bentuk parent-child
+        menus.forEach(menu => {
+            if (menu.VPARENT) {
+                const parent = menuMap[menu.VPARENT];
+
+                if (parent) {
+                    parent.children.push(menu);
+                }
+            } else {
+                rootMenus.push(menu);
+            }
+        });
+
+        return rootMenus;
     }
 
     #triggerChecked(services, accesses) {

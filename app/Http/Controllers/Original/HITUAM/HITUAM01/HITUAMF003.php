@@ -89,7 +89,7 @@ class HITUAMF003 extends Controller
     {
         $data = $request->validated();
 
-        return DB::transaction(function () use ($data, $service) {
+        $service = DB::transaction(function () use ($data, $service) {
 
             $menuId = HITUAM_MSHMENU::find($data['menu']);
 

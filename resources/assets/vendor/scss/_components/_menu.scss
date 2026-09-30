@@ -425,27 +425,23 @@
     // Levels
     $menu-first-level-spacer: $menu-vertical-link-padding-x + $menu-icon-expanded-width + $menu-icon-expanded-spacer;
 
-    .menu-sub .menu-link {
-        padding-inline-start: $menu-first-level-spacer;
-    }
-
     // Menu levels loop for padding left/right
-    @for $i from 2 through $menu-max-levels {
-        $selector: '';
+    @for $i from 1 through $menu-max-levels {
+        $selector: ' > .menu-sub > .menu-item';
 
         @for $l from 1 through $i {
-            $selector: '#{$selector} .menu-sub';
+            $selector: '#{$selector} > .menu-sub > .menu-item';
         }
         .layout-wrapper:not(.layout-horizontal) & {
             .menu-inner > .menu-item {
                 #{$selector} {
-                    .menu-link {
+                    > .menu-link {
                         padding-inline-start: $menu-first-level-spacer +
-                            ($menu-vertical-menu-level-spacer * ($i)) -
+                            ($menu-vertical-menu-level-spacer * ($i - 1)) -
                             0.225;
                         &::before {
                             inset-inline-start: $menu-icon-expanded-left-spacer +
-                                ($menu-vertical-menu-level-spacer * $i) -
+                                ($menu-vertical-menu-level-spacer * ($i - 1)) -
                                 1.5;
                         }
                     }
