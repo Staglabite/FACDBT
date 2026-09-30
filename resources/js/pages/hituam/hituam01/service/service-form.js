@@ -56,10 +56,35 @@ export default class ServiceForm {
     }
 
     #events() {
+        document.getElementById('end').addEventListener('change', () => {
+            this.#validateDateRange();
+        });
+
         this.#serviceForm.addEventListener('submit', event => {
             event.preventDefault();
+
+            if (!this.#validateDateRange()) {
+                return;
+            }
+
             this.#submitForm();
         });
+    }
+
+    #validateDateRange() {
+        const beginDate = document.getElementById('begin').value.slice(0, 10);
+        const endDate = document.getElementById('end').value.slice(0, 10);
+
+        if (!beginDate || !endDate || endDate >= beginDate) {
+            return true;
+        }
+
+        toast.open({
+            type: 'warning',
+            message: 'End Eff Date can not be earlier than Begind Eff Date.'
+        });
+
+        return false;
     }
 
     #submitForm() {

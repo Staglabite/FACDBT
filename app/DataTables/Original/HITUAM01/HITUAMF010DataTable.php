@@ -26,7 +26,7 @@ class HITUAMF010DataTable extends DataTable
             ->addColumn('checkbox', function ($row) {
                 return '
                     <div class="d-flex gap-2 align-items-center">
-                        <input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->id . '">
+                        <input type="checkbox" class="form-check-input" name="selected-configuration[]" value="' . $row->id . '">
                     </div>
                 ';
             })
@@ -40,7 +40,9 @@ class HITUAMF010DataTable extends DataTable
             })
             ->addColumn('action', fn($data) => $this->getActionButton($data))
             ->editColumn('DCREA', function ($data) {
-                return Carbon::parse($data->DCREA)->format('d M Y H:i');
+                return $data->DCREA
+                    ? Carbon::parse($data->DCREA)->format('d M Y H:i')
+                    : null;
             })
             ->editColumn('DMODI', function ($data) {
                 return $data->DMODI
@@ -48,7 +50,10 @@ class HITUAMF010DataTable extends DataTable
                     : null; // atau '-'
             })
             ->rawColumns(['checkbox', 'action'])
-            ->setRowId('IID');
+            ->setRowId('IID')
+            ->filterColumn('DCREA', function ($query, $keyword) {
+                $this->applyDateRangeFilter($query, 'DCREA', $keyword);
+            });
     }
 
     /**
@@ -94,17 +99,17 @@ class HITUAMF010DataTable extends DataTable
                     "<'d-flex align-items-center justify-content-center justify-content-lg-between flex-wrap gap-2 text-center px-6 mt-6'ip>",
                 'drawCallback' => '
                     function() {
-                        $("#select-all-service").off("click").on("click", function(){
+                        $("#select-all-configuration").off("click").on("click", function(){
                             var checked = this.checked;
-                            $("input[name=\'selected-service[]\']").prop("checked", checked).trigger("change");
+                            $("input[name=\'selected-configuration[]\']").prop("checked", checked).trigger("change");
                         });
 
-                        $("input[name=\'selected-service[]\']").off("change").on("change", function(){
-                            var anyChecked = $("input[name=\'selected-service[]\']:checked").length > 0;
-                            $("#btn-delete-selected-service").toggleClass("d-none", !anyChecked);
+                        $("input[name=\'selected-configuration[]\']").off("change").on("change", function(){
+                            var anyChecked = $("input[name=\'selected-configuration[]\']:checked").length > 0;
+                            $("#btn-delete-selected").toggleClass("d-none", !anyChecked);
 
-                            var allChecked = $("input[name=\'selected-service[]\']").length === $("input[name=\'selected-service[]\']:checked").length;
-                            $("#select-all-service").prop("checked", allChecked);
+                            var allChecked = $("input[name=\'selected-configuration[]\']").length === $("input[name=\'selected-configuration[]\']:checked").length;
+                            $("#select-all-configuration").prop("checked", allChecked);
                         });
                     }
                 ',
@@ -118,7 +123,7 @@ class HITUAMF010DataTable extends DataTable
     {
         return [
             Column::computed('checkbox')
-                ->title('<input type="checkbox" class="form-check-input" id="select-all">')
+                ->title('<input type="checkbox" class="form-check-input" id="select-all-configuration">')
                 ->exportable(false)
                 ->printable(false)
                 ->orderable(false)

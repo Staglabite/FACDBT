@@ -47,12 +47,12 @@ class HITUAM_MSHMENU extends BaseModel
     // Relations
     public function child(): HasMany
     {
-        return $this->hasMany($this, 'VPARENT', 'IID');
+        return $this->hasMany($this, 'VPARENT', 'VAPPID');
     }
 
     public function parent(): BelongsTo
     {
-        return $this->belongsTo($this, 'VPARENT', 'IID');
+        return $this->belongsTo($this, 'VPARENT', 'VAPPID');
     }
 
     public function application(): BelongsTo

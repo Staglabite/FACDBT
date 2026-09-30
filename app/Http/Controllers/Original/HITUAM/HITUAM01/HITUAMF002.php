@@ -229,7 +229,7 @@ class HITUAMF002 extends Controller
                             'VTYPEAPP'      => $data['type'],
                             'NSORTAPP'      => (int) $data['order'],
                             'NSORTPROJECT'  => $application?->IID,
-                            'VPARENT'       => $parentMenu?->IID,
+                            'VPARENT'       => $parentMenu?->VAPPID,
                         ]);
                     }
 

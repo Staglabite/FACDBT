@@ -156,7 +156,7 @@ $configData = Helper::appClasses();
 
                     <li class="menu-item {{ $menuActiveClass }}">
                         <a href="{{ $menuHref }}"
-                            class="p-2 {{ isset($menu->children) && $menu->children->count() > 0 ? 'menu-link menu-toggle' : 'menu-link' }}">
+                            class="{{ isset($menu->children) && $menu->children->count() > 0 ? 'menu-link menu-toggle' : 'menu-link' }}">
                             @if (isset($menu->VICON) && !empty($menu->VICON))
                             <i class="menu-icon me-2 icon-base ti tabler-{{ $menu->VICON }}"></i>
                             @endif

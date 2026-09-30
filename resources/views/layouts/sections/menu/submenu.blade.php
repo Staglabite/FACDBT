@@ -62,7 +62,7 @@
 
             <li class="menu-item {{ $activeClass }}">
                 <a href="{{ $submenuHref }}"
-                    class="p-2 {{ isset($submenu->children) && $submenu->children->count() > 0 ? 'menu-link menu-toggle' : 'menu-link' }}">
+                    class="{{ isset($submenu->children) && $submenu->children->count() > 0 ? 'menu-link menu-toggle' : 'menu-link' }}">
                     @if (isset($submenu->VICON) && !empty($submenu->VICON))
                         <i class="menu-icon me-2 icon-base ti tabler-{{ $submenu->VICON }}"></i>
                     @endif
