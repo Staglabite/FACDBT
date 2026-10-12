@@ -74,7 +74,7 @@ class FACDBTF002DataTable extends DataTable
     public function html(): HtmlBuilder
     {
         return $this->builder()
-            ->setTableId('facdbt002-table') // ID Table di Blade
+            ->setTableId('facdbtf002-table') // ID Table di Blade
             ->columns($this->getColumns())
             ->minifiedAjax()
             ->parameters([
