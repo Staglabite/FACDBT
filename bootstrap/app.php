@@ -23,9 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->middleware(['web'])
                 ->group(__DIR__ . '/../routes/web/HITUAM.php');
 
-            // Route::prefix('FACTWM')
-            //     ->middleware(['web'])
-            //     ->group(__DIR__ . '/../routes/web/FACTWM.php');
+            Route::prefix('FACDBT')
+                ->middleware(['web'])
+                ->group(__DIR__ . '/../routes/web/FACDBT.php');
 
             Route::prefix('HITUAM/web-api')
                 ->middleware(['web'])
@@ -37,9 +37,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
             Route::prefix('HITUAM/api')
                 ->group(__DIR__ . '/../routes/api/HITUAM.php');
-
-            // Route::prefix('FACTWM/api')
-            //     ->group(__DIR__ . '/../routes/api/FACTWM.php');
         },
 
     )
@@ -52,54 +49,5 @@ return Application::configure(basePath: dirname(__DIR__))
             'check.token' => \App\Http\Middleware\CheckToken::class
         ]);
     })
-    // ->booted(function () {
-    //     // Load SFTP environment file
-    //     if (file_exists(base_path('credential/sftp.env'))) {
-    //         Dotenv::createImmutable(base_path('credential'), 'sftp.env')->safeLoad();
-    //     }
-    // })
     ->withExceptions(function (Exceptions $exceptions) {
-        // $exceptions->render(function (Throwable $th, Request $request) {
-        //     $thCode = intval($th->getCode());
-
-        //     if ($request->expectsJson() || $request->ajax()) {
-        //         $response = [
-        //             'success' => false,
-        //             'message' => $th->getMessage(),
-        //         ];
-
-        //         $statusCode = match (true) {
-        //             $th instanceof \Illuminate\Validation\ValidationException => 422,
-        //             $th instanceof Illuminate\Auth\AuthenticationException => 401,
-        //             $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException => 404,
-        //             $th instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException => 404,
-        //             $th instanceof \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException => 405,
-        //             $th instanceof \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException => 403,
-        //             $th instanceof \Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException => 429,
-        //             default => $thCode < 500 && $thCode >= 100 ? $thCode : 500,
-        //         };
-
-        //         $response['message'] = match (true) {
-        //             $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException => 'Resource not found',
-        //             $th instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException => $th->getMessage() ?? 'Route not found',
-        //             $th instanceof \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException => 'Method not allowed',
-        //             $th instanceof \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException => 'Access denied',
-        //             $th instanceof \Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException => 'Too many requests',
-        //             default => $th->getMessage(),
-        //         };
-
-        //         if ($th instanceof \Illuminate\Validation\ValidationException) {
-        //             $response['errors'] = $th->errors();
-        //         }
-
-        //         return response()->json($response, $statusCode);
-        //     }
-
-        //     // Let Laravel handle non-JSON requests normally
-        //     return null;
-        // });
-
-        // $exceptions->renderable(function (ResponseException $e, $request) {
-        //     $e->render($request);
-        // });
     })->create();

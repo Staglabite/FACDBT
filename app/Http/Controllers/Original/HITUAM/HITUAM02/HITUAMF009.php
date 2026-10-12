@@ -112,11 +112,11 @@ class HITUAMF009 extends Controller
         $this->loginThrottle->clear($ipAddress);
 
         // Is this account login in other device?
-        if ($this->authService->userLoggedInOtherDevice($user)) {
-            throw ValidationException::withMessages([
-                'username' => 'Your account is currently active on another device. Please logout from the other device first or contact administrator.',
-            ]);
-        }
+        // if ($this->authService->userLoggedInOtherDevice($user)) {
+        //     throw ValidationException::withMessages([
+        //         'username' => 'Your account is currently active on another device. Please logout from the other device first or contact administrator.',
+        //     ]);
+        // }
 
         Auth::login($user, $request->has('remember'));
 

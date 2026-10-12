@@ -36,7 +36,7 @@
         "@yaireo/tagify": "4.32.2",
         "animate.css": "4.1.1",
         "aos": "2.3.4",
-        "apexcharts": "4.2.0",
+        "apexcharts": "^4.7.0",
         "bloodhound-js": "1.2.3",
         "bootstrap": "5.3.6",
         "bootstrap-daterangepicker": "3.1.0",

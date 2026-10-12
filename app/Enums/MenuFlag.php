@@ -9,4 +9,5 @@ enum MenuFlag: string
     case TRANS = 'Transactions';
     case SETTING = 'Settings';
     case REPORT = 'Report';
+    case DASHBOARD = 'Dashboard'; 
 }

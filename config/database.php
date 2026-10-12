@@ -142,6 +142,26 @@ return [
             'sslmode' => 'prefer',
         ],
 
+        'INV_TAKING' => [
+            'driver' => 'mysql', // Driver wajib 'mysql'
+            'url' => env('DB_INV_TAKING_URL'),
+            'host' => env('DB_INV_TAKING_HOST', '127.0.0.1'),
+            'port' => env('DB_INV_TAKING_PORT', '3306'), // Default MySQL 3306
+            'database' => env('DB_INV_TAKING_DATABASE', 'laravel'),
+            'username' => env('DB_INV_TAKING_USERNAME', 'root'),
+            'password' => env('DB_INV_TAKING_PASSWORD', ''),
+            'unix_socket' => env('DB_INV_TAKING_SOCKET', ''),
+            'charset' => env('DB_INV_TAKING_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_INV_TAKING_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
     ],
 
     /*

@@ -10,4 +10,16 @@
     /* default width */
     height: auto;
     border-radius: 10px;
+
+#chart-non-oil, #chart-oil {
+    border: 1px solid #222;
+    border-radius: 14px;
+    padding: 8px 12px;
+}
+}
+
+.apexcharts-point-annotations,
+.apexcharts-xaxis-annotations,
+.apexcharts-yaxis-annotations {
+    pointer-events: none;
 }
