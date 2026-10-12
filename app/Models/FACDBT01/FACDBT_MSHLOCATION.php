@@ -76,4 +76,13 @@ class FACDBT_MSHLOCATION extends Model
     {
         return $this->hasMany(FACDBT_SIMINVTAKINGDATATAB::class, 'LOCATION_NO', 'location_no');
     }
+
+    /**
+     * Relasi balik ke model FACDBT_SIMINVGROUPLOCATION (One to Many)
+     * 1 Location bisa terdaftar di banyak Group Location berdasarkan location_no.
+     */
+    public function groupLocations()
+    {
+        return $this->hasMany(FACDBT_SIMINVGROUPLOCATION::class, 'LOCATION_NO', 'location_no');
+    }
 }
