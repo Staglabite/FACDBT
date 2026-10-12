@@ -5,6 +5,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF001;
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF002;
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF003; 
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF004; 
+use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF005;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD001;
 use Illuminate\Support\Facades\Route;
 
@@ -66,6 +67,20 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::get('/{id}', 'show')->name('facdbtf004.show');
         Route::put('/{id}', 'update')->name('facdbtf004.update');
         Route::delete('/{id}', 'destroy')->name('facdbtf004.destroy');
+    });
+
+    // Route untuk Master Group Location (FACDBT005)
+    Route::group(['prefix' => 'master-grouplocation', 'controller' => FACDBTF005::class], function () {
+        Route::get('/', 'index')->name('facdbtf005.index');
+        Route::post('/', 'store')->name('facdbtf005.store');
+
+        Route::get('/download-template', 'downloadTemplate')->name('facdbtf005.download-template');
+        Route::post('/import', 'import')->name('facdbtf005.import');
+        Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf005.delete-multiple');
+
+        Route::get('/{id}', 'show')->name('facdbtf005.show');
+        Route::put('/{grouplocation}', 'update')->name('facdbtf005.update');
+        Route::delete('/{grouplocation}', 'destroy')->name('facdbtf005.destroy');
     });
 
 });
