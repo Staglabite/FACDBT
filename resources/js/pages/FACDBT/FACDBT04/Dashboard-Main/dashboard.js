@@ -415,7 +415,7 @@ class Dashboard {
                 markers: { size: 6, shape: 'circle', strokeWidth: 0 },
                 itemMargin: { horizontal: 8 }
             },
-            grid: { show: false, padding: { left: 30, right: 30 } },
+            grid: { show: false, padding: { left: 55, right: 30 } },
             tooltip: {
                 shared: true,
                 intersect: false,
