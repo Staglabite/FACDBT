@@ -5,7 +5,7 @@ namespace App\Models\FACDBT01;
 use App\Models\BaseModel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class PpcsoiMshsubarealines extends BaseModel
+class FACDBT_MASHSUBAREALINES extends BaseModel
 {
     use HasFactory;
 
@@ -51,32 +51,29 @@ class PpcsoiMshsubarealines extends BaseModel
     ];
 
     /**
-     * Relasi ke model PpcsoiMshareas (Tabel Area)
+     * Relasi ke model FACDBT_MSHAREAS (Tabel Area)
      * Mengikat VAREACODE dengan VAREACODE di tabel Area.
      */
     public function area()
     {
-        return $this->belongsTo(PpcsoiMshareas::class, 'VAREACODE', 'VAREACODE');
+        return $this->belongsTo(FACDBT_MSHAREAS::class, 'VAREACODE', 'VAREACODE');
     }
 
     /**
-     * Relasi ke model PpcsoiMshsubareas (Tabel Sub Area)
+     * Relasi ke model FACDBT_MSHSUBAREAS (Tabel Sub Area)
      * Mengikat VSUBAREACODE dengan VSUBAREACODE di tabel Sub Area.
      */
     public function subArea()
     {
-        return $this->belongsTo(PpcsoiMshsubareas::class, 'VSUBAREACODE', 'VSUBAREACODE');
+        return $this->belongsTo(FACDBT_MSHSUBAREAS::class, 'VSUBAREACODE', 'VSUBAREACODE');
     }
 
     /**
-     * Relasi ke model SimInvLocationTest (Tabel Location Utama)
+     * Relasi ke model FACDBT_MSHLOCATION (Tabel Location Utama)
      * Mengikat VLOCNO di tabel ini dengan location_no di tabel SIM_INV_LOCATION_TEST.
-     */
-    /**
-     * Relasi balik ke model FACDBT_MSHLOCATION
      */
     public function location()
     {
-        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'location_no', 'location_no');
+        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'VLOCNO', 'location_no');
     }
 }

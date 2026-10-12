@@ -49,7 +49,7 @@ class FACDBT_MSHLOCATION extends Model
      */
     public function lines()
     {
-        return $this->hasMany(FACDBT_MASHSUBAREALINES::class, 'location_no', 'location_no');
+        return $this->hasMany(FACDBT_MASHSUBAREALINES::class, 'VLOCNO', 'location_no');
     }
 
     /**

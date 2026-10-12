@@ -79,7 +79,7 @@ class FACDBTF001 extends Controller
 
     public function destroy(Location $location)
     {
-        // Mengecek relasi dengan 'lines' (PpcsoiMshsubarealines) sebelum menghapus
+        // Mengecek relasi dengan 'lines' (FACDBT_MASHSUBAREALINES) sebelum menghapus
         $lineCount = $location->lines()->count();
 
         if ($lineCount > 0) {

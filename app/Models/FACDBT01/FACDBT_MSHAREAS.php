@@ -5,7 +5,7 @@ namespace App\Models\FACDBT01;
 use App\Models\BaseModel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class PpcsoiMshareas extends BaseModel
+class FACDBT_MSHAREAS extends BaseModel
 {
     use HasFactory;
 
@@ -45,12 +45,12 @@ class PpcsoiMshareas extends BaseModel
     ];
 
     /**
-     * Relasi ke model PpcsoiMshsubareas (One to Many)
+     * Relasi ke model FACDBT_MSHSUBAREAS (One to Many)
      * 1 Area memiliki banyak Sub Area.
      */
     public function subAreas()
     {
-        return $this->hasMany(PpcsoiMshsubareas::class, 'VAREACODE', 'VAREACODE');
+        return $this->hasMany(FACDBT_MSHSUBAREAS::class, 'VAREACODE', 'VAREACODE');
     }
 
     /**
@@ -58,6 +58,6 @@ class PpcsoiMshareas extends BaseModel
      */
     public function lines()
     {
-        return $this->hasMany(PpcsoiMshsubarealines::class, 'VAREACODE', 'VAREACODE');
+        return $this->hasMany(FACDBT_MASHSUBAREALINES::class, 'VAREACODE', 'VAREACODE');
     }
 }
