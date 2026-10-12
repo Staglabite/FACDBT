@@ -71,7 +71,7 @@ public function query(TakingBook $model)
     public function html(): HtmlBuilder
     {
         return $this->builder()
-            ->setTableId('facdbt004-table') // ID Table disesuaikan ke FACDBT004
+            ->setTableId('facdbtf004-table') // ID Table disesuaikan ke FACDBT004
             ->columns($this->getColumns())
             ->minifiedAjax()
             ->parameters([

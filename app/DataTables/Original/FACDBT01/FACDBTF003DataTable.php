@@ -73,7 +73,7 @@ class FACDBTF003DataTable extends DataTable
     public function html(): HtmlBuilder
     {
         return $this->builder()
-            ->setTableId('facdbt003-table') // ID Table disesuaikan ke FACDBT003
+            ->setTableId('facdbtf003-table') // ID Table disesuaikan ke FACDBT003
             ->columns($this->getColumns())
             ->minifiedAjax()
             ->parameters([

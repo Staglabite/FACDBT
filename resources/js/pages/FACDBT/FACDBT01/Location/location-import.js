@@ -61,7 +61,7 @@ class LocationImport {
                 'Content-Type': 'multipart/form-data'
             }
         }).then(response => {
-            $('#FACDBTf001-table').DataTable().ajax.reload(); // Memperbarui datatable utama
+            $('#facdbtf001-table').DataTable().ajax.reload(); // Memperbarui datatable utama
             toast.success(response.data.message);
             this.#locationModalImport.hide();
         }).catch(error => {
