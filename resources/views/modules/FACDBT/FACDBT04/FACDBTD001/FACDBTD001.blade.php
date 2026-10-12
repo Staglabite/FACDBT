@@ -18,24 +18,24 @@
 
 <div class="row">
 
-    <div class="col-12 col-xl-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header text-center pb-0">
-                <h5 class="card-title mb-0 fw-bold">Counting Progress</h5>
+    <div class="col-12 col-xl-8 mb-4">
+        <div class="card h-100 shadow-none border border-dark rounded-3">
+            <div class="card-header text-center pt-3 pb-0">
+                <h5 class="card-title mb-0 fw-semibold">Counting Progress</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body pt-0">
                 <div id="chart-non-oil"></div>
             </div>
         </div>
     </div>
     
 
-    <div class="col-12 col-xl-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header text-center pb-0">
-                <h5 class="card-title mb-0 fw-bold">Counting Progress Oil</h5>
+    <div class="col-12 col-xl-4 mb-4">
+        <div class="card h-100 shadow-none border border-dark rounded-3">
+            <div class="card-header text-center pt-3 pb-0">
+                <h5 class="card-title mb-0 fw-semibold">Counting Progress Oil</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body pt-0">
                 <div id="chart-oil"></div>
             </div>
         </div>

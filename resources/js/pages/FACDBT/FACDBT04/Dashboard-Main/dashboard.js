@@ -13,7 +13,6 @@ const SVG_NS        = 'http://www.w3.org/2000/svg';
 
 const THEMES = {
     nonOil: {
-        title: 'Non-Oil Progress',
         column: '#B5DEB4',
         line: '#14229B',
         itemBg: '#3D3D3D',
@@ -24,7 +23,6 @@ const THEMES = {
         lineMax: 140
     },
     oil: {
-        title: 'Oil Progress',
         column: '#666666',
         line: '#EAE095',
         itemBg: '#EAE095',
@@ -105,13 +103,17 @@ class Dashboard {
         layer.style.pointerEvents = 'none';
         host.appendChild(layer);
 
-        const step = g.gridWidth / categories.length;
+        // Posisi X/Y diambil dari titik line yang sudah digambar ApexCharts supaya label
+        // selalu tepat di atas titik / bar (fallback ke pembagian rata bila belum tersedia).
+        const lineX = (g.seriesXvalues && g.seriesXvalues[1]) || [];
+        const lineY = (g.seriesYvalues && g.seriesYvalues[1]) || [];
+        const step  = g.gridWidth / categories.length;
 
         const addLabel = (cx, bottomY, text, bg, color) => {
             const t = document.createElementNS(SVG_NS, 'text');
             t.setAttribute('text-anchor', 'middle');
             t.setAttribute('dominant-baseline', 'central');
-            t.setAttribute('font-size', '11');
+            t.setAttribute('font-size', '12');
             t.setAttribute('font-weight', '600');
             t.setAttribute('font-family', 'inherit');
             t.setAttribute('fill', color);
@@ -126,7 +128,7 @@ class Dashboard {
             rect.setAttribute('y', bottom - LABEL_HEIGHT);
             rect.setAttribute('width', width);
             rect.setAttribute('height', LABEL_HEIGHT);
-            rect.setAttribute('rx', 3);
+            rect.setAttribute('rx', 4);
             rect.setAttribute('fill', bg);
             layer.insertBefore(rect, t);
 
@@ -135,11 +137,11 @@ class Dashboard {
         };
 
         categories.forEach((_, i) => {
-            const cx   = step * i + step / 2;
+            const cx   = Number.isFinite(lineX[i]) ? lineX[i] : step * i + step / 2;
             const qty  = Number(qtyData[i]);
             const item = Number(itemData[i]);
 
-            const pointY = g.gridHeight * (1 - item / theme.lineMax);
+            const pointY = Number.isFinite(lineY[i]) ? lineY[i] : g.gridHeight * (1 - item / theme.lineMax);
             addLabel(cx, pointY - ITEM_GAP, this.fmtPct(item), theme.itemBg, theme.itemColor);
 
             if (qty >= MIN_QTY_LABEL) {
@@ -157,7 +159,7 @@ class Dashboard {
                 { name: '% Item', type: 'line',   data: itemData }
             ],
             chart: {
-                height: 320,
+                height: 300,
                 type: 'line',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -168,14 +170,9 @@ class Dashboard {
                     updated: redraw
                 }
             },
-            title: {
-                text: theme.title || '',
-                align: 'center',
-                style: { fontSize: '16px', fontWeight: 600, color: '#333' }
-            },
             colors: [theme.column, theme.line],
             plotOptions: {
-                bar: { columnWidth: '60%', borderRadius: 2 }
+                bar: { columnWidth: '72%', borderRadius: 0 }
             },
             stroke: { width: [0, 3], curve: 'straight' },
             fill: { opacity: 1 },
@@ -192,20 +189,23 @@ class Dashboard {
                 categories,
                 axisBorder: { show: false },
                 axisTicks: { show: false },
-                labels: { style: { colors: '#666', fontSize: '12px' } }
+                tooltip: { enabled: false },
+                labels: { style: { colors: '#555555', fontSize: '12px' } }
             },
             yaxis: [
-                { min: 0, max: theme.columnMax, labels: { show: false } },
-                { opposite: true, min: 0, max: theme.lineMax, labels: { show: false } }
+                // show: false supaya sumbu Y tidak memakan ruang lebar chart
+                { show: false, min: 0, max: theme.columnMax },
+                { show: false, opposite: true, min: 0, max: theme.lineMax }
             ],
             legend: {
                 position: 'top',
                 horizontalAlign: 'left',
                 fontSize: '12px',
-                labels: { colors: '#666' },
-                markers: { width: 10, height: 10, radius: 10 }
+                labels: { colors: '#555555' },
+                markers: { size: 6, shape: 'circle', strokeWidth: 0 },
+                itemMargin: { horizontal: 6 }
             },
-            grid: { show: false },
+            grid: { show: false, padding: { left: 10, right: 10 } },
             tooltip: {
                 shared: true,
                 intersect: false,
