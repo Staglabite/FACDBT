@@ -75,20 +75,15 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Subquery pemetaan lokasi -> nama area (VAREANAME dari PPCSOI_MSHAREAS).
-     * DISTINCT per (lokasi, area) supaya lokasi di lebih dari satu area tidak hilang.
-     * Jalur utama : SUBAREALINES.VSUBAREACODE -> SUBAREAS -> AREAS.
-     * Fallback    : bila kode subarea ternyata sama dengan VAREACODE (mis. 'OIL GD. E dan F').
+     * Subquery pemetaan lokasi -> area (location_group dari SIM_INV_GROUP_LOCATION).
+     * DISTINCT per (lokasi, area) supaya lokasi di lebih dari satu group tidak hilang.
      */
     private function areaMapSub($db)
     {
-        return $db->table('PPCSOI_MSHSUBAREALINES as sal')
-            ->leftJoin('PPCSOI_MSHSUBAREAS as sa', DB::raw('TRIM(sal.VSUBAREACODE)'), '=', DB::raw('TRIM(sa.VSUBAREACODE)'))
-            ->leftJoin('PPCSOI_MSHAREAS as a', DB::raw('TRIM(sa.VAREACODE)'), '=', DB::raw('TRIM(a.VAREACODE)'))
-            ->leftJoin('PPCSOI_MSHAREAS as a2', DB::raw('TRIM(sal.VSUBAREACODE)'), '=', DB::raw('TRIM(a2.VAREACODE)'))
+        return $db->table('SIM_INV_GROUP_LOCATION as gl')
             ->select(
-                DB::raw('TRIM(sal.VLOCNO) as loc_no'),
-                DB::raw("COALESCE(NULLIF(TRIM(a.VAREANAME), ''), NULLIF(TRIM(a2.VAREANAME), '')) as area_name")
+                DB::raw('TRIM(gl.LOCATION_NO) as loc_no'),
+                DB::raw("NULLIF(TRIM(gl.location_group), '') as area_name")
             )
             ->distinct();
     }
@@ -292,7 +287,7 @@ class FACDBTD001 extends Controller
             return response()->json(['parts' => [], 'oil' => []]);
         }
 
-        $cacheKey = "FACDBTD001:area:v5:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+        $cacheKey = "FACDBTD001:area:v6:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
 
         $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo) {
             $areaSub = $this->areaMapSub($db);
@@ -333,12 +328,12 @@ class FACDBTD001 extends Controller
             $partsData = [];
             $oilData   = [];
 
-            // Daftar area diambil dari MASTER (PPCSOI_MSHAREAS.VAREANAME), bukan hanya dari
+            // Daftar area diambil dari MASTER (SIM_INV_GROUP_LOCATION.location_group), bukan hanya dari
             // data book, supaya semua area tetap tampil (0% bila belum ada data book).
             $grouped      = $bookRows->groupBy('area_label');
-            $allAreaNames = $db->table('PPCSOI_MSHAREAS')
-                ->selectRaw('TRIM(VAREANAME) as area_name')
-                ->whereRaw("TRIM(VAREANAME) <> ''")
+            $allAreaNames = $db->table('SIM_INV_GROUP_LOCATION')
+                ->selectRaw('TRIM(location_group) as area_name')
+                ->whereRaw("TRIM(location_group) <> ''")
                 ->distinct()
                 ->pluck('area_name')
                 ->all();
