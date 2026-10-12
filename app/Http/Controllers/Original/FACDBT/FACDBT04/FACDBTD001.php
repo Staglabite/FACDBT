@@ -50,20 +50,26 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Subquery: 1 baris per PART_NO (is_oil + total qty book).
-     * Cost di-group dulu supaya join tidak menggandakan baris / SUM(QUANTITY).
+     * Subquery: 1 baris per part_no dengan flag is_oil (inventory_uom = ml).
+     * Di-group supaya join tidak menggandakan baris / SUM(QUANTITY).
      */
-    private function bookPartsSub($db, string $takingDate, string $closeDate, string $invListNo)
+    private function oilPartsSub($db)
     {
-        $costSub = $db->table('SIM_INV_UNIT_COST_TEST')
+        return $db->table('SIM_INV_UNIT_COST_TEST')
             ->select(
                 'part_no',
                 DB::raw("MAX(CASE WHEN LOWER(inventory_uom) = 'ml' THEN 1 ELSE 0 END) as is_oil")
             )
             ->groupBy('part_no');
+    }
 
+    /**
+     * Subquery: 1 baris per PART_NO (is_oil + total qty book).
+     */
+    private function bookPartsSub($db, string $takingDate, string $closeDate, string $invListNo)
+    {
         return $db->table('SIM_INV_TAKING_BOOK_TAB as b')
-            ->leftJoinSub($costSub, 'cost', 'cost.part_no', '=', 'b.PART_NO')
+            ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
             ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('b.INV_LIST_NO', $invListNo)
             ->groupBy('b.PART_NO')
@@ -287,19 +293,26 @@ class FACDBTD001 extends Controller
             return response()->json(['parts' => [], 'oil' => []]);
         }
 
-        $cacheKey = "FACDBTD001:area:v6:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+        $cacheKey = "FACDBTD001:area:v7:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
 
         $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo) {
             $areaSub = $this->areaMapSub($db);
 
-            // Book dikelompokkan di database: 1 baris per (area, part)
+            // Book dikelompokkan di database: 1 baris per (area, part).
+            // Part oil (inventory_uom = ml) dipisah ke area 'OIL <location_group>' per part,
+            // karena satu lokasi bisa berisi part oil dan non-oil sekaligus.
             $bookRows = $db->table('SIM_INV_TAKING_BOOK_TAB as b')
                 ->leftJoinSub($areaSub, 'ar', DB::raw('TRIM(b.LOCATION_NO)'), '=', 'ar.loc_no')
+                ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
                 ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
                 ->where('b.INV_LIST_NO', $latestInvListNo)
                 ->groupBy('area_label', 'b.PART_NO')
                 ->select([
-                    DB::raw("COALESCE(ar.area_name, 'UNKNOWN') as area_label"),
+                    DB::raw("CASE
+                        WHEN COALESCE(cost.is_oil, 0) = 1 AND COALESCE(ar.area_name, 'UNKNOWN') NOT LIKE 'OIL %'
+                            THEN CONCAT('OIL ', COALESCE(ar.area_name, 'UNKNOWN'))
+                        ELSE COALESCE(ar.area_name, 'UNKNOWN')
+                    END as area_label"),
                     'b.PART_NO',
                     DB::raw('SUM(b.QUANTITY) as qty_book'),
                 ])
