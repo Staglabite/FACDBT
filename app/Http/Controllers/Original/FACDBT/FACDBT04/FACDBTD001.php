@@ -293,7 +293,7 @@ class FACDBTD001 extends Controller
             return response()->json(['parts' => [], 'oil' => []]);
         }
 
-        $cacheKey = "FACDBTD001:area:v7:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+        $cacheKey = "FACDBTD001:area:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
 
         $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo) {
             $areaSub = $this->areaMapSub($db);
@@ -301,6 +301,7 @@ class FACDBTD001 extends Controller
             // Book dikelompokkan di database: 1 baris per (area, part).
             // Part oil (inventory_uom = ml) dipisah ke area 'OIL <location_group>' per part,
             // karena satu lokasi bisa berisi part oil dan non-oil sekaligus.
+            // Part oil di lokasi / group PPC digabung menjadi satu area 'PPC-OIL'.
             $bookRows = $db->table('SIM_INV_TAKING_BOOK_TAB as b')
                 ->leftJoinSub($areaSub, 'ar', DB::raw('TRIM(b.LOCATION_NO)'), '=', 'ar.loc_no')
                 ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
@@ -309,6 +310,9 @@ class FACDBTD001 extends Controller
                 ->groupBy('area_label', 'b.PART_NO')
                 ->select([
                     DB::raw("CASE
+                        WHEN COALESCE(cost.is_oil, 0) = 1
+                            AND (UPPER(b.LOCATION_NO) LIKE '%PPC%' OR UPPER(COALESCE(ar.area_name, '')) LIKE '%PPC%')
+                            THEN 'PPC-OIL'
                         WHEN COALESCE(cost.is_oil, 0) = 1 AND COALESCE(ar.area_name, 'UNKNOWN') NOT LIKE 'OIL %'
                             THEN CONCAT('OIL ', COALESCE(ar.area_name, 'UNKNOWN'))
                         ELSE COALESCE(ar.area_name, 'UNKNOWN')
