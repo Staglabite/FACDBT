@@ -50,20 +50,26 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Subquery: 1 baris per PART_NO (is_oil + total qty book).
-     * Cost di-group dulu supaya join tidak menggandakan baris / SUM(QUANTITY).
+     * Subquery: 1 baris per part_no dengan flag is_oil (inventory_uom = ml).
+     * Di-group supaya join tidak menggandakan baris / SUM(QUANTITY).
      */
-    private function bookPartsSub($db, string $takingDate, string $closeDate, string $invListNo)
+    private function oilPartsSub($db)
     {
-        $costSub = $db->table('SIM_INV_UNIT_COST_TEST')
+        return $db->table('SIM_INV_UNIT_COST_TEST')
             ->select(
                 'part_no',
                 DB::raw("MAX(CASE WHEN LOWER(inventory_uom) = 'ml' THEN 1 ELSE 0 END) as is_oil")
             )
             ->groupBy('part_no');
+    }
 
+    /**
+     * Subquery: 1 baris per PART_NO (is_oil + total qty book).
+     */
+    private function bookPartsSub($db, string $takingDate, string $closeDate, string $invListNo)
+    {
         return $db->table('SIM_INV_TAKING_BOOK_TAB as b')
-            ->leftJoinSub($costSub, 'cost', 'cost.part_no', '=', 'b.PART_NO')
+            ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
             ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('b.INV_LIST_NO', $invListNo)
             ->groupBy('b.PART_NO')
@@ -75,20 +81,15 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Subquery pemetaan lokasi -> nama area (VAREANAME dari PPCSOI_MSHAREAS).
-     * DISTINCT per (lokasi, area) supaya lokasi di lebih dari satu area tidak hilang.
-     * Jalur utama : SUBAREALINES.VSUBAREACODE -> SUBAREAS -> AREAS.
-     * Fallback    : bila kode subarea ternyata sama dengan VAREACODE (mis. 'OIL GD. E dan F').
+     * Subquery pemetaan lokasi -> area (location_group dari SIM_INV_GROUP_LOCATION).
+     * DISTINCT per (lokasi, area) supaya lokasi di lebih dari satu group tidak hilang.
      */
     private function areaMapSub($db)
     {
-        return $db->table('PPCSOI_MSHSUBAREALINES as sal')
-            ->leftJoin('PPCSOI_MSHSUBAREAS as sa', DB::raw('TRIM(sal.VSUBAREACODE)'), '=', DB::raw('TRIM(sa.VSUBAREACODE)'))
-            ->leftJoin('PPCSOI_MSHAREAS as a', DB::raw('TRIM(sa.VAREACODE)'), '=', DB::raw('TRIM(a.VAREACODE)'))
-            ->leftJoin('PPCSOI_MSHAREAS as a2', DB::raw('TRIM(sal.VSUBAREACODE)'), '=', DB::raw('TRIM(a2.VAREACODE)'))
+        return $db->table('SIM_INV_GROUP_LOCATION as gl')
             ->select(
-                DB::raw('TRIM(sal.VLOCNO) as loc_no'),
-                DB::raw("COALESCE(NULLIF(TRIM(a.VAREANAME), ''), NULLIF(TRIM(a2.VAREANAME), '')) as area_name")
+                DB::raw('TRIM(gl.LOCATION_NO) as loc_no'),
+                DB::raw("NULLIF(TRIM(gl.location_group), '') as area_name")
             )
             ->distinct();
     }
@@ -292,19 +293,26 @@ class FACDBTD001 extends Controller
             return response()->json(['parts' => [], 'oil' => []]);
         }
 
-        $cacheKey = "FACDBTD001:area:v5:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+        $cacheKey = "FACDBTD001:area:v7:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
 
         $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo) {
             $areaSub = $this->areaMapSub($db);
 
-            // Book dikelompokkan di database: 1 baris per (area, part)
+            // Book dikelompokkan di database: 1 baris per (area, part).
+            // Part oil (inventory_uom = ml) dipisah ke area 'OIL <location_group>' per part,
+            // karena satu lokasi bisa berisi part oil dan non-oil sekaligus.
             $bookRows = $db->table('SIM_INV_TAKING_BOOK_TAB as b')
                 ->leftJoinSub($areaSub, 'ar', DB::raw('TRIM(b.LOCATION_NO)'), '=', 'ar.loc_no')
+                ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
                 ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
                 ->where('b.INV_LIST_NO', $latestInvListNo)
                 ->groupBy('area_label', 'b.PART_NO')
                 ->select([
-                    DB::raw("COALESCE(ar.area_name, 'UNKNOWN') as area_label"),
+                    DB::raw("CASE
+                        WHEN COALESCE(cost.is_oil, 0) = 1 AND COALESCE(ar.area_name, 'UNKNOWN') NOT LIKE 'OIL %'
+                            THEN CONCAT('OIL ', COALESCE(ar.area_name, 'UNKNOWN'))
+                        ELSE COALESCE(ar.area_name, 'UNKNOWN')
+                    END as area_label"),
                     'b.PART_NO',
                     DB::raw('SUM(b.QUANTITY) as qty_book'),
                 ])
@@ -333,12 +341,12 @@ class FACDBTD001 extends Controller
             $partsData = [];
             $oilData   = [];
 
-            // Daftar area diambil dari MASTER (PPCSOI_MSHAREAS.VAREANAME), bukan hanya dari
+            // Daftar area diambil dari MASTER (SIM_INV_GROUP_LOCATION.location_group), bukan hanya dari
             // data book, supaya semua area tetap tampil (0% bila belum ada data book).
             $grouped      = $bookRows->groupBy('area_label');
-            $allAreaNames = $db->table('PPCSOI_MSHAREAS')
-                ->selectRaw('TRIM(VAREANAME) as area_name')
-                ->whereRaw("TRIM(VAREANAME) <> ''")
+            $allAreaNames = $db->table('SIM_INV_GROUP_LOCATION')
+                ->selectRaw('TRIM(location_group) as area_name')
+                ->whereRaw("TRIM(location_group) <> ''")
                 ->distinct()
                 ->pluck('area_name')
                 ->all();
