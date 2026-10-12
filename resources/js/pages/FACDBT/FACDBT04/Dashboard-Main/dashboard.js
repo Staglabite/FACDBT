@@ -36,6 +36,23 @@ const THEMES = {
     }
 };
 
+// Tema chart bawah & tombol slot waktu
+const PROGRESS_THEME = {
+    remaining: '#14229B',
+    progress: '#E63946'
+};
+
+const OIL_AREA_THEME = {
+    progress: '#CCCCCC',
+    remaining: '#666666'
+};
+
+const SLOT_THEME = {
+    border: '#C27D60',
+    activeBg: '#333333',
+    text: '#333333'
+};
+
 class Dashboard {
     constructor() {
         this.charts = {};
@@ -224,6 +241,15 @@ class Dashboard {
     // -------------------------------------------------------------
     // 2. Tombol Filter Slot Waktu & Chart Bawah
     // -------------------------------------------------------------
+    styleSlotButton(btn, isActive) {
+        btn.className = `btn btn-sm px-3 py-2 rounded-1 ${isActive ? 'fw-bold' : 'fw-normal'}`;
+        btn.style.border = `1px solid ${SLOT_THEME.border}`;
+        btn.style.fontStyle = 'italic';
+        btn.style.minWidth = '72px';
+        btn.style.backgroundColor = isActive ? SLOT_THEME.activeBg : '#FFFFFF';
+        btn.style.color = isActive ? '#FFFFFF' : SLOT_THEME.text;
+    }
+
     loadTimeSlots() {
         axios.get('FACDBT/ds/main-dashboard/time-slots')
             .then(res => {
@@ -232,41 +258,59 @@ class Dashboard {
                 if (!container || slots.length === 0) return;
 
                 container.innerHTML = '';
+                const buttons = [];
+
                 slots.forEach((s, idx) => {
                     const btn = document.createElement('button');
                     btn.type = 'button';
+                    btn.innerText = s.label;
 
                     // Default aktif pada slot ke-2 (6-07.30)
                     const isActive = idx === 1;
                     if (isActive) {
                         this.selectedTime = s.full_time;
                     }
-
-                    btn.className = `btn btn-sm px-3 py-2 border rounded-1 fw-bold ${
-                        isActive ? 'btn-dark text-white' : 'btn-outline-secondary text-dark bg-white'
-                    }`;
-                    btn.style.borderColor = '#c27d60';
-                    btn.style.fontStyle = 'italic';
-                    btn.innerText = s.label;
+                    this.styleSlotButton(btn, isActive);
 
                     btn.addEventListener('click', () => {
-                        container.querySelectorAll('button').forEach(b => {
-                            b.className = 'btn btn-sm px-3 py-2 border rounded-1 fw-bold btn-outline-secondary text-dark bg-white';
-                            b.style.borderColor = '#c27d60';
-                        });
-                        btn.className = 'btn btn-sm px-3 py-2 border rounded-1 fw-bold btn-dark text-white';
+                        buttons.forEach(b => this.styleSlotButton(b, b === btn));
 
                         // Filter waktu hanya memanggil ulang kedua chart bawah
                         this.selectedTime = s.full_time;
                         this.loadBottomCharts();
                     });
 
+                    buttons.push(btn);
                     container.appendChild(btn);
                 });
 
+                this.addSlotScroller(container);
                 this.loadBottomCharts();
             })
             .catch(err => console.error('Error load time slots:', err));
+    }
+
+    // Tombol panah ">" untuk menggeser daftar slot bila tidak muat di layar
+    addSlotScroller(container) {
+        container.parentElement.querySelectorAll('.slot-scroller').forEach(n => n.remove());
+
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'btn btn-sm btn-link text-dark px-1 slot-scroller';
+        next.setAttribute('aria-label', 'Next time slots');
+        next.innerHTML = '<i class="icon-base ti tabler-chevron-right"></i>';
+        next.addEventListener('click', () => {
+            const atEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 2;
+            container.scrollTo({ left: atEnd ? 0 : container.scrollLeft + container.clientWidth * 0.6, behavior: 'smooth' });
+        });
+
+        container.insertAdjacentElement('afterend', next);
+
+        const toggle = () => {
+            next.classList.toggle('d-none', container.scrollWidth <= container.clientWidth);
+        };
+        toggle();
+        window.addEventListener('resize', toggle);
     }
 
     loadBottomCharts() {
@@ -277,6 +321,10 @@ class Dashboard {
             this.renderOilAreaChart(data.oil || []);
         })
         .catch(err => console.error('Error load area progress:', err));
+    }
+
+    fmtPct2(v) {
+        return `${Number(v || 0).toFixed(2)}%`;
     }
 
     renderProgressChart(items) {
@@ -297,6 +345,7 @@ class Dashboard {
         const categories    = items.map(d => d.area);
         const progressData  = items.map(d => Number(d.pct_progress));
         const remainingData = items.map(d => Number(d.pct_remaining));
+        const colors        = [PROGRESS_THEME.remaining, PROGRESS_THEME.progress];
 
         const options = {
             series: [
@@ -305,47 +354,72 @@ class Dashboard {
             ],
             chart: {
                 type: 'area',
-                height: 380,
+                height: 400,
+                fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
-                animations: { enabled: true }
+                animations: { enabled: true, speed: 500 }
             },
-            colors: ['#14229B', '#E63946'],
+            colors,
             dataLabels: {
                 enabled: true,
-                formatter: val => `${Number(val).toFixed(2)}%`,
-                style: { fontSize: '10px', fontWeight: 'bold', colors: ['#fff'] },
+                offsetY: -8,
+                formatter: val => this.fmtPct2(val),
+                // Saat background aktif, style.colors dipakai sebagai warna kotak label
+                style: { fontSize: '11px', fontWeight: 600, colors },
                 background: {
                     enabled: true,
-                    foreColor: '#fff',
-                    borderRadius: 3,
-                    padding: 3,
-                    opacity: 0.95
+                    foreColor: '#FFFFFF',
+                    borderRadius: 4,
+                    borderWidth: 0,
+                    padding: 5,
+                    opacity: 1,
+                    dropShadow: { enabled: false }
                 }
             },
-            stroke: { curve: 'smooth', width: 3 },
+            stroke: { curve: 'smooth', width: 2 },
             fill: {
                 type: 'solid',
-                opacity: 0.55
+                opacity: [0.6, 0.55]
+            },
+            markers: {
+                size: 4,
+                strokeWidth: 0,
+                hover: { sizeOffset: 2 }
             },
             xaxis: {
-                categories: categories,
+                categories,
+                axisBorder: { show: true, color: '#CCCCCC' },
+                axisTicks: { show: false },
+                tooltip: { enabled: false },
                 labels: {
                     rotate: -45,
                     rotateAlways: true,
-                    style: { fontSize: '11px', colors: '#555' }
+                    trim: false,
+                    maxHeight: 120,
+                    hideOverlappingLabels: false,
+                    style: { fontSize: '11px', colors: '#555555' }
                 }
             },
             yaxis: {
                 min: 0,
-                max: 100,
+                max: 115, // ruang di atas 100% untuk label
                 labels: { show: false }
             },
-            legend: { show: false },
-            grid: { show: false },
+            legend: {
+                show: true,
+                position: 'top',
+                horizontalAlign: 'left',
+                fontSize: '13px',
+                labels: { colors: '#555555' },
+                markers: { size: 6, shape: 'circle', strokeWidth: 0 },
+                itemMargin: { horizontal: 8 }
+            },
+            grid: { show: false, padding: { left: 30, right: 30 } },
             tooltip: {
                 shared: true,
-                y: { formatter: v => `${Number(v).toFixed(2)}%` }
+                intersect: false,
+                y: { formatter: v => this.fmtPct2(v) }
             }
         };
 
@@ -379,40 +453,48 @@ class Dashboard {
             ],
             chart: {
                 type: 'bar',
-                height: 380,
+                // Tinggi menyesuaikan jumlah area supaya bar tidak terlalu tipis / tebal
+                height: Math.max(400, items.length * 90),
+                fontFamily: 'inherit',
                 stacked: true,
                 stackType: '100%',
                 toolbar: { show: false },
-                animations: { enabled: true }
+                animations: { enabled: true, speed: 500 }
             },
             plotOptions: {
                 bar: {
                     horizontal: true,
-                    barHeight: '45%'
+                    barHeight: '75%',
+                    dataLabels: { position: 'center' }
                 }
             },
-            colors: ['#cccccc', '#555555'],
+            colors: [OIL_AREA_THEME.progress, OIL_AREA_THEME.remaining],
             dataLabels: {
                 enabled: true,
-                formatter: val => (val > 0 ? `${Number(val).toFixed(2)}%` : ''),
-                style: { fontSize: '13px', fontWeight: 600, colors: ['#ffffff'] }
+                formatter: val => (val > 0 ? this.fmtPct2(val) : ''),
+                style: { fontSize: '16px', fontWeight: 400, colors: ['#FFFFFF'] },
+                dropShadow: { enabled: false }
             },
             stroke: { width: 0 },
             xaxis: {
-                categories: categories,
+                categories,
                 labels: { show: false },
                 axisBorder: { show: false },
                 axisTicks: { show: false }
             },
             yaxis: {
                 labels: {
-                    style: { fontSize: '12px', fontWeight: 600, colors: '#333' }
+                    maxWidth: 110,
+                    style: { fontSize: '11px', fontWeight: 400, colors: '#555555' }
                 }
             },
             legend: { show: false },
-            grid: { show: false },
+            grid: { show: false, padding: { left: 0, right: 12 } },
+            states: {
+                hover: { filter: { type: 'darken', value: 0.9 } }
+            },
             tooltip: {
-                y: { formatter: v => `${Number(v).toFixed(2)}%` }
+                y: { formatter: v => this.fmtPct2(v) }
             }
         };
 
