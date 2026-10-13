@@ -45,6 +45,16 @@ const OIL_AREA_THEME = {
     remaining: '#666666'
 };
 
+const VARIANCE_THEME = {
+    negative: '#FF0000',
+    positive: '#2E9E2E',
+    labelBg: '#7F7F7F',
+    absolute: '#118DFF'
+};
+
+// Urutan tampilan part group di chart variance (group lain menyusul di belakang)
+const PART_GROUP_ORDER = ['4W', '2W'];
+
 const SLOT_THEME = {
     border: '#C27D60',
     activeBg: '#333333',
@@ -57,6 +67,8 @@ class Dashboard {
         this.selectedTime = null;
         this.progressChart = null;
         this.oilChart = null;
+        this.nettVarianceChart = null;
+        this.absoluteVarianceCharts = [];
     }
 
     init() {
@@ -321,6 +333,206 @@ class Dashboard {
             this.renderOilAreaChart(data.oil || []);
         })
         .catch(err => console.error('Error load area progress:', err));
+
+        this.loadVariance();
+    }
+
+    // -------------------------------------------------------------
+    // 3. Variance (mengikuti filter waktu tombol slot)
+    // -------------------------------------------------------------
+    loadVariance() {
+        axios.get('FACDBT/ds/main-dashboard/variance', { params: { time: this.selectedTime } })
+            .then(res => {
+                const data = res.data || {};
+                const partGroups = this.sortPartGroups(data.by_part_group || []);
+
+                this.renderVarianceSummary(data);
+                this.renderNettVarianceChart(partGroups);
+                this.renderAbsoluteVarianceCharts(partGroups);
+            })
+            .catch(err => console.error('Error load variance:', err));
+    }
+
+    // Format nilai rupiah dalam juta, contoh: -32389123456 -> "-32,389M"
+    fmtMillion(v) {
+        const million = Math.round(Number(v || 0) / 1e6);
+        return `${million.toLocaleString('en-US')}M`;
+    }
+
+    sortPartGroups(groups) {
+        const rank = g => {
+            const idx = PART_GROUP_ORDER.indexOf(String(g.group).toUpperCase());
+            return idx === -1 ? PART_GROUP_ORDER.length : idx;
+        };
+
+        return [...groups].sort((a, b) => rank(a) - rank(b) || String(a.group).localeCompare(String(b.group)));
+    }
+
+    renderVarianceSummary(data) {
+        const byAccounting = {};
+        (data.by_accounting_group || []).forEach(g => {
+            byAccounting[String(g.group).toUpperCase()] = g.nett;
+        });
+
+        document.querySelectorAll('#variance-accounting-groups .variance-value').forEach(el => {
+            el.textContent = this.fmtMillion(byAccounting[el.dataset.group] || 0);
+        });
+
+        const nettEl = document.getElementById('variance-nett-total');
+        const absEl  = document.getElementById('variance-absolute-total');
+        if (nettEl) nettEl.textContent = this.fmtMillion(data.nett);
+        if (absEl) absEl.textContent = this.fmtMillion(data.absolute);
+    }
+
+    // Waterfall: tiap part group berangkat dari total kumulatif group sebelumnya
+    renderNettVarianceChart(groups) {
+        const el = document.querySelector('#chart-nett-variance');
+        if (!el) return;
+
+        if (this.nettVarianceChart) {
+            this.nettVarianceChart.destroy();
+            this.nettVarianceChart = null;
+        }
+
+        if (groups.length === 0) {
+            el.innerHTML = '<p class="text-center text-muted my-5">No Data Available</p>';
+            return;
+        }
+
+        el.innerHTML = '';
+        let running = 0;
+        const points = groups.map(g => {
+            const start = running;
+            running += Number(g.nett || 0);
+
+            return {
+                x: g.group,
+                y: [Math.min(start, running), Math.max(start, running)],
+                fillColor: g.nett < 0 ? VARIANCE_THEME.negative : VARIANCE_THEME.positive,
+                nett: Number(g.nett || 0)
+            };
+        });
+
+        const options = {
+            series: [{ name: 'Nett Variance', data: points }],
+            chart: {
+                type: 'rangeBar',
+                height: 200,
+                fontFamily: 'inherit',
+                toolbar: { show: false },
+                zoom: { enabled: false },
+                animations: { enabled: true, speed: 500 }
+            },
+            plotOptions: {
+                bar: { horizontal: false, columnWidth: '55%' }
+            },
+            dataLabels: {
+                enabled: true,
+                formatter: (val, opts) => this.fmtMillion(points[opts.dataPointIndex].nett),
+                // Saat background aktif, style.colors dipakai sebagai warna kotak label
+                style: { fontSize: '12px', fontWeight: 600, colors: [VARIANCE_THEME.labelBg] },
+                background: {
+                    enabled: true,
+                    foreColor: '#FFFFFF',
+                    borderRadius: 6,
+                    borderWidth: 0,
+                    padding: 6,
+                    opacity: 1,
+                    dropShadow: { enabled: false }
+                }
+            },
+            xaxis: {
+                type: 'category',
+                axisBorder: { show: false },
+                axisTicks: { show: false },
+                labels: { style: { fontSize: '12px', colors: '#555555' } }
+            },
+            yaxis: { show: false },
+            legend: { show: false },
+            grid: { show: false, padding: { left: 10, right: 10 } },
+            tooltip: {
+                custom: ({ dataPointIndex }) => {
+                    const p = points[dataPointIndex];
+                    return `<div class="px-2 py-1"><strong>${p.x}</strong>: ${this.fmtMillion(p.nett)}</div>`;
+                }
+            }
+        };
+
+        this.nettVarianceChart = new ApexCharts(el, options);
+        this.nettVarianceChart.render();
+    }
+
+    // 1 card per part group, skala bar disamakan supaya bisa dibandingkan
+    renderAbsoluteVarianceCharts(groups) {
+        const container = document.querySelector('#chart-absolute-variance');
+        if (!container) return;
+
+        this.absoluteVarianceCharts.forEach(chart => chart.destroy());
+        this.absoluteVarianceCharts = [];
+        container.innerHTML = '';
+
+        if (groups.length === 0) {
+            container.innerHTML = `
+                <div class="card shadow-none border border-dark rounded-3 flex-fill">
+                    <div class="card-body"><p class="text-center text-muted my-4">No Data Available</p></div>
+                </div>`;
+            return;
+        }
+
+        const maxAbs = Math.max(...groups.map(g => Number(g.absolute || 0)), 1);
+
+        // Urutan card: part group terakhir di atas (2W lalu 4W), seperti layout referensi
+        [...groups].reverse().forEach(g => {
+            const card = document.createElement('div');
+            card.className = 'card shadow-none border border-dark rounded-3 flex-fill';
+            card.innerHTML = `
+                <div class="card-header text-center pt-2 pb-0">
+                    <h6 class="card-title mb-0 fw-semibold">Absolute Variance</h6>
+                </div>
+                <div class="card-body py-0"><div class="absolute-variance-chart"></div></div>`;
+            container.appendChild(card);
+
+            const chart = new ApexCharts(card.querySelector('.absolute-variance-chart'), {
+                series: [{ name: 'Absolute Variance', data: [Number(g.absolute || 0)] }],
+                chart: {
+                    type: 'bar',
+                    height: 80,
+                    fontFamily: 'inherit',
+                    toolbar: { show: false },
+                    zoom: { enabled: false },
+                    animations: { enabled: true, speed: 500 }
+                },
+                plotOptions: {
+                    bar: { horizontal: true, barHeight: '60%', dataLabels: { position: 'center' } }
+                },
+                colors: [VARIANCE_THEME.absolute],
+                dataLabels: {
+                    enabled: true,
+                    formatter: val => this.fmtMillion(val),
+                    style: { fontSize: '12px', fontWeight: 600, colors: ['#FFFFFF'] },
+                    dropShadow: { enabled: false }
+                },
+                xaxis: {
+                    categories: [g.group],
+                    min: 0,
+                    max: maxAbs,
+                    labels: { show: false },
+                    axisBorder: { show: false },
+                    axisTicks: { show: false }
+                },
+                yaxis: {
+                    labels: { style: { fontSize: '12px', colors: '#555555' } }
+                },
+                legend: { show: false },
+                grid: { show: false, padding: { top: -10, bottom: -10, right: 10 } },
+                tooltip: {
+                    y: { formatter: v => this.fmtMillion(v) }
+                }
+            });
+
+            chart.render();
+            this.absoluteVarianceCharts.push(chart);
+        });
     }
 
     fmtPct2(v) {

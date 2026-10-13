@@ -95,6 +95,49 @@ class FACDBTD001 extends Controller
     }
 
     /**
+     * Periode taking aktif + waktu filter tombol slot + INV_LIST_NO terbaru.
+     * Dipakai oleh chart bawah (progress by area) dan chart variance.
+     *
+     * @return array{0: string, 1: string, 2: string, 3: string}|null [takingDate, closeDate, selectedTime, invListNo]
+     */
+    private function resolvePeriod($db, Request $request): ?array
+    {
+        $concluding = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
+            ->select('TAKING_DATE', 'CLOSE_DATE')
+            ->orderByDesc('TAKING_DATE')
+            ->first();
+
+        if (!$concluding) {
+            return null;
+        }
+
+        $baseDay    = Carbon::parse($concluding->TAKING_DATE)->startOfDay();
+        $takingDate = $baseDay->format('Y-m-d H:i:s');
+        $closeDate  = Carbon::parse($concluding->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
+
+        // Parameter waktu filter (default ke slot 6-07.30 jika belum ada yang diklik)
+        $selectedTime = $request->get('time');
+        if ($selectedTime) {
+            try {
+                $selectedTime = Carbon::parse($selectedTime)->format('Y-m-d H:i:s');
+            } catch (\Throwable $e) {
+                $selectedTime = null;
+            }
+        }
+        if (!$selectedTime) {
+            $selectedTime = $baseDay->copy()->setTime(7, 30, 0)->format('Y-m-d H:i:s');
+        }
+
+        $latestInvListNo = $this->latestInvListNo($db, $takingDate, $closeDate);
+
+        if ($latestInvListNo === null) {
+            return null;
+        }
+
+        return [$takingDate, $closeDate, $selectedTime, $latestInvListNo];
+    }
+
+    /**
      * Endpoint untuk Chart Atas (Non-Oil & Oil Progress Keseluruhan)
      * Tidak terpengaruh filter tombol waktu
      */
@@ -261,37 +304,12 @@ class FACDBTD001 extends Controller
     {
         $db = DB::connection(self::CONN);
 
-        $concluding = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('TAKING_DATE', 'CLOSE_DATE')
-            ->orderByDesc('TAKING_DATE')
-            ->first();
-
-        if (!$concluding) {
+        $period = $this->resolvePeriod($db, $request);
+        if ($period === null) {
             return response()->json(['parts' => [], 'oil' => []]);
         }
 
-        $baseDay    = Carbon::parse($concluding->TAKING_DATE)->startOfDay();
-        $takingDate = $baseDay->format('Y-m-d H:i:s');
-        $closeDate  = Carbon::parse($concluding->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
-
-        // Parameter waktu filter (default ke slot 6-07.30 jika belum ada yang diklik)
-        $selectedTime = $request->get('time');
-        if ($selectedTime) {
-            try {
-                $selectedTime = Carbon::parse($selectedTime)->format('Y-m-d H:i:s');
-            } catch (\Throwable $e) {
-                $selectedTime = null;
-            }
-        }
-        if (!$selectedTime) {
-            $selectedTime = $baseDay->copy()->setTime(7, 30, 0)->format('Y-m-d H:i:s');
-        }
-
-        $latestInvListNo = $this->latestInvListNo($db, $takingDate, $closeDate);
-
-        if ($latestInvListNo === null) {
-            return response()->json(['parts' => [], 'oil' => []]);
-        }
+        [$takingDate, $closeDate, $selectedTime, $latestInvListNo] = $period;
 
         $cacheKey = "FACDBTD001:area:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
 
@@ -417,6 +435,118 @@ class FACDBTD001 extends Controller
                 ->select('b.LOCATION_NO', 'b.WAREHOUSE', DB::raw('COUNT(DISTINCT b.PART_NO) as parts'))
                 ->get();
         }
+
+        return response()->json($result);
+    }
+
+    /**
+     * Endpoint untuk Chart Variance (Nett & Absolute Variance).
+     * Amount = qty x unit cost per part. Unit cost dari book (UNIT_COST), fallback ke
+     * SIM_INV_UNIT_COST_TEST (mat + lab + foh) untuk part yang tidak ada di book.
+     * - Nett variance     : total amount taking - total amount book
+     * - Absolute variance : jumlah ABS(amount taking - amount book) per part
+     * Dikelompokkan per part_group (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
+     * Taking dihitung kumulatif s/d waktu filter tombol slot (sama seperti chart progress by area).
+     */
+    public function getVariance(Request $request)
+    {
+        $empty = [
+            'nett'              => 0,
+            'absolute'          => 0,
+            'by_part_group'     => [],
+            'by_accounting_group' => [],
+        ];
+
+        $db = DB::connection(self::CONN);
+
+        $period = $this->resolvePeriod($db, $request);
+        if ($period === null) {
+            return response()->json($empty);
+        }
+
+        [$takingDate, $closeDate, $selectedTime, $latestInvListNo] = $period;
+
+        $cacheKey = "FACDBTD001:variance:v1:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+
+        $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo, $empty) {
+            $bookSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
+                ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+                ->where('INV_LIST_NO', $latestInvListNo)
+                ->groupBy('PART_NO')
+                ->select(
+                    'PART_NO',
+                    DB::raw('SUM(QUANTITY) as qty_book'),
+                    DB::raw('MAX(UNIT_COST) as unit_cost')
+                );
+
+            $takingSub = $db->table('SIM_INV_TAKING_DATA_TAB')
+                ->whereBetween('CREATED_DATETIME', [$takingDate, $selectedTime])
+                ->groupBy('PART_NO')
+                ->select('PART_NO', DB::raw('SUM(QTY) as qty_taking'));
+
+            $costSub = $db->table('SIM_INV_UNIT_COST_TEST')
+                ->groupBy('part_no')
+                ->select(
+                    'part_no',
+                    DB::raw('MAX(COALESCE(mat_cost, 0) + COALESCE(lab_cost, 0) + COALESCE(foh_cost, 0)) as unit_cost')
+                );
+
+            // Semua part yang ada di book dan/atau taking
+            $partsSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
+                ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+                ->where('INV_LIST_NO', $latestInvListNo)
+                ->select('PART_NO')
+                ->union(
+                    $db->table('SIM_INV_TAKING_DATA_TAB')
+                        ->whereBetween('CREATED_DATETIME', [$takingDate, $selectedTime])
+                        ->select('PART_NO')
+                );
+
+            // 1 baris per part: variance amount = (qty taking - qty book) x unit cost
+            $perPart = $db->query()
+                ->fromSub($partsSub, 'p')
+                ->leftJoinSub($bookSub, 'bk', 'bk.PART_NO', '=', 'p.PART_NO')
+                ->leftJoinSub($takingSub, 'tk', 'tk.PART_NO', '=', 'p.PART_NO')
+                ->leftJoinSub($costSub, 'uc', 'uc.part_no', '=', 'p.PART_NO')
+                ->leftJoin('SIM_INV_PART_TEST as pm', 'pm.part_no', '=', 'p.PART_NO')
+                ->select(
+                    DB::raw("COALESCE(NULLIF(TRIM(pm.part_group), ''), 'OTHERS') as part_group"),
+                    DB::raw("COALESCE(NULLIF(TRIM(pm.accounting_group), ''), 'OTHERS') as accounting_group"),
+                    DB::raw('(COALESCE(tk.qty_taking, 0) - COALESCE(bk.qty_book, 0))
+                        * COALESCE(NULLIF(bk.unit_cost, 0), uc.unit_cost, 0) as variance')
+                );
+
+            $rows = $db->query()
+                ->fromSub($perPart, 'v')
+                ->groupBy('part_group', 'accounting_group')
+                ->select(
+                    'part_group',
+                    'accounting_group',
+                    DB::raw('SUM(variance) as nett'),
+                    DB::raw('SUM(ABS(variance)) as absolute')
+                )
+                ->get();
+
+            if ($rows->isEmpty()) {
+                return $empty;
+            }
+
+            $summarize = fn ($key) => $rows->groupBy($key)
+                ->map(fn ($items, $group) => [
+                    'group'    => (string) $group,
+                    'nett'     => round((float) $items->sum('nett'), 2),
+                    'absolute' => round((float) $items->sum('absolute'), 2),
+                ])
+                ->values()
+                ->all();
+
+            return [
+                'nett'                => round((float) $rows->sum('nett'), 2),
+                'absolute'            => round((float) $rows->sum('absolute'), 2),
+                'by_part_group'       => $summarize('part_group'),
+                'by_accounting_group' => $summarize('accounting_group'),
+            ];
+        });
 
         return response()->json($result);
     }
