@@ -93,5 +93,6 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/time-slots', 'getTimeSlots')->name('main-dashboard.time-slots');
         Route::get('/progress-by-area', 'getProgressByArea')->name('main-dashboard.progress-by-area');
         Route::get('/variance', 'getVariance')->name('main-dashboard.variance');
+        Route::get('/variance-trend', 'getVarianceTrend')->name('main-dashboard.variance-trend');
     });
 });

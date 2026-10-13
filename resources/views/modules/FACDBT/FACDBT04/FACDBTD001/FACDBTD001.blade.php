@@ -129,6 +129,20 @@
     </div>
 </div>
 
+{{-- Absolute Variance per slot waktu (tidak terpengaruh filter tombol waktu) --}}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-none border border-dark rounded-3">
+            <div class="card-header text-center pt-3 pb-0">
+                <h5 class="card-title mb-0 fw-semibold">Absolute Variance</h5>
+            </div>
+            <div class="card-body pt-0">
+                <div id="chart-variance-trend" style="min-height: 290px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @vite(['resources/js/pages/FACDBT/FACDBT04/Dashboard-Main/dashboard.js'])
 
 @endsection

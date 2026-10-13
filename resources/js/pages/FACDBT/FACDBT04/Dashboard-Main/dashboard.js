@@ -49,7 +49,9 @@ const VARIANCE_THEME = {
     negative: '#FF0000',
     positive: '#2E9E2E',
     labelBg: '#7F7F7F',
-    absolute: '#118DFF'
+    absolute: '#118DFF',
+    trendPositive: '#14229B',
+    trendNegative: '#E63946'
 };
 
 // Urutan tampilan part group di chart variance (group lain menyusul di belakang)
@@ -69,11 +71,13 @@ class Dashboard {
         this.oilChart = null;
         this.nettVarianceChart = null;
         this.absoluteVarianceCharts = [];
+        this.varianceTrendChart = null;
     }
 
     init() {
         this.loadTopCharts();
         this.loadTimeSlots();
+        this.loadVarianceTrend();
     }
 
     // -------------------------------------------------------------
@@ -351,6 +355,112 @@ class Dashboard {
                 this.renderAbsoluteVarianceCharts(partGroups);
             })
             .catch(err => console.error('Error load variance:', err));
+    }
+
+    // Chart Absolute Variance per slot waktu (tidak terpengaruh filter tombol waktu)
+    loadVarianceTrend() {
+        axios.get('FACDBT/ds/main-dashboard/variance-trend')
+            .then(res => this.renderVarianceTrendChart(Array.isArray(res.data) ? res.data : []))
+            .catch(err => console.error('Error load variance trend:', err));
+    }
+
+    renderVarianceTrendChart(items) {
+        const el = document.querySelector('#chart-variance-trend');
+        if (!el) return;
+
+        if (this.varianceTrendChart) {
+            this.varianceTrendChart.destroy();
+            this.varianceTrendChart = null;
+        }
+
+        if (items.length === 0) {
+            el.innerHTML = '<p class="text-center text-muted my-5">No Data Available</p>';
+            return;
+        }
+
+        el.innerHTML = '';
+        const colors     = [VARIANCE_THEME.trendPositive, VARIANCE_THEME.trendNegative];
+        const categories = items.map(d => this.formatTime(d.time));
+        const positive   = items.map(d => Number(d.abs_positive || 0));
+        const negative   = items.map(d => Number(d.abs_negative || 0));
+
+        // Label lewat annotation supaya label [+] bisa di atas titik dan label [-] di bawah titik
+        // (dataLabels ApexCharts hanya punya satu offset untuk semua series, sehingga bisa bertumpuk).
+        const pointLabel = (x, y, color, below) => ({
+            x,
+            y,
+            marker: { size: 0 },
+            label: {
+                text: this.fmtMillion(y),
+                borderWidth: 0,
+                borderRadius: 4,
+                offsetY: below ? 34 : -4,
+                style: {
+                    background: color,
+                    color: '#FFFFFF',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    padding: { left: 6, right: 6, top: 3, bottom: 3 }
+                }
+            }
+        });
+        const labels = categories.flatMap((x, i) => [
+            pointLabel(x, positive[i], colors[0], false),
+            pointLabel(x, negative[i], colors[1], true)
+        ]);
+
+        const options = {
+            series: [
+                { name: 'Abs Var [+]', data: positive },
+                { name: 'Abs Var [-]', data: negative }
+            ],
+            chart: {
+                type: 'area',
+                height: 290,
+                fontFamily: 'inherit',
+                toolbar: { show: false },
+                zoom: { enabled: false },
+                animations: { enabled: true, speed: 500 }
+            },
+            colors,
+            stroke: { curve: 'straight', width: 3 },
+            fill: { type: 'solid', opacity: [0.15, 0.35] },
+            markers: { size: 5, strokeWidth: 0, hover: { sizeOffset: 2 } },
+            dataLabels: { enabled: false },
+            annotations: { points: labels },
+            xaxis: {
+                categories,
+                axisBorder: { show: false },
+                axisTicks: { show: false },
+                tooltip: { enabled: false },
+                // digeser ke bawah supaya tidak tertutup label [-] yang ada di bawah titik
+                labels: { offsetY: 22, style: { fontSize: '12px', colors: '#333333' } }
+            },
+            yaxis: {
+                min: 0,
+                // ruang di atas titik tertinggi untuk label
+                max: max => (max > 0 ? max * 1.25 : 1),
+                labels: { show: false }
+            },
+            legend: {
+                show: true,
+                position: 'top',
+                horizontalAlign: 'right',
+                fontSize: '12px',
+                labels: { colors: '#555555' },
+                markers: { size: 6, shape: 'circle', strokeWidth: 0 },
+                itemMargin: { horizontal: 6 }
+            },
+            grid: { show: false, padding: { left: 40, right: 40, bottom: 45 } },
+            tooltip: {
+                shared: true,
+                intersect: false,
+                y: { formatter: v => this.fmtMillion(v) }
+            }
+        };
+
+        this.varianceTrendChart = new ApexCharts(el, options);
+        this.varianceTrendChart.render();
     }
 
     // Format nilai rupiah dalam juta, contoh: -32389123456 -> "-32,389M"
