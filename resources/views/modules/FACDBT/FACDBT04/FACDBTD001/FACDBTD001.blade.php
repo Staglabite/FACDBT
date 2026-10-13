@@ -23,13 +23,15 @@
 --}}
 <div class="row g-3 mb-4">
     {{-- ===================== Kolom Kiri ===================== --}}
-    <div class="col-12 col-xl-6 d-flex flex-column gap-3">
+    <div class="col-12 col-xl-6">
+      {{-- Tinggi natural kolom (tidak di-stretch) dipakai JS untuk menyamakan bawah kedua kolom --}}
+      <div class="d-flex flex-column gap-3" id="dashboard-left">
         <div class="card shadow-none border border-dark rounded-3">
             <div class="card-header text-center pt-3 pb-0">
                 <h5 class="card-title mb-0 fw-semibold">Counting Progress</h5>
             </div>
             <div class="card-body pt-0 pb-2">
-                <div id="chart-non-oil"></div>
+                <div id="chart-non-oil" style="min-height: 260px;"></div>
             </div>
         </div>
 
@@ -42,19 +44,22 @@
             </div>
         </div>
 
-        <div class="card shadow-none border border-dark rounded-3 flex-fill">
+        <div class="card shadow-none border border-dark rounded-3">
             <div class="card-header text-center pt-3 pb-0">
                 <h5 class="card-title mb-0 fw-semibold">Counting Progress (by Part)</h5>
             </div>
-            <div class="card-body pt-0">
-                {{-- Legend % Remaining / % Progress dirender oleh ApexCharts --}}
-                <div id="chart-counting-progress" style="min-height: 430px;"></div>
+            <div class="card-body pt-0 pb-2">
+                {{-- Legend % Remaining / % Progress dirender oleh ApexCharts.
+                     Tinggi chart diatur JS supaya sejajar dengan bawah kolom kanan. --}}
+                <div id="chart-counting-progress"></div>
             </div>
         </div>
+      </div>
     </div>
 
     {{-- ===================== Kolom Kanan ===================== --}}
-    <div class="col-12 col-xl-6 d-flex flex-column gap-3">
+    <div class="col-12 col-xl-6">
+      <div class="d-flex flex-column gap-3" id="dashboard-right">
         <div class="row g-3">
             <div class="col-12 col-md-7">
                 <div class="card h-100 shadow-none border border-dark rounded-3">
@@ -62,7 +67,7 @@
                         <h5 class="card-title mb-0 fw-semibold">Counting Progress Oil</h5>
                     </div>
                     <div class="card-body pt-0 pb-2">
-                        <div id="chart-oil"></div>
+                        <div id="chart-oil" style="min-height: 260px;"></div>
                     </div>
                 </div>
             </div>
@@ -71,8 +76,8 @@
                     <div class="card-header text-center pt-3 pb-0">
                         <h6 class="card-title mb-0 fw-semibold">Counting Oil Area</h6>
                     </div>
-                    <div class="card-body pt-0 pb-2 d-flex align-items-center">
-                        <div id="chart-oil-area" class="w-100"></div>
+                    <div class="card-body pt-0 pb-2">
+                        <div id="chart-oil-area" style="min-height: 260px;"></div>
                     </div>
                 </div>
             </div>
@@ -89,7 +94,7 @@
         </div>
 
         {{-- Variance: ringkasan per accounting group, Nett Variance (waterfall per part group), Absolute Variance --}}
-        <div class="row g-2 flex-fill">
+        <div class="row g-2">
             {{-- RM / WIP / FG --}}
             <div class="col-12 col-md-3">
                 <div class="d-flex flex-column gap-2 h-100" id="variance-accounting-groups">
@@ -112,7 +117,7 @@
                             <h6 class="card-title mb-0 fw-semibold">Nett Variance</h6>
                         </div>
                         <div class="card-body pt-0 pb-1">
-                            <div id="chart-nett-variance" style="min-height: 160px;"></div>
+                            <div id="chart-nett-variance" style="min-height: 200px;"></div>
                         </div>
                     </div>
                     <div class="card shadow-none rounded-3 text-center text-white" style="background-color: #000;">
@@ -139,6 +144,7 @@
                 </div>
             </div>
         </div>
+      </div>
     </div>
 </div>
 

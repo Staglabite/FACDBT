@@ -11,6 +11,15 @@ const SVG_NS        = 'http://www.w3.org/2000/svg';
 
 
 
+// Tinggi chart Counting Progress, Counting Progress Oil, dan Counting Oil Area
+const TOP_CHART_HEIGHT = 260;
+
+// Batas tinggi chart Counting Progress (by Part) saat menyesuaikan tinggi kolom kanan
+const PROGRESS_CHART_MIN_HEIGHT = 360;
+const PROGRESS_CHART_MAX_HEIGHT = 700;
+const TWO_COLUMN_MIN_WIDTH      = 1200; // breakpoint xl Bootstrap
+const APEX_CONTAINER_EXTRA      = 15;   // ApexCharts membuat container chart 15px lebih tinggi dari SVG-nya
+
 const THEMES = {
     nonOil: {
         column: '#B5DEB4',
@@ -54,7 +63,7 @@ const VARIANCE_THEME = {
     trendNegative: '#E63946'
 };
 
-// Urutan tampilan part group di chart variance (group lain menyusul di belakang)
+// Part group yang ditampilkan di chart variance, sesuai urutan (group lain seperti OTHERS tidak ditampilkan)
 const PART_GROUP_ORDER = ['4W', '2W'];
 
 const SLOT_THEME = {
@@ -68,6 +77,7 @@ class Dashboard {
         this.charts = {};
         this.selectedTime = null;
         this.progressChart = null;
+        this.progressItems = [];
         this.oilChart = null;
         this.nettVarianceChart = null;
         this.absoluteVarianceCharts = [];
@@ -78,6 +88,49 @@ class Dashboard {
         this.loadTopCharts();
         this.loadTimeSlots();
         this.loadVarianceTrend();
+        this.watchColumnHeights();
+    }
+
+    // Tinggi chart Counting Progress (by Part) disesuaikan supaya bagian bawah kolom kiri
+    // sejajar dengan kolom kanan (tidak ada ruang kosong / card memanjang ke bawah).
+    progressChartHeight() {
+        const left  = document.getElementById('dashboard-left');
+        const right = document.getElementById('dashboard-right');
+        const chart = document.getElementById('chart-counting-progress');
+
+        if (!left || !right || !chart || window.innerWidth < TWO_COLUMN_MIN_WIDTH) {
+            return PROGRESS_CHART_MIN_HEIGHT + 40;
+        }
+
+        // Tinggi kolom kiri tanpa chart = left - (svg + extra); bila chart belum tergambar, container kosong (0px)
+        const svg = chart.querySelector('svg.apexcharts-svg');
+        const currentSvgHeight = svg ? Number(svg.getAttribute('height')) || 0 : -APEX_CONTAINER_EXTRA;
+        const target = right.offsetHeight - left.offsetHeight + currentSvgHeight;
+
+        return Math.round(Math.min(PROGRESS_CHART_MAX_HEIGHT, Math.max(PROGRESS_CHART_MIN_HEIGHT, target)));
+    }
+
+    // Kolom kanan berisi chart yang dimuat terpisah, jadi tingginya baru final setelah semua selesai
+    watchColumnHeights() {
+        const right = document.getElementById('dashboard-right');
+        if (!right || typeof ResizeObserver === 'undefined') return;
+
+        let frame = null;
+        const fit = () => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(() => {
+                if (!this.progressChart) return;
+
+                // updateOptions tidak mengubah tinggi chart yang sudah tergambar, jadi digambar ulang
+                const height = this.progressChartHeight();
+                if (Math.abs(height - this.progressChart.w.config.chart.height) > 4) {
+                    this.renderProgressChart(this.progressItems, false);
+                }
+            });
+        };
+
+        new ResizeObserver(fit).observe(right);
+        window.addEventListener('resize', fit);
     }
 
     // -------------------------------------------------------------
@@ -175,7 +228,7 @@ class Dashboard {
                 { name: '% Item', type: 'line',   data: itemData }
             ],
             chart: {
-                height: 260,
+                height: TOP_CHART_HEIGHT,
                 type: 'line',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -473,12 +526,11 @@ class Dashboard {
     }
 
     sortPartGroups(groups) {
-        const rank = g => {
-            const idx = PART_GROUP_ORDER.indexOf(String(g.group).toUpperCase());
-            return idx === -1 ? PART_GROUP_ORDER.length : idx;
-        };
+        const rank = g => PART_GROUP_ORDER.indexOf(String(g.group).toUpperCase());
 
-        return [...groups].sort((a, b) => rank(a) - rank(b) || String(a.group).localeCompare(String(b.group)));
+        return groups
+            .filter(g => rank(g) !== -1)
+            .sort((a, b) => rank(a) - rank(b));
     }
 
     renderVarianceSummary(data) {
@@ -530,7 +582,7 @@ class Dashboard {
             series: [{ name: 'Nett Variance', data: points }],
             chart: {
                 type: 'rangeBar',
-                height: 160,
+                height: 200,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -652,9 +704,12 @@ class Dashboard {
         return `${Number(v || 0).toFixed(2)}%`;
     }
 
-    renderProgressChart(items) {
+    renderProgressChart(items, animate = true) {
         const el = document.querySelector('#chart-counting-progress');
         if (!el) return;
+
+        this.progressItems = items;
+        el.style.minHeight = ''; // sisa min-height dari chart sebelumnya ikut mempengaruhi perhitungan tinggi
 
         if (this.progressChart) {
             this.progressChart.destroy();
@@ -679,11 +734,11 @@ class Dashboard {
             ],
             chart: {
                 type: 'area',
-                height: 430,
+                height: this.progressChartHeight(),
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
-                animations: { enabled: true, speed: 500 }
+                animations: { enabled: animate, speed: 500 }
             },
             colors,
             dataLabels: {
@@ -778,8 +833,9 @@ class Dashboard {
             ],
             chart: {
                 type: 'bar',
-                // Tinggi menyesuaikan jumlah area supaya bar tidak terlalu tipis / tebal
-                height: Math.max(230, items.length * 70),
+                // Tinggi tetap (sama dengan chart Counting Progress Oil) supaya card tidak memanjang
+                // ke bawah saat area oil banyak; ketebalan bar yang menyesuaikan.
+                height: TOP_CHART_HEIGHT,
                 fontFamily: 'inherit',
                 stacked: true,
                 stackType: '100%',
@@ -789,7 +845,7 @@ class Dashboard {
             plotOptions: {
                 bar: {
                     horizontal: true,
-                    barHeight: '75%',
+                    barHeight: items.length > 4 ? '65%' : '75%',
                     dataLabels: { position: 'center' }
                 }
             },
@@ -797,7 +853,7 @@ class Dashboard {
             dataLabels: {
                 enabled: true,
                 formatter: val => (val > 0 ? this.fmtPct2(val) : ''),
-                style: { fontSize: '16px', fontWeight: 400, colors: ['#FFFFFF'] },
+                style: { fontSize: items.length > 4 ? '12px' : '16px', fontWeight: 400, colors: ['#FFFFFF'] },
                 dropShadow: { enabled: false }
             },
             stroke: { width: 0 },
