@@ -175,7 +175,7 @@ class Dashboard {
                 { name: '% Item', type: 'line',   data: itemData }
             ],
             chart: {
-                height: 300,
+                height: 260,
                 type: 'line',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -262,6 +262,9 @@ class Dashboard {
         btn.style.border = `1px solid ${SLOT_THEME.border}`;
         btn.style.fontStyle = 'italic';
         btn.style.minWidth = '72px';
+        // Jangan menyusut / terlipat; kalau tidak muat, daftar slot digeser dengan tombol panah
+        btn.style.flexShrink = '0';
+        btn.style.whiteSpace = 'nowrap';
         btn.style.backgroundColor = isActive ? SLOT_THEME.activeBg : '#FFFFFF';
         btn.style.color = isActive ? '#FFFFFF' : SLOT_THEME.text;
     }
@@ -416,7 +419,7 @@ class Dashboard {
             ],
             chart: {
                 type: 'area',
-                height: 290,
+                height: 240,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -527,7 +530,7 @@ class Dashboard {
             series: [{ name: 'Nett Variance', data: points }],
             chart: {
                 type: 'rangeBar',
-                height: 200,
+                height: 160,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -676,7 +679,7 @@ class Dashboard {
             ],
             chart: {
                 type: 'area',
-                height: 400,
+                height: 430,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -776,7 +779,7 @@ class Dashboard {
             chart: {
                 type: 'bar',
                 // Tinggi menyesuaikan jumlah area supaya bar tidak terlalu tipis / tebal
-                height: Math.max(400, items.length * 90),
+                height: Math.max(230, items.length * 70),
                 fontFamily: 'inherit',
                 stacked: true,
                 stackType: '100%',
