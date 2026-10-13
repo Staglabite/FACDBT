@@ -85,11 +85,11 @@
 
         {{-- Absolute Variance per slot waktu (tidak terpengaruh filter tombol waktu) --}}
         <div class="card shadow-none border border-dark rounded-3">
-            <div class="card-header text-center pt-3 pb-0">
-                <h5 class="card-title mb-0 fw-semibold">Absolute Variance</h5>
+            <div class="card-header text-center pt-2 pb-0">
+                <h6 class="card-title mb-0 fw-semibold">Absolute Variance</h6>
             </div>
             <div class="card-body pt-0 pb-1">
-                <div id="chart-variance-trend" style="min-height: 240px;"></div>
+                <div id="chart-variance-trend" style="min-height: 190px;"></div>
             </div>
         </div>
 
@@ -100,9 +100,9 @@
                 <div class="d-flex flex-column gap-2 h-100" id="variance-accounting-groups">
                     @foreach (['RM', 'WIP', 'FG'] as $group)
                         <div class="card shadow-none border border-dark rounded-3 flex-fill">
-                            <div class="card-body px-3 py-2">
-                                <div class="fs-6 fw-semibold text-dark">{{ $group }}</div>
-                                <div class="fs-4 fw-semibold text-dark text-center variance-value" data-group="{{ $group }}">-</div>
+                            <div class="card-body px-2 py-1">
+                                <div class="small fw-semibold text-dark">{{ $group }}</div>
+                                <div class="fs-5 fw-semibold text-dark text-center variance-value" data-group="{{ $group }}">-</div>
                             </div>
                         </div>
                     @endforeach
@@ -113,17 +113,17 @@
             <div class="col-12 col-md-5">
                 <div class="d-flex flex-column gap-2 h-100">
                     <div class="card shadow-none border border-dark rounded-3 flex-fill">
-                        <div class="card-header text-center pt-2 pb-0">
-                            <h6 class="card-title mb-0 fw-semibold">Nett Variance</h6>
+                        <div class="card-header text-center pt-1 pb-0">
+                            <div class="small fw-semibold text-dark">Nett Variance</div>
                         </div>
-                        <div class="card-body pt-0 pb-1">
-                            <div id="chart-nett-variance" style="min-height: 200px;"></div>
+                        <div class="card-body px-2 pt-0 pb-0">
+                            <div id="chart-nett-variance" style="min-height: 130px;"></div>
                         </div>
                     </div>
                     <div class="card shadow-none rounded-3 text-center text-white" style="background-color: #000;">
-                        <div class="card-body py-2">
-                            <div class="fs-6 fw-semibold">Nett Variance</div>
-                            <div class="fw-bold" style="font-size: 1.6rem;" id="variance-nett-total">-</div>
+                        <div class="card-body py-1">
+                            <div class="small fw-semibold">Nett Variance</div>
+                            <div class="fw-bold" style="font-size: 1.25rem;" id="variance-nett-total">-</div>
                         </div>
                     </div>
                 </div>
@@ -136,9 +136,9 @@
                         {{-- Card per part group diisi oleh JavaScript --}}
                     </div>
                     <div class="card shadow-none rounded-3 text-center text-white" style="background-color: #000;">
-                        <div class="card-body py-2">
-                            <div class="fs-6 fw-semibold">Absolute Variance</div>
-                            <div class="fw-bold" style="font-size: 1.6rem;" id="variance-absolute-total">-</div>
+                        <div class="card-body py-1">
+                            <div class="small fw-semibold">Absolute Variance</div>
+                            <div class="fw-bold" style="font-size: 1.25rem;" id="variance-absolute-total">-</div>
                         </div>
                     </div>
                 </div>

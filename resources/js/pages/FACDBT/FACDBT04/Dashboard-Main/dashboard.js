@@ -440,8 +440,9 @@ class Dashboard {
         const positive   = items.map(d => Number(d.abs_positive || 0));
         const negative   = items.map(d => Number(d.abs_negative || 0));
 
-        // Label lewat annotation supaya label [+] bisa di atas titik dan label [-] di bawah titik
-        // (dataLabels ApexCharts hanya punya satu offset untuk semua series, sehingga bisa bertumpuk).
+        // Label lewat annotation supaya tiap series bisa punya posisi sendiri: label garis yang lebih
+        // tinggi di atas titik, label garis yang lebih rendah di bawah titik, sehingga tidak bertumpuk
+        // (dataLabels ApexCharts hanya punya satu offset untuk semua series).
         const pointLabel = (x, y, color, below) => ({
             x,
             y,
@@ -450,20 +451,24 @@ class Dashboard {
                 text: this.fmtMillion(y),
                 borderWidth: 0,
                 borderRadius: 4,
-                offsetY: below ? 34 : -4,
+                offsetY: below ? 30 : -4,
                 style: {
                     background: color,
                     color: '#FFFFFF',
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontWeight: 600,
-                    padding: { left: 6, right: 6, top: 3, bottom: 3 }
+                    padding: { left: 5, right: 5, top: 2, bottom: 2 }
                 }
             }
         });
-        const labels = categories.flatMap((x, i) => [
-            pointLabel(x, positive[i], colors[0], false),
-            pointLabel(x, negative[i], colors[1], true)
-        ]);
+        const labels = categories.flatMap((x, i) => {
+            const positiveOnTop = positive[i] >= negative[i];
+
+            return [
+                pointLabel(x, positive[i], colors[0], !positiveOnTop),
+                pointLabel(x, negative[i], colors[1], positiveOnTop)
+            ];
+        });
 
         const options = {
             series: [
@@ -472,7 +477,7 @@ class Dashboard {
             ],
             chart: {
                 type: 'area',
-                height: 240,
+                height: 190,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -490,7 +495,7 @@ class Dashboard {
                 axisTicks: { show: false },
                 tooltip: { enabled: false },
                 // digeser ke bawah supaya tidak tertutup label [-] yang ada di bawah titik
-                labels: { offsetY: 22, style: { fontSize: '12px', colors: '#333333' } }
+                labels: { offsetY: 20, style: { fontSize: '11px', colors: '#333333' } }
             },
             yaxis: {
                 min: 0,
@@ -507,7 +512,7 @@ class Dashboard {
                 markers: { size: 6, shape: 'circle', strokeWidth: 0 },
                 itemMargin: { horizontal: 6 }
             },
-            grid: { show: false, padding: { left: 40, right: 40, bottom: 45 } },
+            grid: { show: false, padding: { top: -10, left: 40, right: 40, bottom: 40 } },
             tooltip: {
                 shared: true,
                 intersect: false,
@@ -582,7 +587,7 @@ class Dashboard {
             series: [{ name: 'Nett Variance', data: points }],
             chart: {
                 type: 'rangeBar',
-                height: 200,
+                height: 130,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -601,7 +606,7 @@ class Dashboard {
                     foreColor: '#FFFFFF',
                     borderRadius: 6,
                     borderWidth: 0,
-                    padding: 6,
+                    padding: 4,
                     opacity: 1,
                     dropShadow: { enabled: false }
                 }
@@ -651,30 +656,30 @@ class Dashboard {
             const card = document.createElement('div');
             card.className = 'card shadow-none border border-dark rounded-3 flex-fill';
             card.innerHTML = `
-                <div class="card-header text-center pt-2 pb-0">
-                    <h6 class="card-title mb-0 fw-semibold">Absolute Variance</h6>
+                <div class="card-header text-center pt-1 pb-0">
+                    <div class="small fw-semibold text-dark">Absolute Variance</div>
                 </div>
-                <div class="card-body py-0"><div class="absolute-variance-chart"></div></div>`;
+                <div class="card-body px-2 py-0"><div class="absolute-variance-chart"></div></div>`;
             container.appendChild(card);
 
             const chart = new ApexCharts(card.querySelector('.absolute-variance-chart'), {
                 series: [{ name: 'Absolute Variance', data: [Number(g.absolute || 0)] }],
                 chart: {
                     type: 'bar',
-                    height: 80,
+                    height: 55,
                     fontFamily: 'inherit',
                     toolbar: { show: false },
                     zoom: { enabled: false },
                     animations: { enabled: true, speed: 500 }
                 },
                 plotOptions: {
-                    bar: { horizontal: true, barHeight: '60%', dataLabels: { position: 'center' } }
+                    bar: { horizontal: true, barHeight: '70%', dataLabels: { position: 'center' } }
                 },
                 colors: [VARIANCE_THEME.absolute],
                 dataLabels: {
                     enabled: true,
                     formatter: val => this.fmtMillion(val),
-                    style: { fontSize: '12px', fontWeight: 600, colors: ['#FFFFFF'] },
+                    style: { fontSize: '11px', fontWeight: 600, colors: ['#FFFFFF'] },
                     dropShadow: { enabled: false }
                 },
                 xaxis: {
@@ -689,7 +694,7 @@ class Dashboard {
                     labels: { style: { fontSize: '12px', colors: '#555555' } }
                 },
                 legend: { show: false },
-                grid: { show: false, padding: { top: -10, bottom: -10, right: 10 } },
+                grid: { show: false, padding: { top: -15, bottom: -15, right: 10 } },
                 tooltip: {
                     y: { formatter: v => this.fmtMillion(v) }
                 }
