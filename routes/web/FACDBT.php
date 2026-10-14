@@ -119,5 +119,7 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/', 'index')->name('nett-variance-dashboard.index');
         Route::get('/filters', 'getFilters')->name('nett-variance-dashboard.filters');
         Route::get('/data', 'getData')->name('nett-variance-dashboard.data');
+        Route::get('/positive-table', 'positiveTable')->name('nett-variance-dashboard.positive-table');
+        Route::get('/negative-table', 'negativeTable')->name('nett-variance-dashboard.negative-table');
     });
 });

@@ -3,6 +3,15 @@ import ApexCharts from 'apexcharts';
 
 const ENDPOINT = 'FACDBT/ds/nett-variance-dashboard';
 
+// Tabel detail part (DataTable Yajra) dan endpoint ajax-nya
+const TABLES = {
+    positive: { id: 'facdbtd004-positive-table', url: `${ENDPOINT}/positive-table` },
+    negative: { id: 'facdbtd004-negative-table', url: `${ENDPOINT}/negative-table` }
+};
+
+// Tinggi chart di baris atas (kotak TIME, chart, dan card Nett Var memakai tinggi yang sama)
+const TOP_CHART_HEIGHT = 205;
+
 const THEME = {
     increase: '#6A7BFF',
     decrease: '#FF0000',
@@ -19,6 +28,7 @@ class DashboardNettVariance {
     }
 
     init() {
+        this.bindTableControls();
         this.loadFilters();
         this.loadData();
     }
@@ -123,8 +133,8 @@ class DashboardNettVariance {
 
         this.renderPosNeg(Number(positive.amount || 0), Number(negative.amount || 0));
         this.renderAreaWaterfall(data.by_area || [], Number(data.nett_amount || 0));
-        this.renderTable('positive', positive);
-        this.renderTable('negative', negative);
+        // Tabel dimuat setelah ringkasan selesai supaya memakai hasil perhitungan yang sudah di-cache
+        this.reloadTables();
     }
 
     setText(id, text) {
@@ -222,7 +232,7 @@ class DashboardNettVariance {
             { x: 'Var (-)', y: [Math.min(positive, end), Math.max(positive, end)], fillColor: THEME.decrease, value: negative }
         ];
 
-        this.charts.posneg = new ApexCharts(el, this.waterfallOptions(points, 230, {
+        this.charts.posneg = new ApexCharts(el, this.waterfallOptions(points, TOP_CHART_HEIGHT, {
             xaxis: {
                 type: 'category',
                 axisBorder: { show: false },
@@ -263,7 +273,7 @@ class DashboardNettVariance {
         });
         points.push({ x: 'Total', y: [Math.min(0, total), Math.max(0, total)], fillColor: THEME.total, value: total });
 
-        this.charts.area = new ApexCharts(el, this.waterfallOptions(points, 230, {
+        this.charts.area = new ApexCharts(el, this.waterfallOptions(points, TOP_CHART_HEIGHT, {
             xaxis: {
                 type: 'category',
                 axisBorder: { show: false },
@@ -273,7 +283,7 @@ class DashboardNettVariance {
                     rotate: -45,
                     rotateAlways: true,
                     trim: true,
-                    maxHeight: 80,
+                    maxHeight: 60,
                     hideOverlappingLabels: false,
                     style: { fontSize: '10px', colors: '#555555' }
                 }
@@ -292,71 +302,54 @@ class DashboardNettVariance {
     }
 
     // -------------------------------------------------------------
-    // Tabel detail part (kelompok per nama part, bisa diciutkan)
+    // Tabel detail part (DataTable Yajra, template seperti FACDBT01)
     // -------------------------------------------------------------
-    renderTable(key, detail) {
-        const tbody = document.getElementById(`nv-${key}-table`);
-        if (!tbody) return;
-
-        tbody.innerHTML = '';
-        const groups = detail.groups || [];
-
-        if (groups.length === 0) {
-            const tr = tbody.insertRow();
-            const td = tr.insertCell();
-            td.colSpan = 4;
-            td.className = 'text-center text-muted py-4';
-            td.textContent = 'No Data Available';
+    filterParams() {
+        const params = new URLSearchParams();
+        if (this.selectedTime) {
+            params.set('time', this.selectedTime);
         }
+        this.selectedAreas.forEach(area => params.append('areas[]', area));
+        return params;
+    }
 
-        let rowIndex = 0;
-        groups.forEach(group => {
-            const rows = group.rows || [];
-            const trs = rows.map((row, i) => {
-                const tr = tbody.insertRow();
-                tr.classList.toggle('nv-odd', rowIndex++ % 2 === 0);
+    tableParams(tableId) {
+        const params = this.filterParams();
+        const keyword = $(`.nv-search[data-table="${tableId}"]`).val();
+        if (keyword) {
+            params.set('keyword', keyword);
+        }
+        return params;
+    }
 
-                if (i === 0) {
-                    const name = tr.insertCell();
-                    name.className = 'nv-group';
-                    name.rowSpan = rows.length;
-                    name.textContent = `⊟ ${group.name}`;
-                    name.title = 'Klik untuk menciutkan / membuka kelompok';
-                }
+    reloadTable({ id, url }) {
+        if (!$.fn.dataTable.isDataTable(`#${id}`)) return;
 
-                this.addCell(tr, row.part_no);
-                this.addCell(tr, this.fmtNumber(row.qty), 'text-end');
-                this.addCell(tr, this.fmtNumber(row.amount), 'text-end');
-                return tr;
-            });
+        const query = this.tableParams(id).toString();
+        $(`#${id}`).DataTable().ajax.url(query ? `${url}?${query}` : url).load();
+    }
 
-            // Klik nama part untuk menyembunyikan / menampilkan baris lain di kelompoknya
-            const groupCell = trs[0]?.cells[0];
-            if (groupCell && trs.length > 1) {
-                let collapsed = false;
-                groupCell.addEventListener('click', () => {
-                    collapsed = !collapsed;
-                    trs.slice(1).forEach(tr => tr.classList.toggle('d-none', collapsed));
-                    groupCell.rowSpan = collapsed ? 1 : trs.length;
-                    groupCell.textContent = `${collapsed ? '⊞' : '⊟'} ${group.name}`;
-                });
+    reloadTables() {
+        Object.values(TABLES).forEach(table => this.reloadTable(table));
+    }
+
+    bindTableControls() {
+        $(document).on('change', '.nv-entries', e => {
+            const id = $(e.target).data('table');
+            if ($.fn.dataTable.isDataTable(`#${id}`)) {
+                $(`#${id}`).DataTable().page.len(Number($(e.target).val())).draw();
             }
         });
 
-        const note = document.getElementById(`nv-${key}-note`);
-        if (note) {
-            note.classList.toggle('d-none', !detail.truncated);
-            note.textContent = detail.truncated
-                ? `Menampilkan ${rowIndex} dari ${detail.total} part dengan variance amount terbesar.`
-                : '';
-        }
-    }
-
-    addCell(tr, text, className = '') {
-        const td = tr.insertCell();
-        td.className = className;
-        td.textContent = text;
-        return td;
+        let searchTimeout;
+        $(document).on('keyup', '.nv-search', e => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const id = $(e.target).data('table');
+                const table = Object.values(TABLES).find(t => t.id === id);
+                if (table) this.reloadTable(table);
+            }, 500);
+        });
     }
 }
 
