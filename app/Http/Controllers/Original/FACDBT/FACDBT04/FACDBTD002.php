@@ -14,9 +14,6 @@ class FACDBTD002 extends Controller
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
 
-    // Jumlah warehouse yang ditampilkan saat filter group location tidak dipilih
-    private const TOP_LIMIT = 15;
-
     // Slot filter waktu: [dayOffset, 'jam:menit']. dayOffset 0 = hari pertama taking, 1 = hari kedua.
     private const SLOTS = [
         [0, '07:30'],
@@ -77,11 +74,13 @@ class FACDBTD002 extends Controller
     }
 
     /**
-     * Progress per warehouse (SIM_INV_LOCATION_TEST.warehouse) untuk lokasi di group yang dipilih.
+     * Progress per warehouse (SIM_INV_LOCATION_TEST.warehouse) untuk lokasi di SIM_INV_GROUP_LOCATION.
      * - % Item : item (part unik) taking terhadap item book
      * - % Qty  : qty taking terhadap qty book
-     * Book & taking dicocokkan per lokasi, taking dihitung kumulatif s/d waktu filter.
-     * Tanpa filter group: semua warehouse, diambil progress terbesar (TOP_LIMIT teratas).
+     * Book & taking dicocokkan per lokasi.
+     * - Filter waktu dipilih : taking kumulatif s/d jam slot; tanpa filter waktu: semua taking di periode.
+     * - Filter group dipilih : semua warehouse dari lokasi di group tersebut.
+     * - Tanpa filter group   : hanya warehouse yang sudah punya progress (taking > 0) dari keseluruhan.
      */
     public function getData(Request $request)
     {
@@ -93,81 +92,131 @@ class FACDBTD002 extends Controller
             return response()->json($empty);
         }
 
-        $slotTimes    = $this->slotTimes($period['baseDay']);
-        $selectedTime = $this->parseTime($request->get('time')) ?? end($slotTimes)->format('Y-m-d H:i:s');
-        $group        = trim((string) $request->get('group', ''));
+        $takingUntil = $this->parseTime($request->get('time')) ?? $period['closeDate'];
+        $group       = trim((string) $request->get('group', ''));
 
-        $takingDate = $period['takingDate'];
-        $closeDate  = $period['closeDate'];
-        $invListNo  = $period['invListNo'];
+        $locations = $this->locationWarehouses($db, $group);
+        if (empty($locations)) {
+            return response()->json($empty);
+        }
 
-        $cacheKey = 'FACDBTD002:data:v1:' . md5(implode('|', [$takingDate, $closeDate, $invListNo, $selectedTime, $group]));
+        // Agregasi per (lokasi, part) tidak bergantung pada filter group, jadi cache-nya dipakai bersama
+        $base = implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo']]);
 
-        $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $invListNo, $selectedTime, $group, $empty) {
-            $book = $this->withWarehouse($db->table('SIM_INV_TAKING_BOOK_TAB as d'), $group)
-                ->whereBetween('d.CREATED_DATETIME', [$takingDate, $closeDate])
-                ->where('d.INV_LIST_NO', $invListNo)
-                ->groupBy('warehouse')
-                ->selectRaw('COUNT(DISTINCT d.PART_NO) as item_book, SUM(d.QUANTITY) as qty_book')
-                ->get()
-                ->keyBy('warehouse');
+        $book = Cache::remember('FACDBTD002:book:v2:' . md5($base), self::CACHE_TTL, fn () => $this->perLocationPart(
+            $db->table('SIM_INV_TAKING_BOOK_TAB')
+                ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $period['closeDate']])
+                ->where('INV_LIST_NO', $period['invListNo']),
+            'QUANTITY'
+        ));
 
-            if ($book->isEmpty()) {
-                return $empty;
-            }
+        $taking = Cache::remember('FACDBTD002:taking:v2:' . md5($base . '|' . $takingUntil), self::CACHE_TTL, fn () => $this->perLocationPart(
+            $db->table('SIM_INV_TAKING_DATA_TAB')
+                ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $takingUntil]),
+            'QTY'
+        ));
 
-            $taking = $this->withWarehouse($db->table('SIM_INV_TAKING_DATA_TAB as d'), $group)
-                ->whereBetween('d.CREATED_DATETIME', [$takingDate, $selectedTime])
-                ->groupBy('warehouse')
-                ->selectRaw('COUNT(DISTINCT d.PART_NO) as item_taking, SUM(d.QTY) as qty_taking')
-                ->get()
-                ->keyBy('warehouse');
+        $bookTotals   = $this->totalsPerWarehouse($book, $locations);
+        $takingTotals = $this->totalsPerWarehouse($taking, $locations);
 
-            $rows = $book->map(function ($b, $warehouse) use ($taking) {
-                $t        = $taking->get($warehouse);
-                $itemBook = (int) $b->item_book;
-                $qtyBook  = (float) $b->qty_book;
-
-                return [
-                    'warehouse' => (string) $warehouse,
-                    'pct_item'  => $itemBook > 0 ? round(((int) ($t->item_taking ?? 0) / $itemBook) * 100, 2) : 0,
-                    'pct_qty'   => $qtyBook > 0 ? round(((float) ($t->qty_taking ?? 0) / $qtyBook) * 100, 2) : 0,
-                ];
-            })->values();
-
-            // Tiap chart diurutkan dari progress terbesar; tanpa filter group hanya TOP_LIMIT teratas
-            $limit = $group === '' ? self::TOP_LIMIT : null;
-            $sortBy = fn (string $key) => $rows->sortByDesc($key)
-                ->when($limit, fn ($c) => $c->take($limit))
-                ->map(fn ($r) => ['warehouse' => $r['warehouse'], 'pct' => $r[$key]])
-                ->values()
-                ->all();
+        $rows = collect($bookTotals)->map(function ($b, $warehouse) use ($takingTotals) {
+            $t = $takingTotals[$warehouse] ?? ['items' => 0, 'qty' => 0.0];
 
             return [
-                'item' => $sortBy('pct_item'),
-                'qty'  => $sortBy('pct_qty'),
+                'warehouse' => (string) $warehouse,
+                'pct_item'  => $b['items'] > 0 ? round(($t['items'] / $b['items']) * 100, 2) : 0,
+                'pct_qty'   => $b['qty'] > 0 ? round(($t['qty'] / $b['qty']) * 100, 2) : 0,
             ];
-        });
+        })->values();
 
-        return response()->json($result);
+        if ($group === '') {
+            $rows = $rows->filter(fn ($r) => $r['pct_item'] > 0 || $r['pct_qty'] > 0)->values();
+        }
+
+        // Tiap chart diurutkan dari progress terbesar
+        $sortBy = fn (string $key) => $rows->sortByDesc($key)
+            ->map(fn ($r) => ['warehouse' => $r['warehouse'], 'pct' => $r[$key]])
+            ->values()
+            ->all();
+
+        return response()->json([
+            'item' => $sortBy('pct_item'),
+            'qty'  => $sortBy('pct_qty'),
+        ]);
     }
 
     /**
-     * Join tabel book / taking (alias d) ke group location dan master location untuk mendapat warehouse.
-     * Bila $group diisi, hanya lokasi di location_group tersebut.
+     * Pemetaan lokasi -> warehouse untuk lokasi di SIM_INV_GROUP_LOCATION (opsional difilter per group).
+     * Dikerjakan di PHP karena join dengan TRIM() di kedua sisi membuat index tidak terpakai.
+     *
+     * @return array<string, string> [location_no => warehouse]
      */
-    private function withWarehouse($query, string $group)
+    private function locationWarehouses($db, string $group): array
     {
-        $groupSub = DB::connection(self::CONN)
-            ->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(LOCATION_NO) as loc_no')
-            ->when($group !== '', fn ($q) => $q->whereRaw('TRIM(location_group) = ?', [$group]))
-            ->distinct();
+        $warehouses = Cache::remember('FACDBTD002:warehouses:v1', self::CACHE_TTL, function () use ($db) {
+            $map = [];
+            foreach ($db->table('SIM_INV_LOCATION_TEST')->select('location_no', 'warehouse')->get() as $row) {
+                $warehouse = trim((string) $row->warehouse);
+                $map[trim((string) $row->location_no)] = $warehouse !== '' ? $warehouse : 'UNKNOWN';
+            }
 
+            return $map;
+        });
+
+        $locations = $db->table('SIM_INV_GROUP_LOCATION')
+            ->when($group !== '', fn ($q) => $q->whereRaw('TRIM(location_group) = ?', [$group]))
+            ->distinct()
+            ->pluck('LOCATION_NO');
+
+        $result = [];
+        foreach ($locations as $loc) {
+            $loc = trim((string) $loc);
+            $result[$loc] = $warehouses[$loc] ?? 'UNKNOWN';
+        }
+
+        return $result;
+    }
+
+    /**
+     * Agregasi tabel besar (book / taking) per (LOCATION_NO, PART_NO) tanpa join.
+     *
+     * @return array<int, array{0: string, 1: string, 2: float}> [[location_no, part_no, qty], ...]
+     */
+    private function perLocationPart($query, string $qtyColumn): array
+    {
         return $query
-            ->joinSub($groupSub, 'gl', DB::raw('TRIM(d.LOCATION_NO)'), '=', 'gl.loc_no')
-            ->leftJoin('SIM_INV_LOCATION_TEST as l', DB::raw('TRIM(l.location_no)'), '=', 'gl.loc_no')
-            ->selectRaw("COALESCE(NULLIF(TRIM(l.warehouse), ''), 'UNKNOWN') as warehouse");
+            ->groupBy('LOCATION_NO', 'PART_NO')
+            ->select('LOCATION_NO', 'PART_NO', DB::raw("SUM({$qtyColumn}) as qty"))
+            ->get()
+            ->map(fn ($r) => [trim((string) $r->LOCATION_NO), (string) $r->PART_NO, (float) $r->qty])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{0: string, 1: string, 2: float}>  $rows
+     * @param  array<string, string>  $locations  [location_no => warehouse]
+     * @return array<string, array{items: int, qty: float}>
+     */
+    private function totalsPerWarehouse(array $rows, array $locations): array
+    {
+        $parts  = [];
+        $totals = [];
+
+        foreach ($rows as [$loc, $part, $qty]) {
+            if (!isset($locations[$loc])) {
+                continue;
+            }
+
+            $warehouse = $locations[$loc];
+            $parts[$warehouse][$part] = true;
+            $totals[$warehouse]['qty'] = ($totals[$warehouse]['qty'] ?? 0.0) + $qty;
+        }
+
+        foreach ($totals as $warehouse => $total) {
+            $totals[$warehouse]['items'] = count($parts[$warehouse]);
+        }
+
+        return $totals;
     }
 
     /**

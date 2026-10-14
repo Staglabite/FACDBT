@@ -20,6 +20,7 @@ class DashboardProgress {
         this.selectedGroup = '';
         this.selectedTime = null;
         this.charts = {};
+        this.dataRequest = null;
     }
 
     init() {
@@ -83,7 +84,7 @@ class DashboardProgress {
     }
 
     // -------------------------------------------------------------
-    // Filter Waktu (default: slot terakhir)
+    // Filter Waktu (default: tidak dipilih = semua data taking)
     // -------------------------------------------------------------
     loadTimeSlots() {
         axios.get(`${ENDPOINT}/time-slots`)
@@ -95,20 +96,17 @@ class DashboardProgress {
                 container.innerHTML = '';
                 const buttons = [];
 
-                slots.forEach((slot, idx) => {
+                slots.forEach(slot => {
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     btn.innerText = slot.label;
+                    btn.dataset.time = slot.full_time;
+                    this.styleTimeButton(btn, false);
 
-                    const isActive = idx === slots.length - 1;
-                    if (isActive) {
-                        this.selectedTime = slot.full_time;
-                    }
-                    this.styleTimeButton(btn, isActive);
-
+                    // Klik slot yang sama sekali lagi untuk menghapus filter waktu
                     btn.addEventListener('click', () => {
-                        buttons.forEach(b => this.styleTimeButton(b, b === btn));
-                        this.selectedTime = slot.full_time;
+                        this.selectedTime = this.selectedTime === slot.full_time ? null : slot.full_time;
+                        buttons.forEach(b => this.styleTimeButton(b, b.dataset.time === this.selectedTime));
                         this.loadData();
                     });
 
@@ -135,18 +133,36 @@ class DashboardProgress {
     // Chart Progress by Loc (% Item & % Qty)
     // -------------------------------------------------------------
     loadData() {
-        const params = { time: this.selectedTime };
+        const params = {};
+        if (this.selectedTime) {
+            params.time = this.selectedTime;
+        }
         if (this.selectedGroup) {
             params.group = this.selectedGroup;
         }
 
-        axios.get(`${ENDPOINT}/data`, { params })
+        // Batalkan request sebelumnya supaya klik filter beruntun tidak menumpuk request
+        if (this.dataRequest) {
+            this.dataRequest.abort();
+        }
+        const controller = new AbortController();
+        this.dataRequest = controller;
+
+        axios.get(`${ENDPOINT}/data`, { params, signal: controller.signal, timeout: 60000 })
             .then(res => {
                 const data = res.data || {};
                 this.renderChart('#chart-progress-item', 'item', data.item || []);
                 this.renderChart('#chart-progress-qty', 'qty', data.qty || []);
             })
-            .catch(err => console.error('Error load progress by location:', err));
+            .catch(err => {
+                if (axios.isCancel(err)) return;
+                console.error('Error load progress by location:', err);
+            })
+            .finally(() => {
+                if (this.dataRequest === controller) {
+                    this.dataRequest = null;
+                }
+            });
     }
 
     fmtPct(v) {
