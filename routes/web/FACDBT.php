@@ -9,6 +9,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF005;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD001;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD002;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD003;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD004;
 use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'ts', 'middleware' => 'auth'], function () {
@@ -111,5 +112,12 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/', 'index')->name('variance-dashboard.index');
         Route::get('/time-slots', 'getTimeSlots')->name('variance-dashboard.time-slots');
         Route::get('/data', 'getData')->name('variance-dashboard.data');
+    });
+
+    // Nett Variance Dashboard (FACDBTD004)
+    Route::group(['prefix' => 'nett-variance-dashboard', 'controller' => FACDBTD004::class], function () {
+        Route::get('/', 'index')->name('nett-variance-dashboard.index');
+        Route::get('/filters', 'getFilters')->name('nett-variance-dashboard.filters');
+        Route::get('/data', 'getData')->name('nett-variance-dashboard.data');
     });
 });
