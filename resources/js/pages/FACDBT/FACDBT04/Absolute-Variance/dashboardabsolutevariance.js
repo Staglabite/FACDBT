@@ -221,7 +221,7 @@ class DashboardAbsoluteVariance {
         };
     }
 
-    // Var (+) naik dari 0, Var (-) (nilai absolut) menumpuk di atasnya, ditutup bar Total
+    // Var (+) naik dari 0, Var (-) (nilai absolut) menumpuk di atasnya
     renderPosNeg(positive, negative) {
         const el = document.getElementById('av-chart-posneg');
         if (!el) return;
@@ -232,8 +232,7 @@ class DashboardAbsoluteVariance {
         const total = positive + negative;
         const points = [
             { x: 'Var (+)', y: [0, positive], fillColor: THEME.increase, value: positive },
-            { x: 'Var (-)', y: [positive, total], fillColor: THEME.decrease, value: negative },
-            { x: 'Total', y: [0, total], fillColor: THEME.total, value: total }
+            { x: 'Var (-)', y: [positive, total], fillColor: THEME.decrease, value: negative }
         ];
 
         this.charts.posneg = new ApexCharts(el, this.waterfallOptions(points, TOP_CHART_HEIGHT, {
