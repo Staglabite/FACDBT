@@ -7,6 +7,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF003;
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF004; 
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF005;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD001;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD002;
 use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'ts', 'middleware' => 'auth'], function () {
@@ -92,5 +93,15 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/data', 'getData')->name('main-dashboard.getdata'); 
         Route::get('/time-slots', 'getTimeSlots')->name('main-dashboard.time-slots');
         Route::get('/progress-by-area', 'getProgressByArea')->name('main-dashboard.progress-by-area');
+        Route::get('/variance', 'getVariance')->name('main-dashboard.variance');
+        Route::get('/variance-trend', 'getVarianceTrend')->name('main-dashboard.variance-trend');
+    });
+
+    // Dashboard Progress by Group Location & Detail Location (FACDBTD002)
+    Route::group(['prefix' => 'progress-dashboard', 'controller' => FACDBTD002::class], function () {
+        Route::get('/', 'index')->name('progress-dashboard.index');
+        Route::get('/groups', 'getGroups')->name('progress-dashboard.groups');
+        Route::get('/time-slots', 'getTimeSlots')->name('progress-dashboard.time-slots');
+        Route::get('/data', 'getData')->name('progress-dashboard.data');
     });
 });

@@ -11,6 +11,15 @@ const SVG_NS        = 'http://www.w3.org/2000/svg';
 
 
 
+// Tinggi chart Counting Progress, Counting Progress Oil, dan Counting Oil Area
+const TOP_CHART_HEIGHT = 260;
+
+// Batas tinggi chart Counting Progress (by Part) saat menyesuaikan tinggi kolom kanan
+const PROGRESS_CHART_MIN_HEIGHT = 360;
+const PROGRESS_CHART_MAX_HEIGHT = 700;
+const TWO_COLUMN_MIN_WIDTH      = 1200; // breakpoint xl Bootstrap
+const APEX_CONTAINER_EXTRA      = 15;   // ApexCharts membuat container chart 15px lebih tinggi dari SVG-nya
+
 const THEMES = {
     nonOil: {
         column: '#B5DEB4',
@@ -45,6 +54,18 @@ const OIL_AREA_THEME = {
     remaining: '#666666'
 };
 
+const VARIANCE_THEME = {
+    negative: '#FF0000',
+    positive: '#2E9E2E',
+    labelBg: '#7F7F7F',
+    absolute: '#118DFF',
+    trendPositive: '#14229B',
+    trendNegative: '#E63946'
+};
+
+// Part group yang ditampilkan di chart variance, sesuai urutan (group lain seperti OTHERS tidak ditampilkan)
+const PART_GROUP_ORDER = ['4W', '2W'];
+
 const SLOT_THEME = {
     border: '#C27D60',
     activeBg: '#333333',
@@ -56,12 +77,60 @@ class Dashboard {
         this.charts = {};
         this.selectedTime = null;
         this.progressChart = null;
+        this.progressItems = [];
         this.oilChart = null;
+        this.nettVarianceChart = null;
+        this.absoluteVarianceCharts = [];
+        this.varianceTrendChart = null;
     }
 
     init() {
         this.loadTopCharts();
         this.loadTimeSlots();
+        this.loadVarianceTrend();
+        this.watchColumnHeights();
+    }
+
+    // Tinggi chart Counting Progress (by Part) disesuaikan supaya bagian bawah kolom kiri
+    // sejajar dengan kolom kanan (tidak ada ruang kosong / card memanjang ke bawah).
+    progressChartHeight() {
+        const left  = document.getElementById('dashboard-left');
+        const right = document.getElementById('dashboard-right');
+        const chart = document.getElementById('chart-counting-progress');
+
+        if (!left || !right || !chart || window.innerWidth < TWO_COLUMN_MIN_WIDTH) {
+            return PROGRESS_CHART_MIN_HEIGHT + 40;
+        }
+
+        // Tinggi kolom kiri tanpa chart = left - (svg + extra); bila chart belum tergambar, container kosong (0px)
+        const svg = chart.querySelector('svg.apexcharts-svg');
+        const currentSvgHeight = svg ? Number(svg.getAttribute('height')) || 0 : -APEX_CONTAINER_EXTRA;
+        const target = right.offsetHeight - left.offsetHeight + currentSvgHeight;
+
+        return Math.round(Math.min(PROGRESS_CHART_MAX_HEIGHT, Math.max(PROGRESS_CHART_MIN_HEIGHT, target)));
+    }
+
+    // Kolom kanan berisi chart yang dimuat terpisah, jadi tingginya baru final setelah semua selesai
+    watchColumnHeights() {
+        const right = document.getElementById('dashboard-right');
+        if (!right || typeof ResizeObserver === 'undefined') return;
+
+        let frame = null;
+        const fit = () => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(() => {
+                if (!this.progressChart) return;
+
+                // updateOptions tidak mengubah tinggi chart yang sudah tergambar, jadi digambar ulang
+                const height = this.progressChartHeight();
+                if (Math.abs(height - this.progressChart.w.config.chart.height) > 4) {
+                    this.renderProgressChart(this.progressItems, false);
+                }
+            });
+        };
+
+        new ResizeObserver(fit).observe(right);
+        window.addEventListener('resize', fit);
     }
 
     // -------------------------------------------------------------
@@ -159,7 +228,7 @@ class Dashboard {
                 { name: '% Item', type: 'line',   data: itemData }
             ],
             chart: {
-                height: 300,
+                height: TOP_CHART_HEIGHT,
                 type: 'line',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -246,6 +315,9 @@ class Dashboard {
         btn.style.border = `1px solid ${SLOT_THEME.border}`;
         btn.style.fontStyle = 'italic';
         btn.style.minWidth = '72px';
+        // Jangan menyusut / terlipat; kalau tidak muat, daftar slot digeser dengan tombol panah
+        btn.style.flexShrink = '0';
+        btn.style.whiteSpace = 'nowrap';
         btn.style.backgroundColor = isActive ? SLOT_THEME.activeBg : '#FFFFFF';
         btn.style.color = isActive ? '#FFFFFF' : SLOT_THEME.text;
     }
@@ -321,15 +393,328 @@ class Dashboard {
             this.renderOilAreaChart(data.oil || []);
         })
         .catch(err => console.error('Error load area progress:', err));
+
+        this.loadVariance();
+    }
+
+    // -------------------------------------------------------------
+    // 3. Variance (mengikuti filter waktu tombol slot)
+    // -------------------------------------------------------------
+    loadVariance() {
+        axios.get('FACDBT/ds/main-dashboard/variance', { params: { time: this.selectedTime } })
+            .then(res => {
+                const data = res.data || {};
+                const partGroups = this.sortPartGroups(data.by_part_group || []);
+
+                this.renderVarianceSummary(data);
+                this.renderNettVarianceChart(partGroups);
+                this.renderAbsoluteVarianceCharts(partGroups);
+            })
+            .catch(err => console.error('Error load variance:', err));
+    }
+
+    // Chart Absolute Variance per slot waktu (tidak terpengaruh filter tombol waktu)
+    loadVarianceTrend() {
+        axios.get('FACDBT/ds/main-dashboard/variance-trend')
+            .then(res => this.renderVarianceTrendChart(Array.isArray(res.data) ? res.data : []))
+            .catch(err => console.error('Error load variance trend:', err));
+    }
+
+    renderVarianceTrendChart(items) {
+        const el = document.querySelector('#chart-variance-trend');
+        if (!el) return;
+
+        if (this.varianceTrendChart) {
+            this.varianceTrendChart.destroy();
+            this.varianceTrendChart = null;
+        }
+
+        if (items.length === 0) {
+            el.innerHTML = '<p class="text-center text-muted my-5">No Data Available</p>';
+            return;
+        }
+
+        el.innerHTML = '';
+        const colors     = [VARIANCE_THEME.trendPositive, VARIANCE_THEME.trendNegative];
+        const categories = items.map(d => this.formatTime(d.time));
+        const positive   = items.map(d => Number(d.abs_positive || 0));
+        const negative   = items.map(d => Number(d.abs_negative || 0));
+
+        // Label lewat annotation supaya tiap series bisa punya posisi sendiri: label garis yang lebih
+        // tinggi di atas titik, label garis yang lebih rendah di bawah titik, sehingga tidak bertumpuk
+        // (dataLabels ApexCharts hanya punya satu offset untuk semua series).
+        const pointLabel = (x, y, color, below) => ({
+            x,
+            y,
+            marker: { size: 0 },
+            label: {
+                text: this.fmtMillion(y),
+                borderWidth: 0,
+                borderRadius: 4,
+                offsetY: below ? 30 : -4,
+                style: {
+                    background: color,
+                    color: '#FFFFFF',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    padding: { left: 5, right: 5, top: 2, bottom: 2 }
+                }
+            }
+        });
+        const labels = categories.flatMap((x, i) => {
+            const positiveOnTop = positive[i] >= negative[i];
+
+            return [
+                pointLabel(x, positive[i], colors[0], !positiveOnTop),
+                pointLabel(x, negative[i], colors[1], positiveOnTop)
+            ];
+        });
+
+        const options = {
+            series: [
+                { name: 'Abs Var [+]', data: positive },
+                { name: 'Abs Var [-]', data: negative }
+            ],
+            chart: {
+                type: 'area',
+                height: 190,
+                fontFamily: 'inherit',
+                toolbar: { show: false },
+                zoom: { enabled: false },
+                animations: { enabled: true, speed: 500 }
+            },
+            colors,
+            stroke: { curve: 'straight', width: 3 },
+            fill: { type: 'solid', opacity: [0.15, 0.35] },
+            markers: { size: 5, strokeWidth: 0, hover: { sizeOffset: 2 } },
+            dataLabels: { enabled: false },
+            annotations: { points: labels },
+            xaxis: {
+                categories,
+                axisBorder: { show: false },
+                axisTicks: { show: false },
+                tooltip: { enabled: false },
+                // digeser ke bawah supaya tidak tertutup label [-] yang ada di bawah titik
+                labels: { offsetY: 20, style: { fontSize: '11px', colors: '#333333' } }
+            },
+            yaxis: {
+                min: 0,
+                // ruang di atas titik tertinggi untuk label
+                max: max => (max > 0 ? max * 1.25 : 1),
+                labels: { show: false }
+            },
+            legend: {
+                show: true,
+                position: 'top',
+                horizontalAlign: 'right',
+                fontSize: '12px',
+                labels: { colors: '#555555' },
+                markers: { size: 6, shape: 'circle', strokeWidth: 0 },
+                itemMargin: { horizontal: 6 }
+            },
+            grid: { show: false, padding: { top: -10, left: 40, right: 40, bottom: 40 } },
+            tooltip: {
+                shared: true,
+                intersect: false,
+                y: { formatter: v => this.fmtMillion(v) }
+            }
+        };
+
+        this.varianceTrendChart = new ApexCharts(el, options);
+        this.varianceTrendChart.render();
+    }
+
+    // Format nilai rupiah dalam juta, contoh: -32389123456 -> "-32,389M"
+    fmtMillion(v) {
+        const million = Math.round(Number(v || 0) / 1e6);
+        return `${million.toLocaleString('en-US')}M`;
+    }
+
+    sortPartGroups(groups) {
+        const rank = g => PART_GROUP_ORDER.indexOf(String(g.group).toUpperCase());
+
+        return groups
+            .filter(g => rank(g) !== -1)
+            .sort((a, b) => rank(a) - rank(b));
+    }
+
+    renderVarianceSummary(data) {
+        const byAccounting = {};
+        (data.by_accounting_group || []).forEach(g => {
+            byAccounting[String(g.group).toUpperCase()] = g.nett;
+        });
+
+        document.querySelectorAll('#variance-accounting-groups .variance-value').forEach(el => {
+            el.textContent = this.fmtMillion(byAccounting[el.dataset.group] || 0);
+        });
+
+        const nettEl = document.getElementById('variance-nett-total');
+        const absEl  = document.getElementById('variance-absolute-total');
+        if (nettEl) nettEl.textContent = this.fmtMillion(data.nett);
+        if (absEl) absEl.textContent = this.fmtMillion(data.absolute);
+    }
+
+    // Waterfall: tiap part group berangkat dari total kumulatif group sebelumnya
+    renderNettVarianceChart(groups) {
+        const el = document.querySelector('#chart-nett-variance');
+        if (!el) return;
+
+        if (this.nettVarianceChart) {
+            this.nettVarianceChart.destroy();
+            this.nettVarianceChart = null;
+        }
+
+        if (groups.length === 0) {
+            el.innerHTML = '<p class="text-center text-muted my-5">No Data Available</p>';
+            return;
+        }
+
+        el.innerHTML = '';
+        let running = 0;
+        const points = groups.map(g => {
+            const start = running;
+            running += Number(g.nett || 0);
+
+            return {
+                x: g.group,
+                y: [Math.min(start, running), Math.max(start, running)],
+                fillColor: g.nett < 0 ? VARIANCE_THEME.negative : VARIANCE_THEME.positive,
+                nett: Number(g.nett || 0)
+            };
+        });
+
+        const options = {
+            series: [{ name: 'Nett Variance', data: points }],
+            chart: {
+                type: 'rangeBar',
+                height: 130,
+                fontFamily: 'inherit',
+                toolbar: { show: false },
+                zoom: { enabled: false },
+                animations: { enabled: true, speed: 500 }
+            },
+            plotOptions: {
+                bar: { horizontal: false, columnWidth: '55%' }
+            },
+            dataLabels: {
+                enabled: true,
+                formatter: (val, opts) => this.fmtMillion(points[opts.dataPointIndex].nett),
+                // Saat background aktif, style.colors dipakai sebagai warna kotak label
+                style: { fontSize: '12px', fontWeight: 600, colors: [VARIANCE_THEME.labelBg] },
+                background: {
+                    enabled: true,
+                    foreColor: '#FFFFFF',
+                    borderRadius: 6,
+                    borderWidth: 0,
+                    padding: 4,
+                    opacity: 1,
+                    dropShadow: { enabled: false }
+                }
+            },
+            xaxis: {
+                type: 'category',
+                axisBorder: { show: false },
+                axisTicks: { show: false },
+                labels: { style: { fontSize: '12px', colors: '#555555' } }
+            },
+            yaxis: { show: false },
+            legend: { show: false },
+            grid: { show: false, padding: { left: 10, right: 10 } },
+            tooltip: {
+                custom: ({ dataPointIndex }) => {
+                    const p = points[dataPointIndex];
+                    return `<div class="px-2 py-1"><strong>${p.x}</strong>: ${this.fmtMillion(p.nett)}</div>`;
+                }
+            }
+        };
+
+        this.nettVarianceChart = new ApexCharts(el, options);
+        this.nettVarianceChart.render();
+    }
+
+    // 1 card per part group, skala bar disamakan supaya bisa dibandingkan
+    renderAbsoluteVarianceCharts(groups) {
+        const container = document.querySelector('#chart-absolute-variance');
+        if (!container) return;
+
+        this.absoluteVarianceCharts.forEach(chart => chart.destroy());
+        this.absoluteVarianceCharts = [];
+        container.innerHTML = '';
+
+        if (groups.length === 0) {
+            container.innerHTML = `
+                <div class="card shadow-none border border-dark rounded-3 flex-fill">
+                    <div class="card-body"><p class="text-center text-muted my-4">No Data Available</p></div>
+                </div>`;
+            return;
+        }
+
+        const maxAbs = Math.max(...groups.map(g => Number(g.absolute || 0)), 1);
+
+        // Urutan card: part group terakhir di atas (2W lalu 4W), seperti layout referensi
+        [...groups].reverse().forEach(g => {
+            const card = document.createElement('div');
+            card.className = 'card shadow-none border border-dark rounded-3 flex-fill';
+            card.innerHTML = `
+                <div class="card-header text-center pt-1 pb-0">
+                    <div class="small fw-semibold text-dark">Absolute Variance</div>
+                </div>
+                <div class="card-body px-2 py-0"><div class="absolute-variance-chart"></div></div>`;
+            container.appendChild(card);
+
+            const chart = new ApexCharts(card.querySelector('.absolute-variance-chart'), {
+                series: [{ name: 'Absolute Variance', data: [Number(g.absolute || 0)] }],
+                chart: {
+                    type: 'bar',
+                    height: 55,
+                    fontFamily: 'inherit',
+                    toolbar: { show: false },
+                    zoom: { enabled: false },
+                    animations: { enabled: true, speed: 500 }
+                },
+                plotOptions: {
+                    bar: { horizontal: true, barHeight: '70%', dataLabels: { position: 'center' } }
+                },
+                colors: [VARIANCE_THEME.absolute],
+                dataLabels: {
+                    enabled: true,
+                    formatter: val => this.fmtMillion(val),
+                    style: { fontSize: '11px', fontWeight: 600, colors: ['#FFFFFF'] },
+                    dropShadow: { enabled: false }
+                },
+                xaxis: {
+                    categories: [g.group],
+                    min: 0,
+                    max: maxAbs,
+                    labels: { show: false },
+                    axisBorder: { show: false },
+                    axisTicks: { show: false }
+                },
+                yaxis: {
+                    labels: { style: { fontSize: '12px', colors: '#555555' } }
+                },
+                legend: { show: false },
+                grid: { show: false, padding: { top: -15, bottom: -15, right: 10 } },
+                tooltip: {
+                    y: { formatter: v => this.fmtMillion(v) }
+                }
+            });
+
+            chart.render();
+            this.absoluteVarianceCharts.push(chart);
+        });
     }
 
     fmtPct2(v) {
         return `${Number(v || 0).toFixed(2)}%`;
     }
 
-    renderProgressChart(items) {
+    renderProgressChart(items, animate = true) {
         const el = document.querySelector('#chart-counting-progress');
         if (!el) return;
+
+        this.progressItems = items;
+        el.style.minHeight = ''; // sisa min-height dari chart sebelumnya ikut mempengaruhi perhitungan tinggi
 
         if (this.progressChart) {
             this.progressChart.destroy();
@@ -354,11 +739,11 @@ class Dashboard {
             ],
             chart: {
                 type: 'area',
-                height: 400,
+                height: this.progressChartHeight(),
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
-                animations: { enabled: true, speed: 500 }
+                animations: { enabled: animate, speed: 500 }
             },
             colors,
             dataLabels: {
@@ -453,8 +838,9 @@ class Dashboard {
             ],
             chart: {
                 type: 'bar',
-                // Tinggi menyesuaikan jumlah area supaya bar tidak terlalu tipis / tebal
-                height: Math.max(400, items.length * 90),
+                // Tinggi tetap (sama dengan chart Counting Progress Oil) supaya card tidak memanjang
+                // ke bawah saat area oil banyak; ketebalan bar yang menyesuaikan.
+                height: TOP_CHART_HEIGHT,
                 fontFamily: 'inherit',
                 stacked: true,
                 stackType: '100%',
@@ -464,7 +850,7 @@ class Dashboard {
             plotOptions: {
                 bar: {
                     horizontal: true,
-                    barHeight: '75%',
+                    barHeight: items.length > 4 ? '65%' : '75%',
                     dataLabels: { position: 'center' }
                 }
             },
@@ -472,7 +858,7 @@ class Dashboard {
             dataLabels: {
                 enabled: true,
                 formatter: val => (val > 0 ? this.fmtPct2(val) : ''),
-                style: { fontSize: '16px', fontWeight: 400, colors: ['#FFFFFF'] },
+                style: { fontSize: items.length > 4 ? '12px' : '16px', fontWeight: 400, colors: ['#FFFFFF'] },
                 dropShadow: { enabled: false }
             },
             stroke: { width: 0 },
