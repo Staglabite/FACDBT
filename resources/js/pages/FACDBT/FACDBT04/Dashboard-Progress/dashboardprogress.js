@@ -120,9 +120,11 @@ class DashboardProgress {
     }
 
     styleTimeButton(btn, isActive) {
-        btn.className = 'btn btn-sm rounded-0 px-3 py-2 fs-6';
-        btn.style.minWidth = '88px';
-        btn.style.flexShrink = '0';
+        btn.className = 'btn btn-sm rounded-0 px-2 py-2 fs-6';
+        // Lebar sama rata mengisi kotak filter, dibatasi supaya tidak terlalu lebar di layar besar
+        btn.style.flex = '1 1 0';
+        btn.style.minWidth = '84px';
+        btn.style.maxWidth = '140px';
         btn.style.whiteSpace = 'nowrap';
         btn.style.border = `1px solid ${THEME.groupBorder}`;
         btn.style.backgroundColor = isActive ? THEME.activeBg : THEME.timeBg;
