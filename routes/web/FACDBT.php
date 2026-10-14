@@ -10,6 +10,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD001;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD002;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD003;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD004;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD005;
 use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'ts', 'middleware' => 'auth'], function () {
@@ -121,5 +122,14 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/data', 'getData')->name('nett-variance-dashboard.data');
         Route::get('/positive-table', 'positiveTable')->name('nett-variance-dashboard.positive-table');
         Route::get('/negative-table', 'negativeTable')->name('nett-variance-dashboard.negative-table');
+    });
+
+    // Absolute Variance Dashboard (FACDBTD005)
+    Route::group(['prefix' => 'absolute-variance-dashboard', 'controller' => FACDBTD005::class], function () {
+        Route::get('/', 'index')->name('absolute-variance-dashboard.index');
+        Route::get('/filters', 'getFilters')->name('absolute-variance-dashboard.filters');
+        Route::get('/data', 'getData')->name('absolute-variance-dashboard.data');
+        Route::get('/positive-table', 'positiveTable')->name('absolute-variance-dashboard.positive-table');
+        Route::get('/negative-table', 'negativeTable')->name('absolute-variance-dashboard.negative-table');
     });
 });
