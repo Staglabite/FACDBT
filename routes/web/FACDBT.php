@@ -8,6 +8,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF004;
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF005;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD001;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD002;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD003;
 use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'ts', 'middleware' => 'auth'], function () {
@@ -103,5 +104,12 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/groups', 'getGroups')->name('progress-dashboard.groups');
         Route::get('/time-slots', 'getTimeSlots')->name('progress-dashboard.time-slots');
         Route::get('/data', 'getData')->name('progress-dashboard.data');
+    });
+
+    // Dashboard Variance by Area (FACDBTD003)
+    Route::group(['prefix' => 'variance-dashboard', 'controller' => FACDBTD003::class], function () {
+        Route::get('/', 'index')->name('variance-dashboard.index');
+        Route::get('/time-slots', 'getTimeSlots')->name('variance-dashboard.time-slots');
+        Route::get('/data', 'getData')->name('variance-dashboard.data');
     });
 });
