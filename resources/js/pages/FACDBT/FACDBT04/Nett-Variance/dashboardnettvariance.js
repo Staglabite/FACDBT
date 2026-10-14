@@ -3,10 +3,12 @@ import ApexCharts from 'apexcharts';
 
 const ENDPOINT = 'FACDBT/ds/nett-variance-dashboard';
 
-// Tabel detail part (DataTable Yajra) dan endpoint ajax-nya
+// Tabel detail part (DataTable Yajra) dan endpoint ajax-nya.
+// URL harus diawali "/" karena DataTables memakai jQuery ajax (tidak ikut baseURL axios),
+// sehingga URL relatif akan ditempel ke URL halaman (FACDBT/ds/FACDBT/ds/...).
 const TABLES = {
-    positive: { id: 'facdbtd004-positive-table', url: `${ENDPOINT}/positive-table` },
-    negative: { id: 'facdbtd004-negative-table', url: `${ENDPOINT}/negative-table` }
+    positive: { id: 'facdbtd004-positive-table', url: `/${ENDPOINT}/positive-table` },
+    negative: { id: 'facdbtd004-negative-table', url: `/${ENDPOINT}/negative-table` }
 };
 
 // Tinggi chart di baris atas (kotak TIME, chart, dan card Nett Var memakai tinggi yang sama)
