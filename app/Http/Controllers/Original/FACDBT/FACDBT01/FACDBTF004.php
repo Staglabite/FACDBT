@@ -14,7 +14,6 @@ use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Maatwebsite\Excel\Excel;
 use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 class FACDBTF004 extends Controller
@@ -281,7 +280,8 @@ class FACDBTF004 extends Controller
     {
         try {
             $import = new Import;
-            FacadesExcel::import($import, $request->file, Excel::XLSX);
+            // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
+            FacadesExcel::import($import, $request->file('file'));
 
             $result = $import->getResult();
             if ($result->totalError > 0) {
@@ -302,7 +302,9 @@ class FACDBTF004 extends Controller
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
 
-            DB::beginTransaction();
+            // Transaksi di koneksi INV_TAKING (tempat data book disimpan), bukan koneksi default
+            $db = DB::connection($this->connection);
+            $db->beginTransaction();
             try {
                 // 1. Hitung INV_LIST_NO baru = max(INV_LIST_NO) + 1
                 $latestInvListNo = $this->getInvListNo();
@@ -321,12 +323,12 @@ class FACDBTF004 extends Controller
 
                 // 3. Gunakan insert biasa (bukan upsert) per batch/chunk 500 baris
                 //    sehingga data lama sama sekali tidak ter-overwrite
-                foreach (array_chunk($cleaned, 500) as $chunk) {
+                foreach (array_chunk($cleaned, 1000) as $chunk) {
                     TakingBook::insert($chunk);
                 }
 
                 $insertedCount = count($cleaned);
-                DB::commit();
+                $db->commit();
 
                 return response()->json([
                     'success' => true,
@@ -338,7 +340,7 @@ class FACDBTF004 extends Controller
                     ],
                 ], 200);
             } catch (Exception $e) {
-                DB::rollBack();
+                $db->rollBack();
                 return response()->json(['success' => false, 'message' => 'Failed to import data: ' . $e->getMessage()], 500);
             }
         } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {

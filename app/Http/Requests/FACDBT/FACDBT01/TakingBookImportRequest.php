@@ -26,7 +26,7 @@ class TakingBookImportRequest extends FormRequest
                 'required',
                 'file',
                 'mimes:xlsx,xls,csv',
-                'max:10240' // Maksimal ukuran file 10MB
+                'max:51200' // Maksimal ukuran file 50MB (pastikan upload_max_filesize & post_max_size PHP ikut disesuaikan)
             ],
         ];
     }
@@ -39,7 +39,7 @@ class TakingBookImportRequest extends FormRequest
         return [
             'file.required' => 'Please upload an Excel file.',
             'file.mimes'    => 'The file must be a file of type: xlsx, xls, csv.',
-            'file.max'      => 'The file size cannot exceed 10MB.',
+            'file.max'      => 'The file size cannot exceed 50MB.',
         ];
     }
 }
