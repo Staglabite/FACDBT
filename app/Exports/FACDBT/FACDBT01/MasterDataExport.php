@@ -3,37 +3,40 @@
 namespace App\Exports\FACDBT\FACDBT01;
 
 use Illuminate\Database\Eloquent\Builder;
-use Maatwebsite\Excel\Concerns\FromQuery;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithMapping;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Export master data FACDBT01 langsung dari database.
- * FromQuery membaca data per chunk (config excel.exports.chunk_size), jadi data besar
- * tidak perlu dimuat sekaligus ke DataTable/browser.
+ * Export master data FACDBT01 ke CSV.
+ * Data dibaca per chunk tanpa membuat model Eloquent dan langsung ditulis ke response,
+ * jadi data besar tidak perlu dimuat sekaligus ke memori.
  */
-class MasterDataExport implements FromQuery, WithHeadings, WithMapping
+class MasterDataExport
 {
+    private const CHUNK_SIZE = 2000;
+
     /**
-     * @param  array<string, string>  $columns  [kolom database => judul kolom di Excel]
+     * @param  array<string, string>  $columns  [kolom database => judul kolom di CSV]
      */
     public function __construct(
         private Builder $query,
         private array $columns,
     ) {}
 
-    public function query(): Builder
+    public function download(string $filename): StreamedResponse
     {
-        return $this->query->select(array_keys($this->columns));
-    }
+        return response()->streamDownload(function () {
+            $out = fopen('php://output', 'w');
 
-    public function headings(): array
-    {
-        return array_values($this->columns);
-    }
+            // BOM supaya Excel membaca CSV sebagai UTF-8
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, array_values($this->columns));
 
-    public function map($row): array
-    {
-        return array_map(fn ($column) => $row->{$column}, array_keys($this->columns));
+            $columns = array_keys($this->columns);
+            foreach ($this->query->select($columns)->toBase()->lazy(self::CHUNK_SIZE) as $row) {
+                fputcsv($out, array_map(fn ($column) => $row->{$column}, $columns));
+            }
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 }

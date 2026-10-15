@@ -128,7 +128,7 @@ class FACDBTF001 extends Controller
     }
 
     /**
-     * Export Excel: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
+     * Export CSV: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
      */
     public function export(Request $request)
     {
@@ -138,14 +138,14 @@ class FACDBTF001 extends Controller
             ->when(!empty($ids), fn ($q) => $q->whereIn('location_no', $ids))
             ->orderBy('location_no');
 
-        return FacadesExcel::download(new MasterDataExport($query, [
+        return (new MasterDataExport($query, [
             'location_no' => 'Location No',
             'location_group' => 'Location Group',
             'site' => 'Site',
             'warehouse' => 'Warehouse',
             'location_description' => 'Description',
             'location_group_description' => 'Group Description',
-        ]), 'Master_Location-' . date('YmdHis') . '.xlsx');
+        ]))->download('Master_Location-' . date('YmdHis') . '.csv');
     }
 
     public function downloadTemplate()

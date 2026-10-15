@@ -108,7 +108,7 @@ class FACDBTF003 extends Controller
     }
 
     /**
-     * Export Excel: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
+     * Export CSV: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
      */
     public function export(Request $request)
     {
@@ -116,9 +116,9 @@ class FACDBTF003 extends Controller
 
         $query = UnitCost::query()
             ->when(!empty($ids), fn ($q) => $q->whereIn('part_no', $ids))
-            ->orderBy('part_no');
+            ->orderBy('part_no')->orderBy('id');
 
-        return FacadesExcel::download(new MasterDataExport($query, [
+        return (new MasterDataExport($query, [
             'part_no' => 'Part No',
             'inventory_part_description' => 'Description',
             'inventory_uom' => 'UOM',
@@ -127,7 +127,7 @@ class FACDBTF003 extends Controller
             'mat_cost' => 'Material Cost',
             'lab_cost' => 'Labor Cost',
             'foh_cost' => 'FOH Cost',
-        ]), 'Master_Unit_Cost-' . date('YmdHis') . '.xlsx');
+        ]))->download('Master_Unit_Cost-' . date('YmdHis') . '.csv');
     }
 
     public function downloadTemplate()

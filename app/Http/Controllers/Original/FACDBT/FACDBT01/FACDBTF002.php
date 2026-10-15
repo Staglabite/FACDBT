@@ -134,7 +134,7 @@ class FACDBTF002 extends Controller
     }
 
     /**
-     * Export Excel: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
+     * Export CSV: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
      */
     public function export(Request $request)
     {
@@ -144,7 +144,7 @@ class FACDBTF002 extends Controller
             ->when(!empty($ids), fn ($q) => $q->whereIn('part_no', $ids))
             ->orderBy('part_no');
 
-        return FacadesExcel::download(new MasterDataExport($query, [
+        return (new MasterDataExport($query, [
             'part_no' => 'Part No',
             'inventory_part_description' => 'Description',
             'accounting_group' => 'Accounting Group',
@@ -152,7 +152,7 @@ class FACDBTF002 extends Controller
             'seg' => 'Seg',
             'prod_group' => 'Prod Group',
             'part_group' => 'Part Group',
-        ]), 'Master_Part-' . date('YmdHis') . '.xlsx');
+        ]))->download('Master_Part-' . date('YmdHis') . '.csv');
     }
 
     public function downloadTemplate()

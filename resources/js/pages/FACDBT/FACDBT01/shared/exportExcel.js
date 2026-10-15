@@ -15,7 +15,7 @@ export async function exportMasterData(url, ids, $button = $('#export-excel')) {
 
         const disposition = response.headers['content-disposition'] || '';
         const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-        const filename = match ? decodeURIComponent(match[1]) : 'export.xlsx';
+        const filename = match ? decodeURIComponent(match[1]) : 'export.csv';
 
         const link = document.createElement('a');
         link.href = URL.createObjectURL(response.data);

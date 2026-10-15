@@ -96,7 +96,7 @@ class FACDBTF005 extends Controller
     }
 
     /**
-     * Export Excel: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
+     * Export CSV: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
      */
     public function export(Request $request)
     {
@@ -104,13 +104,13 @@ class FACDBTF005 extends Controller
 
         $query = GroupLocation::query()
             ->when(!empty($ids), fn ($q) => $q->whereIn('IID', $ids))
-            ->orderBy('location_group')->orderBy('LOCATION_NO');
+            ->orderBy('location_group')->orderBy('LOCATION_NO')->orderBy('IID');
 
-        return FacadesExcel::download(new MasterDataExport($query, [
+        return (new MasterDataExport($query, [
             'LOCATION_NO' => 'Location No',
             'ID_LOC' => 'ID Loc',
             'location_group' => 'Location Group',
-        ]), 'Master_Group_Location-' . date('YmdHis') . '.xlsx');
+        ]))->download('Master_Group_Location-' . date('YmdHis') . '.csv');
     }
 
     public function downloadTemplate()
