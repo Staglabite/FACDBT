@@ -1,7 +1,7 @@
 import axios from 'axios';
 import GroupLocationForm from './grouplocation-form';
 import { toast } from '../../../../helpers';
-import { exportTableToExcel } from '../shared/exportExcel';
+import { exportMasterData } from '../shared/exportExcel';
 import Swal from 'sweetalert2';
 
 class GroupLocation {
@@ -51,7 +51,7 @@ class GroupLocation {
     });
 
     $(document).on('click', '#export-excel', function () {
-      exportTableToExcel(self.#groupLocationTable);
+      exportMasterData('/FACDBT/bd/master-grouplocation/export', self.#selectedGroupLocationIds);
     });
 
     $(document).on('click', '#download-template', function () {

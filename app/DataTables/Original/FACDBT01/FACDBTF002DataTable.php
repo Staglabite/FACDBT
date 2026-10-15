@@ -80,16 +80,6 @@ class FACDBTF002DataTable extends DataTable
             ->parameters([
                 'processing' => false,
                 'orderCellsTop' => true,
-                'buttons' => [
-                    [
-                        'extend' => 'excel',
-                        'className' => 'd-none',
-                        'filename' => $this->filename(),
-                        'exportOptions' => [
-                            'columns' => ':visible:not(:first-child):not(:last-child)',
-                        ],
-                    ],
-                ],
                 'initComplete' => '
                     function () {
                         var table = this.api();

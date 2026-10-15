@@ -24,6 +24,7 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
         Route::get('/download-template', 'downloadTemplate');
+        Route::post('/export', 'export');
         Route::post('/import', 'import');
         Route::post('/delete-multiple', 'destroyMultiple');
         
@@ -37,6 +38,7 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::get('/', 'index')->name('facdbtf002.index');
         Route::post('/', 'store')->name('facdbtf002.store');
         Route::get('/download-template', 'downloadTemplate')->name('facdbtf002.download-template');
+        Route::post('/export', 'export')->name('facdbtf002.export');
         Route::post('/import', 'import')->name('facdbtf002.import');
         Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf002.delete-multiple');
         
@@ -51,6 +53,7 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::post('/', 'store')->name('facdbtf003.store');
         
         Route::get('/download-template', 'downloadTemplate')->name('facdbtf003.download-template');
+        Route::post('/export', 'export')->name('facdbtf003.export');
         Route::post('/import', 'import')->name('facdbtf003.import');
         Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf003.delete-multiple');
         
@@ -79,6 +82,7 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::post('/', 'store')->name('facdbtf005.store');
 
         Route::get('/download-template', 'downloadTemplate')->name('facdbtf005.download-template');
+        Route::post('/export', 'export')->name('facdbtf005.export');
         Route::post('/import', 'import')->name('facdbtf005.import');
         Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf005.delete-multiple');
 

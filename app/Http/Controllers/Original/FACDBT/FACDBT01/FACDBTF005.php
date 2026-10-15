@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF005DataTable;
 use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF005 as Template;
+use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FACDBT\FACDBT01\GroupLocationImportRequest;
@@ -92,6 +93,24 @@ class FACDBTF005 extends Controller
         } catch (\Throwable $th) {
             return Response::error(message: 'Group Location data cannot be deleted, it may be related to other data');
         }
+    }
+
+    /**
+     * Export Excel: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
+     */
+    public function export(Request $request)
+    {
+        $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
+
+        $query = GroupLocation::query()
+            ->when(!empty($ids), fn ($q) => $q->whereIn('IID', $ids))
+            ->orderBy('location_group')->orderBy('LOCATION_NO');
+
+        return FacadesExcel::download(new MasterDataExport($query, [
+            'LOCATION_NO' => 'Location No',
+            'ID_LOC' => 'ID Loc',
+            'location_group' => 'Location Group',
+        ]), 'Master_Group_Location-' . date('YmdHis') . '.xlsx');
     }
 
     public function downloadTemplate()

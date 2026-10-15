@@ -1,7 +1,7 @@
 import axios from 'axios';
 import UnitCostForm from './unitcost-form';
 import { toast } from '../../../../helpers';
-import { exportTableToExcel } from '../shared/exportExcel';
+import { exportMasterData } from '../shared/exportExcel';
 import Swal from 'sweetalert2';
 
 class UnitCost {
@@ -51,7 +51,7 @@ class UnitCost {
         });
 
         $(document).on('click', '#export-excel', function () {
-            exportTableToExcel(self.#unitCostTable);
+            exportMasterData('/FACDBT/bd/master-unitcost/export', self.#selectedUnitCostIds);
         });
 
         $(document).on('click', '#download-template', function () {

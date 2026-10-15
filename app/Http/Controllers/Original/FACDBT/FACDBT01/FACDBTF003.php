@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF003DataTable;
 use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF003 as Template;
+use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FACDBT\FACDBT01\UnitCostImportRequest; 
@@ -104,6 +105,29 @@ class FACDBTF003 extends Controller
         } catch (\Throwable $th) {
             return Response::error(message: 'Unit Cost data cannot be deleted, it may be related to other data');
         }
+    }
+
+    /**
+     * Export Excel: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
+     */
+    public function export(Request $request)
+    {
+        $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
+
+        $query = UnitCost::query()
+            ->when(!empty($ids), fn ($q) => $q->whereIn('part_no', $ids))
+            ->orderBy('part_no');
+
+        return FacadesExcel::download(new MasterDataExport($query, [
+            'part_no' => 'Part No',
+            'inventory_part_description' => 'Description',
+            'inventory_uom' => 'UOM',
+            'accounting_group' => 'Accounting Group',
+            'on_hand_qty' => 'On Hand Qty',
+            'mat_cost' => 'Material Cost',
+            'lab_cost' => 'Labor Cost',
+            'foh_cost' => 'FOH Cost',
+        ]), 'Master_Unit_Cost-' . date('YmdHis') . '.xlsx');
     }
 
     public function downloadTemplate()

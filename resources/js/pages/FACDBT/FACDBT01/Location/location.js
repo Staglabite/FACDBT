@@ -1,7 +1,7 @@
 import axios from 'axios';
 import LocationForm from './location-form';
 import { toast } from '../../../../helpers';
-import { exportTableToExcel } from '../shared/exportExcel';
+import { exportMasterData } from '../shared/exportExcel';
 import Swal from 'sweetalert2';
 
 class Location {
@@ -51,7 +51,7 @@ class Location {
     });
 
     $(document).on('click', '#export-excel', function () {
-      exportTableToExcel(self.#locationTable);
+      exportMasterData('/FACDBT/bd/master-location/export', self.#selectedLocationIds);
     });
 
     $(document).on('click', '#download-template', function () {

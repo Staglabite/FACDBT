@@ -1,7 +1,7 @@
 import axios from 'axios';
 import PartForm from './part-form';
 import { toast } from '../../../../helpers';
-import { exportTableToExcel } from '../shared/exportExcel';
+import { exportMasterData } from '../shared/exportExcel';
 import Swal from 'sweetalert2';
 
 class Part {
@@ -51,7 +51,7 @@ class Part {
         });
 
         $(document).on('click', '#export-excel', function () {
-            exportTableToExcel(self.#partTable);
+            exportMasterData('/FACDBT/bd/master-part/export', self.#selectedPartIds);
         });
 
         $(document).on('click', '#download-template', function () {

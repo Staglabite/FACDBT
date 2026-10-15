@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF002DataTable;
 use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF002 as Template;
+use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FACDBT\FACDBT01\PartImportRequest; 
@@ -130,6 +131,28 @@ class FACDBTF002 extends Controller
         } catch (\Throwable $th) {
             return Response::error(message: 'Part data cannot be deleted, it may be related to other data');
         }
+    }
+
+    /**
+     * Export Excel: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
+     */
+    public function export(Request $request)
+    {
+        $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
+
+        $query = Part::query()
+            ->when(!empty($ids), fn ($q) => $q->whereIn('part_no', $ids))
+            ->orderBy('part_no');
+
+        return FacadesExcel::download(new MasterDataExport($query, [
+            'part_no' => 'Part No',
+            'inventory_part_description' => 'Description',
+            'accounting_group' => 'Accounting Group',
+            'stream' => 'Stream',
+            'seg' => 'Seg',
+            'prod_group' => 'Prod Group',
+            'part_group' => 'Part Group',
+        ]), 'Master_Part-' . date('YmdHis') . '.xlsx');
     }
 
     public function downloadTemplate()
