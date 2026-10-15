@@ -19,21 +19,19 @@
         <div class="card-datatable">
             <div class="d-flex justify-content-between align-items-center my-5 flex-column flex-xl-row px-6">
                 <div class="d-flex align-items-center gap-2 justify-content-center">
-                    @serve('FACDBTF001-Create')
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-primary d-flex align-items-center gap-2 px-2 py-2 w-100"
-                                id="btn-create-location">
-                                <i class="icon-base ti tabler-plus"></i>
-                                <span>Add</span>
-                            </button>
-                        </div>
-                    @endserve
-                    <!-- <div class="d-flex gap-2">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary d-flex align-items-center gap-2 px-2 py-2 w-100"
+                            id="btn-create-location">
+                            <i class="icon-base ti tabler-plus"></i>
+                            <span>Add</span>
+                        </button>
+                    </div>
+                    <div class="d-flex gap-2">
                         <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3"
                             id="export-excel">
                             <i class="icon-base ti tabler-upload"></i> Export
                         </button>
-                    </div> -->
+                    </div>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3"
                             id="import-excel">

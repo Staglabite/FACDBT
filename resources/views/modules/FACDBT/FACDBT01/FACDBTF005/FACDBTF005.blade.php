@@ -28,12 +28,12 @@
                             </button>
                         </div>
                     @endserve
-                    <!-- <div class="d-flex gap-2">
+                    <div class="d-flex gap-2">
                         <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3"
                             id="export-excel">
                             <i class="icon-base ti tabler-upload"></i> Export
                         </button>
-                    </div> -->
+                    </div>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3"
                             id="import-excel">

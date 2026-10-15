@@ -1,6 +1,7 @@
 import axios from 'axios';
 import GroupLocationForm from './grouplocation-form';
 import { toast } from '../../../../helpers';
+import { exportTableToExcel } from '../shared/exportExcel';
 import Swal from 'sweetalert2';
 
 class GroupLocation {
@@ -47,6 +48,10 @@ class GroupLocation {
 
     $(document).on('click', '#btn-delete-selected', function () {
       self.#handleDeleteSelected();
+    });
+
+    $(document).on('click', '#export-excel', function () {
+      exportTableToExcel(self.#groupLocationTable);
     });
 
     $(document).on('click', '#download-template', function () {

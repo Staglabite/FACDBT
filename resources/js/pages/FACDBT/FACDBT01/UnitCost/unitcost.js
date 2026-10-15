@@ -1,6 +1,7 @@
 import axios from 'axios';
 import UnitCostForm from './unitcost-form';
 import { toast } from '../../../../helpers';
+import { exportTableToExcel } from '../shared/exportExcel';
 import Swal from 'sweetalert2';
 
 class UnitCost {
@@ -49,9 +50,9 @@ class UnitCost {
             self.#handleDeleteSelected();
         });
 
-        // $(document).on('click', '#export-excel', function () {
-        //     self.#unitCostTable.DataTable().button('.buttons-excel').trigger();
-        // });
+        $(document).on('click', '#export-excel', function () {
+            exportTableToExcel(self.#unitCostTable);
+        });
 
         $(document).on('click', '#download-template', function () {
             // Adjust the URL route based on your web routes for downloading the template

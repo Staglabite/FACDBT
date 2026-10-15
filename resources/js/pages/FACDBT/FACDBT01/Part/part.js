@@ -1,6 +1,7 @@
 import axios from 'axios';
 import PartForm from './part-form';
 import { toast } from '../../../../helpers';
+import { exportTableToExcel } from '../shared/exportExcel';
 import Swal from 'sweetalert2';
 
 class Part {
@@ -49,9 +50,9 @@ class Part {
             self.#handleDeleteSelected();
         });
 
-        // $(document).on('click', '#export-excel', function () {
-        //     self.#partTable.DataTable().button('.buttons-excel').trigger();
-        // });
+        $(document).on('click', '#export-excel', function () {
+            exportTableToExcel(self.#partTable);
+        });
 
         $(document).on('click', '#download-template', function () {
             // Adjust the URL route based on your web routes for downloading the template
