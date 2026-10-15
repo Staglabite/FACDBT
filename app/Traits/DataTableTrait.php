@@ -335,7 +335,9 @@ trait DataTableTrait
     {
         $user = Auth::user();
         $button = '';
-        $services = collect($user->serviceNames());
+        // Dihitung sekali per request: serviceNames() menjalankan beberapa query, dan method ini
+        // dipanggil per baris sehingga request "All"/export (length=-1) bisa melewati batas waktu PHP
+        $services = once(fn () => collect($user?->serviceNames() ?? []));
 
         foreach ($actions as $action) {
             $class = $action['action'] . '-' . strtolower(last(explode(' ', $action['service'])));
