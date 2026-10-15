@@ -1,5 +1,6 @@
 import axios from 'axios';
 import ApexCharts from 'apexcharts';
+import { autoRefresh, track } from '../shared/dashboardStatus';
 
 const ENDPOINT = 'FACDBT/ds/progress-dashboard';
 
@@ -27,6 +28,9 @@ class DashboardProgress {
         this.bindScrollers();
         this.loadGroups();
         this.loadTimeSlots();
+
+        // Perbarui chart secara berkala dengan filter yang sedang dipilih
+        autoRefresh(() => this.loadData());
     }
 
     // -------------------------------------------------------------
@@ -150,7 +154,7 @@ class DashboardProgress {
         const controller = new AbortController();
         this.dataRequest = controller;
 
-        axios.get(`${ENDPOINT}/data`, { params, signal: controller.signal, timeout: 60000 })
+        track(axios.get(`${ENDPOINT}/data`, { params, signal: controller.signal, timeout: 60000 }))
             .then(res => {
                 const data = res.data || {};
                 this.renderChart('#chart-progress-item', 'item', data.item || []);

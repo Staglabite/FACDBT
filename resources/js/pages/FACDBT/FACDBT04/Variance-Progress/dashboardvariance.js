@@ -1,5 +1,6 @@
 import axios from 'axios';
 import ApexCharts from 'apexcharts';
+import { autoRefresh, track } from '../shared/dashboardStatus';
 
 const ENDPOINT = 'FACDBT/ds/variance-dashboard';
 
@@ -27,6 +28,9 @@ class DashboardVariance {
     init() {
         this.loadTimeSlots();
         this.loadData();
+
+        // Perbarui chart secara berkala dengan filter waktu yang sedang dipilih
+        autoRefresh(() => this.loadData());
     }
 
     // -------------------------------------------------------------
@@ -87,7 +91,7 @@ class DashboardVariance {
         const controller = new AbortController();
         this.dataRequest = controller;
 
-        axios.get(`${ENDPOINT}/data`, { params, signal: controller.signal, timeout: 60000 })
+        track(axios.get(`${ENDPOINT}/data`, { params, signal: controller.signal, timeout: 60000 }))
             .then(res => this.render(res.data || {}))
             .catch(err => {
                 if (axios.isCancel(err)) return;

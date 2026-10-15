@@ -1,5 +1,6 @@
 import axios from 'axios';
 import ApexCharts from 'apexcharts';
+import { autoRefresh, track } from '../shared/dashboardStatus';
 
 // Konfigurasi Chart Atas
 const MIN_QTY_LABEL = 10;
@@ -89,6 +90,15 @@ class Dashboard {
         this.loadTimeSlots();
         this.loadVarianceTrend();
         this.watchColumnHeights();
+
+        // Perbarui semua chart secara berkala (filter waktu yang dipilih tetap dipakai)
+        autoRefresh(() => {
+            this.loadTopCharts();
+            if (this.selectedTime) {
+                this.loadBottomCharts();
+            }
+            this.loadVarianceTrend();
+        });
     }
 
     // Tinggi chart Counting Progress (by Part) disesuaikan supaya bagian bawah kolom kiri
@@ -137,7 +147,7 @@ class Dashboard {
     // 1. Chart Atas (Tidak terpengaruh filter waktu tombol)
     // -------------------------------------------------------------
     loadTopCharts() {
-        axios.get('FACDBT/ds/main-dashboard/data')   
+        track(axios.get('FACDBT/ds/main-dashboard/data'))
             .then(response => {
                 const result = response.data.data || response.data;
                 this.renderTopChart('#chart-non-oil', result.non_oil || [], THEMES.nonOil, 'non_oil');
@@ -386,7 +396,7 @@ class Dashboard {
     }
 
     loadBottomCharts() {
-        axios.get('FACDBT/ds/main-dashboard/progress-by-area', { params: { time: this.selectedTime } })
+        track(axios.get('FACDBT/ds/main-dashboard/progress-by-area', { params: { time: this.selectedTime } }))
         .then(res => {
             const data = res.data || { parts: [], oil: [] };
             this.renderProgressChart(data.parts || []);
@@ -401,7 +411,7 @@ class Dashboard {
     // 3. Variance (mengikuti filter waktu tombol slot)
     // -------------------------------------------------------------
     loadVariance() {
-        axios.get('FACDBT/ds/main-dashboard/variance', { params: { time: this.selectedTime } })
+        track(axios.get('FACDBT/ds/main-dashboard/variance', { params: { time: this.selectedTime } }))
             .then(res => {
                 const data = res.data || {};
                 const partGroups = this.sortPartGroups(data.by_part_group || []);
@@ -415,7 +425,7 @@ class Dashboard {
 
     // Chart Absolute Variance per slot waktu (tidak terpengaruh filter tombol waktu)
     loadVarianceTrend() {
-        axios.get('FACDBT/ds/main-dashboard/variance-trend')
+        track(axios.get('FACDBT/ds/main-dashboard/variance-trend'))
             .then(res => this.renderVarianceTrendChart(Array.isArray(res.data) ? res.data : []))
             .catch(err => console.error('Error load variance trend:', err));
     }

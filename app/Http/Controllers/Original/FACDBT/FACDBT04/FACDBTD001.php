@@ -86,17 +86,96 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Subquery pemetaan lokasi -> area (location_group dari SIM_INV_GROUP_LOCATION).
-     * DISTINCT per (lokasi, area) supaya lokasi di lebih dari satu group tidak hilang.
+     * Pemetaan lokasi -> daftar area (location_group dari SIM_INV_GROUP_LOCATION).
+     * Lokasi di lebih dari satu group masuk ke semua group-nya. Dikerjakan di PHP karena
+     * join dengan TRIM() di SQL membuat index tidak terpakai.
+     *
+     * @return array<string, array<int, string|null>> [location_no => [area, ...]]
      */
-    private function areaMapSub($db)
+    private function locationAreaMap($db): array
     {
-        return $db->table('SIM_INV_GROUP_LOCATION as gl')
-            ->select(
-                DB::raw('TRIM(gl.LOCATION_NO) as loc_no'),
-                DB::raw("NULLIF(TRIM(gl.location_group), '') as area_name")
-            )
-            ->distinct();
+        return $this->dashboardCache('FACDBTD001:location-area-map:v1', function () use ($db) {
+            $map = [];
+            foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->get() as $r) {
+                $loc   = trim((string) $r->LOCATION_NO);
+                $group = trim((string) $r->location_group);
+                $map[$loc][$group === '' ? '' : $group] = $group === '' ? null : $group;
+            }
+
+            return array_map('array_values', $map);
+        });
+    }
+
+    /**
+     * Label area untuk chart progress by area.
+     * - Part oil (inventory_uom = ml) di lokasi / group PPC  -> 'PPC-OIL'
+     * - Part oil lainnya                                     -> 'OIL <location_group>'
+     * - Part non-oil                                         -> '<location_group>'
+     * Lokasi tanpa group -> 'UNKNOWN'.
+     */
+    public static function areaLabel(string $locationNo, ?string $area, bool $isOil): string
+    {
+        if ($isOil && (str_contains(strtoupper($locationNo), 'PPC') || str_contains(strtoupper((string) $area), 'PPC'))) {
+            return 'PPC-OIL';
+        }
+
+        $base = $area ?? 'UNKNOWN';
+
+        if ($isOil && !str_starts_with(strtoupper($base), 'OIL ')) {
+            return 'OIL ' . $base;
+        }
+
+        return $base;
+    }
+
+    /**
+     * Qty book per (area, part) untuk chart progress by area.
+     *
+     * @return \Illuminate\Support\Collection<int, object{area_label: string, PART_NO: string, qty_book: float}>
+     */
+    private function bookPerAreaPart($db, string $takingDate, string $closeDate, string $invListNo)
+    {
+        $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
+            ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+            ->where('INV_LIST_NO', $invListNo)
+            ->groupBy('LOCATION_NO', 'PART_NO')
+            ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'))
+            ->get();
+
+        return collect(self::groupBookByArea(
+            $book,
+            $this->oilPartsSub($db)->pluck('is_oil', 'part_no')->all(),
+            $this->locationAreaMap($db)
+        ));
+    }
+
+    /**
+     * Jumlahkan qty book per (area, part). Lokasi di beberapa group dihitung di tiap group-nya.
+     *
+     * @param  iterable<object{LOCATION_NO: string, PART_NO: string, qty: float}>  $book
+     * @param  array<string, int|string>  $oilParts  [part_no => is_oil]
+     * @param  array<string, array<int, string|null>>  $areaMap  [location_no => [area, ...]]
+     * @return array<int, object{area_label: string, PART_NO: string, qty_book: float}>
+     */
+    public static function groupBookByArea(iterable $book, array $oilParts, array $areaMap): array
+    {
+        $totals = [];
+        foreach ($book as $r) {
+            $isOil = (int) ($oilParts[$r->PART_NO] ?? 0) === 1;
+            foreach ($areaMap[trim((string) $r->LOCATION_NO)] ?? [null] as $area) {
+                $label = self::areaLabel((string) $r->LOCATION_NO, $area, $isOil);
+                $totals[$label][$r->PART_NO] = ($totals[$label][$r->PART_NO] ?? 0.0) + (float) $r->qty;
+            }
+        }
+
+        $rows = [];
+        foreach ($totals as $label => $parts) {
+            foreach ($parts as $part => $qty) {
+                $rows[] = (object) ['area_label' => (string) $label, 'PART_NO' => (string) $part, 'qty_book' => $qty];
+            }
+        }
+
+        return $rows;
     }
 
     /**
@@ -316,34 +395,13 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $selectedTime, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:area:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+        $cacheKey = "FACDBTD001:area:v9:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
 
         $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo) {
-            $areaSub = $this->areaMapSub($db);
-
-            // Book dikelompokkan di database: 1 baris per (area, part).
-            // Part oil (inventory_uom = ml) dipisah ke area 'OIL <location_group>' per part,
-            // karena satu lokasi bisa berisi part oil dan non-oil sekaligus.
-            // Part oil di lokasi / group PPC digabung menjadi satu area 'PPC-OIL'.
-            $bookRows = $db->table('SIM_INV_TAKING_BOOK_TAB as b')
-                ->leftJoinSub($areaSub, 'ar', DB::raw('TRIM(b.LOCATION_NO)'), '=', 'ar.loc_no')
-                ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
-                ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
-                ->where('b.INV_LIST_NO', $latestInvListNo)
-                ->groupBy('area_label', 'b.PART_NO')
-                ->select([
-                    DB::raw("CASE
-                        WHEN COALESCE(cost.is_oil, 0) = 1
-                            AND (UPPER(b.LOCATION_NO) LIKE '%PPC%' OR UPPER(COALESCE(ar.area_name, '')) LIKE '%PPC%')
-                            THEN 'PPC-OIL'
-                        WHEN COALESCE(cost.is_oil, 0) = 1 AND COALESCE(ar.area_name, 'UNKNOWN') NOT LIKE 'OIL %'
-                            THEN CONCAT('OIL ', COALESCE(ar.area_name, 'UNKNOWN'))
-                        ELSE COALESCE(ar.area_name, 'UNKNOWN')
-                    END as area_label"),
-                    'b.PART_NO',
-                    DB::raw('SUM(b.QUANTITY) as qty_book'),
-                ])
-                ->get();
+            // 1 baris per (area, part). Part oil (inventory_uom = ml) dipisah per part ke area
+            // 'OIL <location_group>' / 'PPC-OIL' (lihat areaLabel), karena satu lokasi bisa berisi
+            // part oil dan non-oil sekaligus.
+            $bookRows = $this->bookPerAreaPart($db, $takingDate, $closeDate, $latestInvListNo);
 
             if ($bookRows->isEmpty()) {
                 return ['parts' => [], 'oil' => []];
@@ -431,14 +489,15 @@ class FACDBTD001 extends Controller
 
         // /...?debug=1 -> tampilkan lokasi book yang belum terpetakan ke area (penyebab UNKNOWN)
         if ($request->boolean('debug')) {
-            $result['unmapped'] = $db->table('SIM_INV_TAKING_BOOK_TAB as b')
-                ->leftJoinSub($this->areaMapSub($db), 'ar', DB::raw('TRIM(b.LOCATION_NO)'), '=', 'ar.loc_no')
-                ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
-                ->where('b.INV_LIST_NO', $latestInvListNo)
-                ->whereNull('ar.area_name')
-                ->groupBy('b.LOCATION_NO', 'b.WAREHOUSE')
-                ->select('b.LOCATION_NO', 'b.WAREHOUSE', DB::raw('COUNT(DISTINCT b.PART_NO) as parts'))
-                ->get();
+            $areaMap = $this->locationAreaMap($db);
+            $result['unmapped'] = $db->table('SIM_INV_TAKING_BOOK_TAB')
+                ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+                ->where('INV_LIST_NO', $latestInvListNo)
+                ->groupBy('LOCATION_NO', 'WAREHOUSE')
+                ->select('LOCATION_NO', 'WAREHOUSE', DB::raw('COUNT(DISTINCT PART_NO) as parts'))
+                ->get()
+                ->filter(fn ($r) => empty(array_filter($areaMap[trim((string) $r->LOCATION_NO)] ?? [])))
+                ->values();
         }
 
         return response()->json($result);
