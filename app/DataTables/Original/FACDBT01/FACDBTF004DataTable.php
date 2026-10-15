@@ -75,6 +75,8 @@ public function query(TakingBook $model)
             ->columns($this->getColumns())
             ->minifiedAjax()
             ->parameters([
+                // Data diambil per halaman dari server; tanpa ini seluruh tabel dimuat sekaligus dan memori PHP habis
+                'serverSide' => true,
                 'processing' => false,
                 'orderCellsTop' => true,
                 'buttons' => [
