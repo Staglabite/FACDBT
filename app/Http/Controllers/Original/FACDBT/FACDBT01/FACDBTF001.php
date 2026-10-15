@@ -20,6 +20,11 @@ class FACDBTF001 extends Controller
 {
     public function index(FACDBTF001DataTable $dataTable)
     {
+        // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
+        if (request()->boolean('ids_only')) {
+            return response()->json(['ids' => $dataTable->filteredKeys('location_no')]);
+        }
+
         return $dataTable->render('modules.FACDBT.FACDBT01.FACDBTF001.FACDBTF001');
     }
 

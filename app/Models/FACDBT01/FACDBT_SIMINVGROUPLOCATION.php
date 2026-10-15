@@ -22,6 +22,7 @@ class FACDBT_SIMINVGROUPLOCATION extends Model
         'LOCATION_NO',
         'ID_LOC',
         'location_group',
+        'stream',
     ];
 
     protected $casts = [
@@ -29,6 +30,7 @@ class FACDBT_SIMINVGROUPLOCATION extends Model
         'LOCATION_NO' => 'string',
         'ID_LOC' => 'string',
         'location_group' => 'string',
+        'stream' => 'string',
     ];
 
     /**

@@ -24,7 +24,6 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
         'part_no',
         'inventory_part_description',
         'accounting_group',
-        'stream',
         'seg',
         'prod_group',
         'part_group',

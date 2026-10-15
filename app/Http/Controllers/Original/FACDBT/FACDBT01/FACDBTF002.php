@@ -20,6 +20,11 @@ class FACDBTF002 extends Controller
 {
     public function index(FACDBTF002DataTable $dataTable)
     {
+        // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
+        if (request()->boolean('ids_only')) {
+            return response()->json(['ids' => $dataTable->filteredKeys('part_no')]);
+        }
+
         return $dataTable->render('modules.FACDBT.FACDBT01.FACDBTF002.FACDBTF002');
     }
 
@@ -29,7 +34,6 @@ class FACDBTF002 extends Controller
             'part_no'                    => $request->part_no,
             'inventory_part_description' => $request->inventory_part_description,
             'accounting_group'           => $request->accounting_group,
-            'stream'                     => $request->stream,
             'seg'                        => $request->seg,
             'prod_group'                 => $request->prod_group,
             'part_group'                 => $request->part_group,
@@ -68,7 +72,6 @@ class FACDBTF002 extends Controller
         $part->update([
             'inventory_part_description' => $request->inventory_part_description,
             'accounting_group'           => $request->accounting_group,
-            'stream'                     => $request->stream,
             'seg'                        => $request->seg,
             'prod_group'                 => $request->prod_group,
             'part_group'                 => $request->part_group,
@@ -147,7 +150,6 @@ class FACDBTF002 extends Controller
             'part_no' => 'Part No',
             'inventory_part_description' => 'Description',
             'accounting_group' => 'Accounting Group',
-            'stream' => 'Stream',
             'seg' => 'Seg',
             'prod_group' => 'Prod',
             'part_group' => 'Part Group',
@@ -195,7 +197,6 @@ class FACDBTF002 extends Controller
                     [ 
                         'inventory_part_description',
                         'accounting_group',
-                        'stream',
                         'seg',
                         'prod_group',
                         'part_group'

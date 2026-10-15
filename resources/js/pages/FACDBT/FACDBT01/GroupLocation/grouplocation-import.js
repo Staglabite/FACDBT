@@ -44,6 +44,7 @@ class GroupLocationImport {
             location_no: item.location_no ?? '',
             id_loc: item.id_loc ?? '',
             location_group: item.location_group ?? '',
+            stream: item.stream ?? '',
             errors: `<ul class="text-danger">${item.errors.map(err => `<li>${err}</li>`).join('')}</ul>`
         }));
 
@@ -78,6 +79,7 @@ class GroupLocationImport {
                 { title: 'Location No', data: 'location_no', defaultContent: '' },
                 { title: 'ID Loc', data: 'id_loc', defaultContent: '' },
                 { title: 'Location Group', data: 'location_group', defaultContent: '' },
+                { title: 'Stream', data: 'stream', defaultContent: '' },
                 { title: 'Errors', data: 'errors', className: 'dt-nowrap', defaultContent: '' }
             ],
             pageLength: 10,

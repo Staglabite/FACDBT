@@ -23,6 +23,14 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
         'location_no',
         'id_loc',
         'location_group',
+        'stream',
+    ];
+
+    // Kolom yang wajib diisi (stream boleh kosong)
+    protected $requiredColumns = [
+        'location_no',
+        'id_loc',
+        'location_group',
     ];
 
     // Mapping kolom Excel ke kolom tabel SIM_INV_GROUP_LOCATION
@@ -30,6 +38,7 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
         'location_no' => 'LOCATION_NO',
         'id_loc' => 'ID_LOC',
         'location_group' => 'location_group',
+        'stream' => 'stream',
     ];
 
     public function startRow(): int
@@ -56,8 +65,9 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
             }
 
             $this->setLog($row);
-            $this->required($row, $this->columns);
-            $this->maxLength($row, $this->columns, 50);
+            $this->required($row, $this->requiredColumns);
+            $this->maxLength($row, $this->requiredColumns, 50);
+            $this->maxLength($row, ['stream'], 100);
 
             $key = implode('|', Arr::only($row, $this->columns));
             if (! empty($row['location_no'])) {

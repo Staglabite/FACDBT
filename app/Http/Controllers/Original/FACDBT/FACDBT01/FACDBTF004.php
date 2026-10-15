@@ -31,6 +31,11 @@ class FACDBTF004 extends Controller
      */
     public function index(FACDBTF004DataTable $dataTable)
     {
+        // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
+        if (request()->boolean('ids_only')) {
+            return response()->json(['ids' => $dataTable->filteredKeys('INV_LIST_NO')]);
+        }
+
         $invListNo = $this->getInvListNo();
 
         // 1. Total Data Count Per Count Report

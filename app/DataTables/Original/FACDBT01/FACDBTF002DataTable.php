@@ -40,7 +40,6 @@ class FACDBTF002DataTable extends DataTable
                         'part_no', 
                         'inventory_part_description', 
                         'accounting_group', 
-                        'stream', 
                         'seg', 
                         'prod_group', 
                         'part_group'
@@ -127,7 +126,6 @@ class FACDBTF002DataTable extends DataTable
             Column::make('part_no')->title('Part No'),
             Column::make('inventory_part_description')->title('Description'),
             Column::make('accounting_group')->title('Accounting Group'),
-            Column::make('stream')->title('Stream'),
             Column::make('seg')->title('Seg'),
             Column::make('prod_group')->title('Prod Group'),
             Column::make('part_group')->title('Part Group'),

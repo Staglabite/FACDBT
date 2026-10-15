@@ -60,7 +60,7 @@
                             <option value="25">25</option>
                             <option value="50">50</option>
                             <option value="100">100</option>
-                            <option value="-1">All</option>
+                            <option value="500">500</option>
                         </select>
                     </div>
                     <div class="input-group" style="width: 100%; min-width: 200px;">

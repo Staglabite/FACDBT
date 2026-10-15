@@ -30,7 +30,6 @@ class PartRequest extends FormRequest
             'part_no'                    => ['required', 'string', 'max:100', $uniquePartNoRule],
             'inventory_part_description' => ['nullable', 'string', 'max:255'],
             'accounting_group'           => ['nullable', 'string', 'max:100'],
-            'stream'                     => ['nullable', 'string', 'max:100'],
             'seg'                        => ['nullable', 'string', 'max:100'],
             'prod_group'                 => ['nullable', 'string', 'max:100'],
             'part_group'                 => ['nullable', 'string', 'max:100'],

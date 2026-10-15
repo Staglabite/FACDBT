@@ -40,6 +40,7 @@ class FACDBTF005DataTable extends DataTable
                         'LOCATION_NO',
                         'ID_LOC',
                         'location_group',
+                        'stream',
                     ], 'LIKE', "%{$keyword}%");
                 }
             });
@@ -123,6 +124,7 @@ class FACDBTF005DataTable extends DataTable
             Column::make('LOCATION_NO')->title('Location No'),
             Column::make('ID_LOC')->title('ID Loc'),
             Column::make('location_group')->title('Location Group'),
+            Column::make('stream')->title('Stream'),
             Column::computed('action')
                 ->exportable(false)
                 ->printable(false)

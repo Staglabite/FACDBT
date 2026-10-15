@@ -12,6 +12,7 @@ use App\Http\Requests\FACDBT\FACDBT01\GroupLocationRequest;
 use App\Imports\FACDBT\FACDBT01\FACDBTF005 as Import;
 use App\Models\FACDBT01\FACDBT_SIMINVGROUPLOCATION as GroupLocation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
@@ -20,6 +21,11 @@ class FACDBTF005 extends Controller
 {
     public function index(FACDBTF005DataTable $dataTable)
     {
+        // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
+        if (request()->boolean('ids_only')) {
+            return response()->json(['ids' => $dataTable->filteredKeys('IID')]);
+        }
+
         return $dataTable->render('modules.FACDBT.FACDBT01.FACDBTF005.FACDBTF005');
     }
 
@@ -29,6 +35,7 @@ class FACDBTF005 extends Controller
             'LOCATION_NO' => $request->LOCATION_NO,
             'ID_LOC' => $request->ID_LOC,
             'location_group' => $request->location_group,
+            'stream' => $request->stream,
         ]);
 
         return Response::success(message: 'Group Location created successfully');
@@ -65,6 +72,7 @@ class FACDBTF005 extends Controller
             'LOCATION_NO' => $request->LOCATION_NO,
             'ID_LOC' => $request->ID_LOC,
             'location_group' => $request->location_group,
+            'stream' => $request->stream,
         ]);
 
         return Response::success(message: 'Group Location updated successfully');
@@ -109,6 +117,7 @@ class FACDBTF005 extends Controller
             'LOCATION_NO' => 'Location No',
             'ID_LOC' => 'ID Loc',
             'location_group' => 'Location Group',
+            'stream' => 'Stream',
         ]))->download('Master_Group_Location-' . date('YmdHis') . '.csv');
     }
 
@@ -147,10 +156,14 @@ class FACDBTF005 extends Controller
 
             try {
                 // Tabel tidak punya kolom unik selain IID (auto increment), sehingga upsert tidak bisa dipakai.
-                // Baris dengan kombinasi LOCATION_NO, ID_LOC dan location_group yang sudah ada di database dilewati.
+                // Baris dengan kombinasi LOCATION_NO, ID_LOC dan location_group yang sudah ada tidak ditambah lagi,
+                // hanya stream-nya yang diperbarui.
                 $insertedCount = 0;
                 foreach ($cleaned as $row) {
-                    $groupLocation = GroupLocation::firstOrCreate($row);
+                    $groupLocation = GroupLocation::updateOrCreate(
+                        Arr::only($row, ['LOCATION_NO', 'ID_LOC', 'location_group']),
+                        ['stream' => $row['stream']]
+                    );
 
                     if ($groupLocation->wasRecentlyCreated) {
                         $insertedCount++;
@@ -161,7 +174,7 @@ class FACDBTF005 extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => "Successfully imported {$insertedCount} group location(s).",
+                    'message' => "Successfully imported {$insertedCount} new group location(s), " . (count($cleaned) - $insertedCount) . " existing updated.",
                     'data' => [
                         'total_imported' => $insertedCount,
                         'total_processed' => count($cleaned),

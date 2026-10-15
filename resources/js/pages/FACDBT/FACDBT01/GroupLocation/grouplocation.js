@@ -115,24 +115,19 @@ class GroupLocation {
 
   async #selectAllAcrossPages() {
     this.#selectAllPromise = (async () => {
-      const params = this.#groupLocationTable.DataTable().ajax.params() || {};
+      const table = this.#groupLocationTable.DataTable();
+      // Filter tabel saat ini + keyword dari URL ajax; server hanya mengembalikan ID-nya
+      const ajaxUrl = new URL(table.ajax.url() || window.location.href, window.location.origin);
+      const query = $.param({
+        ...(table.ajax.params() || {}),
+        ...Object.fromEntries(ajaxUrl.searchParams),
+        ids_only: 1
+      });
       try {
-        const response = await axios.get(window.location.pathname, {
-          params: {
-            ...params,
-            start: 0,
-            length: -1
-          }
-        });
+        const response = await axios.get(`${window.location.pathname}?${query}`);
 
         this.#selectedGroupLocationIds.clear();
-
-        (response.data?.data || []).forEach((row) => {
-          // Primary key model group location adalah IID
-          if (row?.IID) {
-            this.#selectedGroupLocationIds.add(String(row.IID));
-          }
-        });
+        (response.data?.ids || []).forEach(id => this.#selectedGroupLocationIds.add(String(id)));
 
         this.#applySelectionToVisibleRows();
         this.#refreshSelectionUI();
