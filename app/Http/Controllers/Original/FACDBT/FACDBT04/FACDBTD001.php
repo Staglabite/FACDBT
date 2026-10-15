@@ -3,13 +3,15 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class FACDBTD001 extends Controller
 {
+    use CachesDashboard;
+
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
 
@@ -170,7 +172,7 @@ class FACDBTD001 extends Controller
 
         $cacheKey = "FACDBTD001:v6:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
-        $payload = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
+        $payload = $this->dashboardCache($cacheKey, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
             $slotTimes = [];
             foreach (self::SLOTS as $i => [$dayOffset, $hm]) {
                 [$h, $m] = explode(':', $hm);
@@ -316,7 +318,7 @@ class FACDBTD001 extends Controller
 
         $cacheKey = "FACDBTD001:area:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
 
-        $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo) {
+        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo) {
             $areaSub = $this->areaMapSub($db);
 
             // Book dikelompokkan di database: 1 baris per (area, part).
@@ -512,7 +514,7 @@ class FACDBTD001 extends Controller
 
         $cacheKey = "FACDBTD001:variance:v1:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
 
-        $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo, $empty) {
+        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo, $empty) {
             $takingSub = $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $selectedTime])
                 ->groupBy('PART_NO')
@@ -595,7 +597,7 @@ class FACDBTD001 extends Controller
 
         $cacheKey = "FACDBTD001:variance-trend:v1:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
-        $series = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
+        $series = $this->dashboardCache($cacheKey, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
             $slotTimes = [];
             foreach (self::NON_OIL_SLOTS as $i) {
                 [$dayOffset, $hm] = self::SLOTS[$i];

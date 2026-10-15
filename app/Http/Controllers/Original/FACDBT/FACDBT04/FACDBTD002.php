@@ -3,14 +3,16 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 // Dashboard Progress by Group Location & Detail Location
 class FACDBTD002 extends Controller
 {
+    use CachesDashboard;
+
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
 
@@ -103,14 +105,14 @@ class FACDBTD002 extends Controller
         // Agregasi per (lokasi, part) tidak bergantung pada filter group, jadi cache-nya dipakai bersama
         $base = implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo']]);
 
-        $book = Cache::remember('FACDBTD002:book:v2:' . md5($base), self::CACHE_TTL, fn () => $this->perLocationPart(
+        $book = $this->dashboardCache('FACDBTD002:book:v2:' . md5($base), fn () => $this->perLocationPart(
             $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $period['closeDate']])
                 ->where('INV_LIST_NO', $period['invListNo']),
             'QUANTITY'
         ));
 
-        $taking = Cache::remember('FACDBTD002:taking:v2:' . md5($base . '|' . $takingUntil), self::CACHE_TTL, fn () => $this->perLocationPart(
+        $taking = $this->dashboardCache('FACDBTD002:taking:v2:' . md5($base . '|' . $takingUntil), fn () => $this->perLocationPart(
             $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $takingUntil]),
             'QTY'
@@ -153,7 +155,7 @@ class FACDBTD002 extends Controller
      */
     private function locationWarehouses($db, string $group): array
     {
-        $warehouses = Cache::remember('FACDBTD002:warehouses:v1', self::CACHE_TTL, function () use ($db) {
+        $warehouses = $this->dashboardCache('FACDBTD002:warehouses:v1', function () use ($db) {
             $map = [];
             foreach ($db->table('SIM_INV_LOCATION_TEST')->select('location_no', 'warehouse')->get() as $row) {
                 $warehouse = trim((string) $row->warehouse);

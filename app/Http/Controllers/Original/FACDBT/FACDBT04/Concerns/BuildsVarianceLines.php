@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns;
 
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -14,6 +13,8 @@ use Illuminate\Support\Facades\DB;
  */
 trait BuildsVarianceLines
 {
+    use CachesDashboard;
+
     // Slot filter waktu (sama dengan tombol slot di dashboard utama): [dayOffset, 'jam:menit']
     private static array $varianceSlots = [
         [0, '00:00'],
@@ -107,7 +108,7 @@ trait BuildsVarianceLines
     {
         $key = 'FACDBT04:variance-lines:v1:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingUntil]));
 
-        return Cache::remember($key, self::CACHE_TTL, function () use ($db, $period, $takingUntil) {
+        return $this->dashboardCache($key, function () use ($db, $period, $takingUntil) {
             $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $period['closeDate']])
                 ->where('INV_LIST_NO', $period['invListNo'])
@@ -149,7 +150,7 @@ trait BuildsVarianceLines
      */
     private function locationAreas($db): array
     {
-        return Cache::remember('FACDBT04:location-areas:v1', self::CACHE_TTL, function () use ($db) {
+        return $this->dashboardCache('FACDBT04:location-areas:v1', function () use ($db) {
             $map = [];
             foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->orderBy('IID')->get() as $r) {
                 $loc   = trim((string) $r->LOCATION_NO);
@@ -168,7 +169,7 @@ trait BuildsVarianceLines
      */
     private function masterUnitCosts($db): array
     {
-        return Cache::remember('FACDBT04:unit-costs:v1', self::CACHE_TTL, function () use ($db) {
+        return $this->dashboardCache('FACDBT04:unit-costs:v1', function () use ($db) {
             return $db->table('SIM_INV_UNIT_COST_TEST')
                 ->groupBy('part_no')
                 ->select('part_no', DB::raw('MAX(COALESCE(mat_cost, 0) + COALESCE(lab_cost, 0) + COALESCE(foh_cost, 0)) as unit_cost'))

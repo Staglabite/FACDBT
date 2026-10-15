@@ -19,6 +19,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Dashboard Cache Store (FACDBT04)
+    |--------------------------------------------------------------------------
+    |
+    | Hasil hitung dashboard stock taking bisa berukuran besar (puluhan ribu
+    | baris per lokasi & part), jadi tidak disimpan di cache database.
+    |
+    */
+
+    'dashboard_store' => env('DASHBOARD_CACHE_STORE', 'file'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
     |

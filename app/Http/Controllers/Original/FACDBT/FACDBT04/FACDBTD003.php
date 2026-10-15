@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\BuildsVarianceLines;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 // Dashboard Variance by Area (amount & qty)
@@ -53,7 +52,7 @@ class FACDBTD003 extends Controller
         }
 
         $takingUntil = $this->parseTime($request->get('time')) ?? $period['closeDate'];
-        $result = Cache::remember('FACDBTD003:data:v2:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingUntil])), self::CACHE_TTL, function () use ($db, $period, $takingUntil) {
+        $result = $this->dashboardCache('FACDBTD003:data:v2:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingUntil])), function () use ($db, $period, $takingUntil) {
             $areas   = $this->locationAreas($db);
             $perArea = [];
 

@@ -4,7 +4,6 @@ namespace App\Services\FACDBT;
 
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\BuildsVarianceLines;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -60,7 +59,7 @@ abstract class VarianceDashboardService
 
         $cacheKey = $this->cachePrefix() . ':' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingUntil, implode(',', $selected)]));
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $period, $takingUntil, $selected) {
+        return $this->dashboardCache($cacheKey, function () use ($db, $period, $takingUntil, $selected) {
             $areas      = $this->locationAreas($db);
             $areaFilter = array_flip($selected);
 
@@ -128,7 +127,7 @@ abstract class VarianceDashboardService
      */
     protected function partNames($db): array
     {
-        return Cache::remember('FACDBT04:part-names:v1', self::CACHE_TTL, function () use ($db) {
+        return $this->dashboardCache('FACDBT04:part-names:v1', function () use ($db) {
             return $db->table('SIM_INV_PART_TEST')
                 ->select('part_no', 'inventory_part_description')
                 ->get()
