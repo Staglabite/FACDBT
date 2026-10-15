@@ -13,7 +13,6 @@ use App\Imports\FACDBT\FACDBT01\FACDBTF003 as Import;
 use App\Models\FACDBT01\FACDBT_MSHUNITCOST as UnitCost; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Maatwebsite\Excel\Excel;
 use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 // Unit Cost controller
@@ -139,7 +138,8 @@ class FACDBTF003 extends Controller
     {
         try {
             $import = new Import; 
-            FacadesExcel::import($import, $request->file, Excel::XLSX);
+            // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
+            FacadesExcel::import($import, $request->file('file'));
 
             $result = $import->getResult();
             if ($result->totalError > 0) {

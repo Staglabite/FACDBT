@@ -30,6 +30,12 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
         'part_group',
     ];
 
+    // Judul kolom di template/export (slug) => kolom tabel
+    protected $aliases = [
+        'description' => 'inventory_part_description',
+        'prod' => 'prod_group',
+    ];
+
     public function startRow(): int
     {
         return 2;
@@ -50,6 +56,12 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
         foreach ($collection as $row) {
             $row['row'] = $currentRowIndex;
             $row = $row->toArray();
+
+            foreach ($this->aliases as $heading => $column) {
+                if (! isset($row[$column]) && isset($row[$heading])) {
+                    $row[$column] = $row[$heading];
+                }
+            }
 
             foreach ($this->columns as $col) {
                 $row[$col] = isset($row[$col]) && $row[$col] !== '' ? trim((string) $row[$col]) : null;

@@ -13,7 +13,6 @@ use App\Imports\FACDBT\FACDBT01\FACDBTF005 as Import;
 use App\Models\FACDBT01\FACDBT_SIMINVGROUPLOCATION as GroupLocation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Maatwebsite\Excel\Excel;
 use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 // Group Location controller
@@ -122,7 +121,8 @@ class FACDBTF005 extends Controller
     {
         try {
             $import = new Import;
-            FacadesExcel::import($import, $request->file, Excel::XLSX);
+            // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
+            FacadesExcel::import($import, $request->file('file'));
 
             $result = $import->getResult();
             if ($result->totalError > 0) {

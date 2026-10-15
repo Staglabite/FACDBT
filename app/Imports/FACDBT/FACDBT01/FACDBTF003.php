@@ -31,6 +31,14 @@ class FACDBTF003 implements ToCollection, WithHeadingRow, WithStartRow
         'foh_cost',
     ];
 
+    // Judul kolom di template/export (slug) => kolom tabel
+    protected $aliases = [
+        'description' => 'inventory_part_description',
+        'uom' => 'inventory_uom',
+        'material_cost' => 'mat_cost',
+        'labor_cost' => 'lab_cost',
+    ];
+
     public function startRow(): int
     {
         return 2;
@@ -50,6 +58,12 @@ class FACDBTF003 implements ToCollection, WithHeadingRow, WithStartRow
         foreach ($collection as $row) {
             $row['row'] = $currentRowIndex;
             $row = $row->toArray();
+
+            foreach ($this->aliases as $heading => $column) {
+                if (! isset($row[$column]) && isset($row[$heading])) {
+                    $row[$column] = $row[$heading];
+                }
+            }
 
             foreach ($this->columns as $col) {
                 // Parsing nilai angka (cost/qty) untuk menghindari nilai kosong (empty string) masuk ke database sebagai string kosong

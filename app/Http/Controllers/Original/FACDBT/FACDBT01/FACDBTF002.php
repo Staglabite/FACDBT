@@ -13,7 +13,6 @@ use App\Imports\FACDBT\FACDBT01\FACDBTF002 as Import;
 use App\Models\FACDBT01\FACDBT_MSHPART as Part; // Sesuai dengan namespace model Anda
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Maatwebsite\Excel\Excel;
 use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 // Part controller
@@ -150,7 +149,7 @@ class FACDBTF002 extends Controller
             'accounting_group' => 'Accounting Group',
             'stream' => 'Stream',
             'seg' => 'Seg',
-            'prod_group' => 'Prod Group',
+            'prod_group' => 'Prod',
             'part_group' => 'Part Group',
         ]))->download('Master_Part-' . date('YmdHis') . '.csv');
     }
@@ -164,7 +163,8 @@ class FACDBTF002 extends Controller
     {
         try {
             $import = new Import; 
-            FacadesExcel::import($import, $request->file, Excel::XLSX);
+            // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
+            FacadesExcel::import($import, $request->file('file'));
 
             $result = $import->getResult();
             if ($result->totalError > 0) {

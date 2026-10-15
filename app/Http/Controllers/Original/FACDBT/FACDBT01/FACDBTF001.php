@@ -13,7 +13,6 @@ use App\Imports\FACDBT\FACDBT01\FACDBTF001 as Import;
 use App\Models\FACDBT01\FACDBT_MSHLOCATION as Location;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Maatwebsite\Excel\Excel;
 use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 // Location controller
@@ -143,8 +142,8 @@ class FACDBTF001 extends Controller
             'location_group' => 'Location Group',
             'site' => 'Site',
             'warehouse' => 'Warehouse',
-            'location_description' => 'Description',
-            'location_group_description' => 'Group Description',
+            'location_description' => 'Location Description',
+            'location_group_description' => 'Location Group Description',
         ]))->download('Master_Location-' . date('YmdHis') . '.csv');
     }
 
@@ -157,7 +156,8 @@ class FACDBTF001 extends Controller
     {
         try {
             $import = new Import; // Pastikan class import Anda benar
-            FacadesExcel::import($import, $request->file, Excel::XLSX);
+            // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
+            FacadesExcel::import($import, $request->file('file'));
 
             $result = $import->getResult();
             if ($result->totalError > 0) {

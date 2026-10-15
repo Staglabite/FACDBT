@@ -14,7 +14,7 @@
                     <div class="mb-3">
                         <label for="unitcost-import-file" class="form-label">Select Excel File</label>
                         <input type="file" class="form-control" id="unitcost-import-file" name="file"
-                            accept=".xlsx, .xls" required>
+                            accept=".xlsx, .xls, .csv" required>
                         <i class="invalid-feedback"></i>
                     </div>
                 </form>
