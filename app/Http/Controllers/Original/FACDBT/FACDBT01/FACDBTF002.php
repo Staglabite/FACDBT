@@ -7,6 +7,7 @@ use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF002 as Template;
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Original\FACDBT\FACDBT01\Concerns\SavesByPartNo;
 use App\Http\Requests\FACDBT\FACDBT01\PartImportRequest; 
 use App\Http\Requests\FACDBT\FACDBT01\PartRequest;
 use App\Imports\FACDBT\FACDBT01\FACDBTF002 as Import;
@@ -18,6 +19,8 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 // Part controller
 class FACDBTF002 extends Controller
 {
+    use SavesByPartNo;
+
     public function index(FACDBTF002DataTable $dataTable)
     {
         // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
@@ -187,36 +190,27 @@ class FACDBTF002 extends Controller
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
 
-            DB::beginTransaction();
+            // Transaksi di koneksi INV_TAKING (tempat data master disimpan)
+            $db = DB::connection('INV_TAKING');
+            $db->beginTransaction();
 
             try {
-                // Upsert untuk menimpa data lama jika part_no sudah ada
-                Part::upsert(
-                    $cleaned, 
-                    ['part_no'], 
-                    [ 
-                        'inventory_part_description',
-                        'accounting_group',
-                        'seg',
-                        'prod_group',
-                        'part_group'
-                    ]
-                );
+                // part_no sudah ada -> ditimpa, belum ada -> dibuat baru
+                [$insertedCount, $updatedCount] = $this->saveByPartNo(new Part, $cleaned);
 
-                $insertedCount = count($cleaned);
-
-                DB::commit();
+                $db->commit();
 
                 return response()->json([
                     'success' => true,
-                    'message' => "Successfully imported and/or updated {$insertedCount} part(s).",
+                    'message' => "Successfully imported {$insertedCount} new and updated {$updatedCount} existing part(s).",
                     'data' => [
                         'total_imported' => $insertedCount,
+                        'total_updated' => $updatedCount,
                         'total_processed' => count($cleaned),
                     ],
                 ], 200);
             } catch (\Exception $e) {
-                DB::rollBack();
+                $db->rollBack();
 
                 return response()->json([
                     'success' => false,

@@ -50,7 +50,6 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
         // Assuming your Auth::user() structure is similar to the template, adjust 'VUSERNAME' if necessary.
         $this->createdBy = "'" . Auth::user()->VUSERNAME . "'"; 
         $currentRowIndex = $this->startRow();
-        $seen = [];
 
         foreach ($collection as $row) {
             $row['row'] = $currentRowIndex;
@@ -72,14 +71,7 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
             $this->required($row, ['part_no']); 
             $this->mapRelations($row);
 
-            $key = $row['part_no'];
-            if (! empty($key)) {
-                if (isset($seen[$key])) {
-                    $this->setLog($row, "Duplicate part_no {$row['part_no']} found in row {$seen[$key]}.");
-                } else {
-                    $seen[$key] = $currentRowIndex;
-                }
-            }
+            // part_no berulang di file tidak dianggap error; baris paling bawah yang dipakai (lihat store())
 
             $currentRowIndex++;
         }
@@ -93,6 +85,9 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
             ->map(function ($item) {
                 return Arr::only($item, $this->columns);
             })
+            // Satu baris per part_no; bila berulang, baris paling bawah yang dipakai (menimpa)
+            ->keyBy(fn ($item) => mb_strtolower(rtrim((string) $item['part_no'])))
+            ->values()
             ->toArray();
     }
 

@@ -7,6 +7,7 @@ use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF003 as Template;
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Original\FACDBT\FACDBT01\Concerns\SavesByPartNo;
 use App\Http\Requests\FACDBT\FACDBT01\UnitCostImportRequest; 
 use App\Http\Requests\FACDBT\FACDBT01\UnitCostRequest;
 use App\Imports\FACDBT\FACDBT01\FACDBTF003 as Import;
@@ -18,6 +19,8 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 // Unit Cost controller
 class FACDBTF003 extends Controller
 {
+    use SavesByPartNo;
+
     public function index(FACDBTF003DataTable $dataTable)
     {
         // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
@@ -165,38 +168,27 @@ class FACDBTF003 extends Controller
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
 
-            DB::beginTransaction();
+            // Transaksi di koneksi INV_TAKING (tempat data master disimpan)
+            $db = DB::connection('INV_TAKING');
+            $db->beginTransaction();
 
             try {
-                // Upsert untuk menimpa data lama jika part_no sudah ada
-                UnitCost::upsert(
-                    $cleaned, 
-                    ['part_no'], // Primary Key
-                    [ 
-                        'inventory_part_description',
-                        'inventory_uom',
-                        'accounting_group',
-                        'on_hand_qty',
-                        'mat_cost',
-                        'lab_cost',
-                        'foh_cost',
-                    ]
-                );
+                // part_no sudah ada -> ditimpa, belum ada -> dibuat baru
+                [$insertedCount, $updatedCount] = $this->saveByPartNo(new UnitCost, $cleaned);
 
-                $insertedCount = count($cleaned);
-
-                DB::commit();
+                $db->commit();
 
                 return response()->json([
                     'success' => true,
-                    'message' => "Successfully imported and/or updated {$insertedCount} unit cost(s).",
+                    'message' => "Successfully imported {$insertedCount} new and updated {$updatedCount} existing unit cost(s).",
                     'data' => [
                         'total_imported' => $insertedCount,
+                        'total_updated' => $updatedCount,
                         'total_processed' => count($cleaned),
                     ],
                 ], 200);
             } catch (\Exception $e) {
-                DB::rollBack();
+                $db->rollBack();
 
                 return response()->json([
                     'success' => false,
