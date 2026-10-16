@@ -54,7 +54,6 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
 
         $this->createdBy = "'" . Auth::user()->VUSERNAME . "'";
         $currentRowIndex = $this->startRow();
-        $seen = [];
 
         foreach ($collection as $row) {
             $row['row'] = $currentRowIndex;
@@ -69,14 +68,8 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
             $this->maxLength($row, $this->requiredColumns, 50);
             $this->maxLength($row, ['stream'], 100);
 
-            $key = implode('|', Arr::only($row, $this->columns));
-            if (! empty($row['location_no'])) {
-                if (isset($seen[$key])) {
-                    $this->setLog($row, "Duplicate group location {$row['location_no']} found in row {$seen[$key]}.");
-                } else {
-                    $seen[$key] = $currentRowIndex;
-                }
-            }
+            // Baris berulang tidak dianggap error (location_group tidak unik);
+            // baris dengan Location No, ID Loc & Location Group yang sama digabung di store()
 
             $currentRowIndex++;
         }
@@ -95,6 +88,9 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
 
                 return $data;
             })
+            // Baris berulang disimpan sekali; stream memakai baris terakhir
+            ->keyBy(fn ($data) => implode('|', [$data['LOCATION_NO'], $data['ID_LOC'], $data['location_group']]))
+            ->values()
             ->toArray();
     }
 
