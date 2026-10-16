@@ -1,6 +1,7 @@
 import axios from 'axios';
 import PartForm from './part-form';
 import { toast } from '../../../../helpers';
+import { exportMasterData } from '../shared/exportExcel';
 import Swal from 'sweetalert2';
 
 class Part {
@@ -49,9 +50,9 @@ class Part {
             self.#handleDeleteSelected();
         });
 
-        // $(document).on('click', '#export-excel', function () {
-        //     self.#partTable.DataTable().button('.buttons-excel').trigger();
-        // });
+        $(document).on('click', '#export-excel', function () {
+            exportMasterData('/FACDBT/bd/master-part/export', self.#selectedPartIds);
+        });
 
         $(document).on('click', '#download-template', function () {
             // Adjust the URL route based on your web routes for downloading the template
@@ -115,24 +116,19 @@ class Part {
 
     async #selectAllAcrossPages() {
         this.#selectAllPromise = (async () => {
-            const params = this.#partTable.DataTable().ajax.params() || {};
+            const table = this.#partTable.DataTable();
+            // Filter tabel saat ini + keyword dari URL ajax; server hanya mengembalikan ID-nya
+            const ajaxUrl = new URL(table.ajax.url() || window.location.href, window.location.origin);
+            const query = $.param({
+              ...(table.ajax.params() || {}),
+              ...Object.fromEntries(ajaxUrl.searchParams),
+              ids_only: 1
+            });
             try {
-                const response = await axios.get(window.location.pathname, {
-                    params: {
-                        ...params,
-                        start: 0,
-                        length: -1
-                    }
-                });
+                const response = await axios.get(`${window.location.pathname}?${query}`);
 
                 this.#selectedPartIds.clear();
-
-                (response.data?.data || []).forEach((row) => {
-                    // Update field key based on the primary key for the part model
-                    if (row?.part_no) { 
-                        this.#selectedPartIds.add(String(row.part_no));
-                    }
-                });
+                (response.data?.ids || []).forEach(id => this.#selectedPartIds.add(String(id)));
 
                 this.#applySelectionToVisibleRows();
                 this.#refreshSelectionUI();

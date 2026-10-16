@@ -26,6 +26,7 @@ class GroupLocationRequest extends FormRequest
             'LOCATION_NO' => ['required', 'string', 'max:50'],
             'ID_LOC' => ['required', 'string', 'max:50'],
             'location_group' => ['required', 'string', 'max:50'],
+            'stream' => ['nullable', 'string', 'max:100'],
         ];
     }
 }

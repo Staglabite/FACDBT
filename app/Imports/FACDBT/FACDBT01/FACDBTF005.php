@@ -23,6 +23,14 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
         'location_no',
         'id_loc',
         'location_group',
+        'stream',
+    ];
+
+    // Kolom yang wajib diisi (stream boleh kosong)
+    protected $requiredColumns = [
+        'location_no',
+        'id_loc',
+        'location_group',
     ];
 
     // Mapping kolom Excel ke kolom tabel SIM_INV_GROUP_LOCATION
@@ -30,6 +38,7 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
         'location_no' => 'LOCATION_NO',
         'id_loc' => 'ID_LOC',
         'location_group' => 'location_group',
+        'stream' => 'stream',
     ];
 
     public function startRow(): int
@@ -37,7 +46,7 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
         return 2;
     }
 
-    public function collection(Collection $collection)
+    public function collection(Collection $collection): void
     {
         if ($collection === null || $collection->isEmpty()) {
             throw new SpreadsheetException('The file is empty', 422);
@@ -45,9 +54,14 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
 
         $this->createdBy = "'" . Auth::user()->VUSERNAME . "'";
         $currentRowIndex = $this->startRow();
-        $seen = [];
 
         foreach ($collection as $row) {
+            // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
+            if (collect($row)->every(fn ($value) => $value === null || trim((string) $value) === '')) {
+                $currentRowIndex++;
+                continue;
+            }
+
             $row['row'] = $currentRowIndex;
             $row = $row->toArray();
 
@@ -56,17 +70,12 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
             }
 
             $this->setLog($row);
-            $this->required($row, $this->columns);
-            $this->maxLength($row, $this->columns, 50);
+            $this->required($row, $this->requiredColumns);
+            $this->maxLength($row, $this->requiredColumns, 50);
+            $this->maxLength($row, ['stream'], 100);
 
-            $key = implode('|', Arr::only($row, $this->columns));
-            if (! empty($row['location_no'])) {
-                if (isset($seen[$key])) {
-                    $this->setLog($row, "Duplicate group location {$row['location_no']} found in row {$seen[$key]}.");
-                } else {
-                    $seen[$key] = $currentRowIndex;
-                }
-            }
+            // Baris berulang tidak dianggap error (location_group tidak unik);
+            // baris dengan Location No, ID Loc & Location Group yang sama digabung di store()
 
             $currentRowIndex++;
         }
@@ -85,6 +94,9 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
 
                 return $data;
             })
+            // Baris berulang disimpan sekali; stream memakai baris terakhir
+            ->keyBy(fn ($data) => mb_strtolower(implode('|', [$data['LOCATION_NO'], $data['ID_LOC'], $data['location_group']])))
+            ->values()
             ->toArray();
     }
 

@@ -31,12 +31,20 @@ class FACDBTF003 implements ToCollection, WithHeadingRow, WithStartRow
         'foh_cost',
     ];
 
+    // Judul kolom di template/export (slug) => kolom tabel
+    protected $aliases = [
+        'description' => 'inventory_part_description',
+        'uom' => 'inventory_uom',
+        'material_cost' => 'mat_cost',
+        'labor_cost' => 'lab_cost',
+    ];
+
     public function startRow(): int
     {
         return 2;
     }
 
-    public function collection(Collection $collection)
+    public function collection(Collection $collection): void
     {
         if ($collection === null || $collection->isEmpty()) {
             throw new SpreadsheetException('The file is empty', 422);
@@ -45,11 +53,22 @@ class FACDBTF003 implements ToCollection, WithHeadingRow, WithStartRow
         // Adjust based on how your system logs the user who created the record.
         $this->createdBy = "'" . Auth::user()->VUSERNAME . "'"; 
         $currentRowIndex = $this->startRow();
-        $seen = [];
 
         foreach ($collection as $row) {
+            // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
+            if (collect($row)->every(fn ($value) => $value === null || trim((string) $value) === '')) {
+                $currentRowIndex++;
+                continue;
+            }
+
             $row['row'] = $currentRowIndex;
             $row = $row->toArray();
+
+            foreach ($this->aliases as $heading => $column) {
+                if (! isset($row[$column]) && isset($row[$heading])) {
+                    $row[$column] = $row[$heading];
+                }
+            }
 
             foreach ($this->columns as $col) {
                 // Parsing nilai angka (cost/qty) untuk menghindari nilai kosong (empty string) masuk ke database sebagai string kosong
@@ -66,14 +85,7 @@ class FACDBTF003 implements ToCollection, WithHeadingRow, WithStartRow
             $this->required($row, ['part_no']); 
             $this->mapRelations($row);
 
-            $key = $row['part_no'];
-            if (! empty($key)) {
-                if (isset($seen[$key])) {
-                    $this->setLog($row, "Duplicate part_no {$row['part_no']} found in row {$seen[$key]}.");
-                } else {
-                    $seen[$key] = $currentRowIndex;
-                }
-            }
+            // part_no berulang di file tidak dianggap error; baris paling bawah yang dipakai (lihat store())
 
             $currentRowIndex++;
         }
@@ -87,6 +99,9 @@ class FACDBTF003 implements ToCollection, WithHeadingRow, WithStartRow
             ->map(function ($item) {
                 return Arr::only($item, $this->columns);
             })
+            // Satu baris per part_no; bila berulang, baris paling bawah yang dipakai (menimpa)
+            ->keyBy(fn ($item) => mb_strtolower(rtrim((string) $item['part_no'])))
+            ->values()
             ->toArray();
     }
 

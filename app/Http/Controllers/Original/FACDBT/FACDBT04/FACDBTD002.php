@@ -3,33 +3,20 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 // Dashboard Progress by Group Location & Detail Location
 class FACDBTD002 extends Controller
 {
+    use CachesDashboard;
+    use FiltersTakingRange;
+
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
-
-    // Slot filter waktu: [dayOffset, 'jam:menit']. dayOffset 0 = hari pertama taking, 1 = hari kedua.
-    private const SLOTS = [
-        [0, '07:30'],
-        [0, '09:00'],
-        [0, '10:00'],
-        [0, '11:00'],
-        [0, '12:00'],
-        [0, '13:00'],
-        [0, '14:00'],
-        [0, '15:00'],
-        [0, '16:15'],
-        [0, '19:30'],
-        [1, '09:00'],
-        [1, '10:00'],
-        [1, '11:00'],
-    ];
 
     public function index()
     {
@@ -53,24 +40,16 @@ class FACDBTD002 extends Controller
     }
 
     /**
-     * Daftar tombol filter waktu. Label memakai tanggal taking sebenarnya, contoh "6-07.30".
+     * Pilihan hari untuk filter rentang waktu (Dari - Sampai).
      */
-    public function getTimeSlots()
+    public function getTimeRange()
     {
         $period = $this->resolvePeriod(DB::connection(self::CONN));
         if ($period === null) {
-            return response()->json([]);
+            return response()->json(['days' => []]);
         }
 
-        $slots = [];
-        foreach ($this->slotTimes($period['baseDay']) as $slotDate) {
-            $slots[] = [
-                'label'     => $slotDate->format('j') . '-' . $slotDate->format('H.i'),
-                'full_time' => $slotDate->format('Y-m-d H:i:s'),
-            ];
-        }
-
-        return response()->json($slots);
+        return response()->json($this->timeRangePayload($period['takingDate'], $period['closeDate']));
     }
 
     /**
@@ -78,7 +57,7 @@ class FACDBTD002 extends Controller
      * - % Item : item (part unik) taking terhadap item book
      * - % Qty  : qty taking terhadap qty book
      * Book & taking dicocokkan per lokasi.
-     * - Filter waktu dipilih : taking kumulatif s/d jam slot; tanpa filter waktu: semua taking di periode.
+     * - Filter waktu dipilih : hanya taking yang di-scan di rentang Dari - Sampai; tanpa filter: seluruh periode.
      * - Filter group dipilih : semua warehouse dari lokasi di group tersebut.
      * - Tanpa filter group   : hanya warehouse yang sudah punya progress (taking > 0) dari keseluruhan.
      */
@@ -92,7 +71,7 @@ class FACDBTD002 extends Controller
             return response()->json($empty);
         }
 
-        $takingUntil = $this->parseTime($request->get('time')) ?? $period['closeDate'];
+        [$takingFrom, $takingTo] = $this->takingRange($request, $period['takingDate'], $period['closeDate']);
         $group       = trim((string) $request->get('group', ''));
 
         $locations = $this->locationWarehouses($db, $group);
@@ -103,16 +82,16 @@ class FACDBTD002 extends Controller
         // Agregasi per (lokasi, part) tidak bergantung pada filter group, jadi cache-nya dipakai bersama
         $base = implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo']]);
 
-        $book = Cache::remember('FACDBTD002:book:v2:' . md5($base), self::CACHE_TTL, fn () => $this->perLocationPart(
+        $book = $this->dashboardCache('FACDBTD002:book:v2:' . md5($base), fn () => $this->perLocationPart(
             $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $period['closeDate']])
                 ->where('INV_LIST_NO', $period['invListNo']),
             'QUANTITY'
         ));
 
-        $taking = Cache::remember('FACDBTD002:taking:v2:' . md5($base . '|' . $takingUntil), self::CACHE_TTL, fn () => $this->perLocationPart(
+        $taking = $this->dashboardCache('FACDBTD002:taking:v3:' . md5($base . '|' . $takingFrom . '|' . $takingTo), fn () => $this->perLocationPart(
             $db->table('SIM_INV_TAKING_DATA_TAB')
-                ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $takingUntil]),
+                ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo]),
             'QTY'
         ));
 
@@ -153,7 +132,7 @@ class FACDBTD002 extends Controller
      */
     private function locationWarehouses($db, string $group): array
     {
-        $warehouses = Cache::remember('FACDBTD002:warehouses:v1', self::CACHE_TTL, function () use ($db) {
+        $warehouses = $this->dashboardCache('FACDBTD002:warehouses:v1', function () use ($db) {
             $map = [];
             foreach ($db->table('SIM_INV_LOCATION_TEST')->select('location_no', 'warehouse')->get() as $row) {
                 $warehouse = trim((string) $row->warehouse);
@@ -253,31 +232,5 @@ class FACDBTD002 extends Controller
             'closeDate'  => $closeDate,
             'invListNo'  => (string) $invListNo,
         ];
-    }
-
-    /**
-     * @return Carbon[]
-     */
-    private function slotTimes(Carbon $baseDay): array
-    {
-        return array_map(function ($slot) use ($baseDay) {
-            [$dayOffset, $hm] = $slot;
-            [$h, $m] = explode(':', $hm);
-
-            return $baseDay->copy()->addDays($dayOffset)->setTime((int) $h, (int) $m, 0);
-        }, self::SLOTS);
-    }
-
-    private function parseTime($value): ?string
-    {
-        if (!$value) {
-            return null;
-        }
-
-        try {
-            return Carbon::parse($value)->format('Y-m-d H:i:s');
-        } catch (\Throwable $e) {
-            return null;
-        }
     }
 }

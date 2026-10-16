@@ -1,5 +1,7 @@
 import axios from 'axios';
 import ApexCharts from 'apexcharts';
+import { autoRefresh, track } from '../shared/dashboardStatus';
+import { TimeRangeFilter } from '../shared/timeRangeFilter';
 
 const ENDPOINT = 'FACDBT/ds/nett-variance-dashboard';
 
@@ -23,7 +25,7 @@ const THEME = {
 
 class DashboardNettVariance {
     constructor() {
-        this.selectedTime = null;
+        this.timeFilter = new TimeRangeFilter(document.getElementById('nv-time-filter'), () => this.loadData(), { vertical: true });
         this.selectedAreas = new Set();
         this.charts = {};
         this.dataRequest = null;
@@ -33,20 +35,20 @@ class DashboardNettVariance {
         this.bindTableControls();
         this.loadFilters();
         this.loadData();
+
+        // Perbarui ringkasan, chart, dan tabel secara berkala; halaman tabel yang dibuka tidak di-reset
+        autoRefresh(() => this.loadData({ keepTablePage: true }));
     }
 
     // -------------------------------------------------------------
-    // Filter TIME (satu pilihan) & AREA (boleh lebih dari satu)
+    // Filter TIME (rentang Dari - Sampai) & AREA (boleh lebih dari satu)
     // -------------------------------------------------------------
     loadFilters() {
         axios.get(`${ENDPOINT}/filters`)
             .then(res => {
                 const data = res.data || {};
 
-                this.renderFilterList('nv-time-filter', (data.times || []).map(t => ({ value: t.full_time, label: t.label })), value => {
-                    this.selectedTime = this.selectedTime === value ? null : value;
-                    return new Set(this.selectedTime ? [this.selectedTime] : []);
-                });
+                this.timeFilter.setDays(data.time_range?.days);
 
                 this.renderFilterList('nv-area-filter', (data.areas || []).map(a => ({ value: a, label: a })), value => {
                     if (this.selectedAreas.has(value)) {
@@ -93,11 +95,8 @@ class DashboardNettVariance {
     // -------------------------------------------------------------
     // Data
     // -------------------------------------------------------------
-    loadData() {
-        const params = {};
-        if (this.selectedTime) {
-            params.time = this.selectedTime;
-        }
+    loadData({ keepTablePage = false } = {}) {
+        const params = this.timeFilter.params();
         if (this.selectedAreas.size > 0) {
             params.areas = Array.from(this.selectedAreas);
         }
@@ -109,8 +108,8 @@ class DashboardNettVariance {
         const controller = new AbortController();
         this.dataRequest = controller;
 
-        axios.get(`${ENDPOINT}/data`, { params, signal: controller.signal, timeout: 60000 })
-            .then(res => this.render(res.data || {}))
+        track(axios.get(`${ENDPOINT}/data`, { params, signal: controller.signal, timeout: 60000 }))
+            .then(res => this.render(res.data || {}, keepTablePage))
             .catch(err => {
                 if (axios.isCancel(err)) return;
                 console.error('Error load nett variance:', err);
@@ -122,7 +121,7 @@ class DashboardNettVariance {
             });
     }
 
-    render(data) {
+    render(data, keepTablePage = false) {
         const positive = data.positive || {};
         const negative = data.negative || {};
 
@@ -136,7 +135,7 @@ class DashboardNettVariance {
         this.renderPosNeg(Number(positive.amount || 0), Number(negative.amount || 0));
         this.renderAreaWaterfall(data.by_area || [], Number(data.nett_amount || 0));
         // Tabel dimuat setelah ringkasan selesai supaya memakai hasil perhitungan yang sudah di-cache
-        this.reloadTables();
+        this.reloadTables(!keepTablePage);
     }
 
     setText(id, text) {
@@ -307,10 +306,7 @@ class DashboardNettVariance {
     // Tabel detail part (DataTable Yajra, template seperti FACDBT01)
     // -------------------------------------------------------------
     filterParams() {
-        const params = new URLSearchParams();
-        if (this.selectedTime) {
-            params.set('time', this.selectedTime);
-        }
+        const params = new URLSearchParams(this.timeFilter.params());
         this.selectedAreas.forEach(area => params.append('areas[]', area));
         return params;
     }
@@ -324,15 +320,15 @@ class DashboardNettVariance {
         return params;
     }
 
-    reloadTable({ id, url }) {
+    reloadTable({ id, url }, resetPaging = true) {
         if (!$.fn.dataTable.isDataTable(`#${id}`)) return;
 
         const query = this.tableParams(id).toString();
-        $(`#${id}`).DataTable().ajax.url(query ? `${url}?${query}` : url).load();
+        $(`#${id}`).DataTable().ajax.url(query ? `${url}?${query}` : url).load(null, resetPaging);
     }
 
-    reloadTables() {
-        Object.values(TABLES).forEach(table => this.reloadTable(table));
+    reloadTables(resetPaging = true) {
+        Object.values(TABLES).forEach(table => this.reloadTable(table, resetPaging));
     }
 
     bindTableControls() {

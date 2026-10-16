@@ -11,6 +11,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD002;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD003;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD004;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD005;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD006;
 use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'ts', 'middleware' => 'auth'], function () {
@@ -24,6 +25,7 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
         Route::get('/download-template', 'downloadTemplate');
+        Route::post('/export', 'export');
         Route::post('/import', 'import');
         Route::post('/delete-multiple', 'destroyMultiple');
         
@@ -37,6 +39,7 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::get('/', 'index')->name('facdbtf002.index');
         Route::post('/', 'store')->name('facdbtf002.store');
         Route::get('/download-template', 'downloadTemplate')->name('facdbtf002.download-template');
+        Route::post('/export', 'export')->name('facdbtf002.export');
         Route::post('/import', 'import')->name('facdbtf002.import');
         Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf002.delete-multiple');
         
@@ -51,6 +54,7 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::post('/', 'store')->name('facdbtf003.store');
         
         Route::get('/download-template', 'downloadTemplate')->name('facdbtf003.download-template');
+        Route::post('/export', 'export')->name('facdbtf003.export');
         Route::post('/import', 'import')->name('facdbtf003.import');
         Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf003.delete-multiple');
         
@@ -79,6 +83,7 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::post('/', 'store')->name('facdbtf005.store');
 
         Route::get('/download-template', 'downloadTemplate')->name('facdbtf005.download-template');
+        Route::post('/export', 'export')->name('facdbtf005.export');
         Route::post('/import', 'import')->name('facdbtf005.import');
         Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf005.delete-multiple');
 
@@ -94,7 +99,7 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     Route::group(['prefix' => 'main-dashboard', 'controller' => FACDBTD001::class], function () {
         Route::get('/', 'index')->name('main-dashboard.index'); 
         Route::get('/data', 'getData')->name('main-dashboard.getdata'); 
-        Route::get('/time-slots', 'getTimeSlots')->name('main-dashboard.time-slots');
+        Route::get('/time-range', 'getTimeRange')->name('main-dashboard.time-range');
         Route::get('/progress-by-area', 'getProgressByArea')->name('main-dashboard.progress-by-area');
         Route::get('/variance', 'getVariance')->name('main-dashboard.variance');
         Route::get('/variance-trend', 'getVarianceTrend')->name('main-dashboard.variance-trend');
@@ -104,14 +109,14 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     Route::group(['prefix' => 'progress-dashboard', 'controller' => FACDBTD002::class], function () {
         Route::get('/', 'index')->name('progress-dashboard.index');
         Route::get('/groups', 'getGroups')->name('progress-dashboard.groups');
-        Route::get('/time-slots', 'getTimeSlots')->name('progress-dashboard.time-slots');
+        Route::get('/time-range', 'getTimeRange')->name('progress-dashboard.time-range');
         Route::get('/data', 'getData')->name('progress-dashboard.data');
     });
 
     // Dashboard Variance by Area (FACDBTD003)
     Route::group(['prefix' => 'variance-dashboard', 'controller' => FACDBTD003::class], function () {
         Route::get('/', 'index')->name('variance-dashboard.index');
-        Route::get('/time-slots', 'getTimeSlots')->name('variance-dashboard.time-slots');
+        Route::get('/time-range', 'getTimeRange')->name('variance-dashboard.time-range');
         Route::get('/data', 'getData')->name('variance-dashboard.data');
     });
 
@@ -131,5 +136,12 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/data', 'getData')->name('absolute-variance-dashboard.data');
         Route::get('/positive-table', 'positiveTable')->name('absolute-variance-dashboard.positive-table');
         Route::get('/negative-table', 'negativeTable')->name('absolute-variance-dashboard.negative-table');
+    });
+
+    // History Taking (FACDBTD006)
+    Route::group(['prefix' => 'taking-history', 'controller' => FACDBTD006::class], function () {
+        Route::get('/', 'index')->name('taking-history.index');
+        Route::get('/filters', 'getFilters')->name('taking-history.filters');
+        Route::post('/export', 'export')->name('taking-history.export');
     });
 });

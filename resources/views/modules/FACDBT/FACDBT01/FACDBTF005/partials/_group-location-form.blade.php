@@ -42,6 +42,12 @@
                                     maxlength="50" required aria-required="true">
                             </div>
 
+                            <!-- Stream -->
+                            <div class="mb-3">
+                                <label for="stream" class="form-label">Stream</label>
+                                <input type="text" class="form-control" id="stream" name="stream" maxlength="100">
+                            </div>
+
                         </div>
                     </div>
                 </form>

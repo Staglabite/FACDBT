@@ -39,7 +39,7 @@
     <div class="card shadow-none border border-dark rounded-0 nv-filter-col">
         <div class="card-body p-2 d-flex flex-column" style="min-height: 0;">
             <div class="text-center fw-semibold text-dark mb-1">TIME</div>
-            {{-- Satu slot; klik lagi untuk menghapus filter waktu --}}
+            {{-- Rentang waktu Dari - Sampai; Reset = seluruh periode taking --}}
             <div class="d-flex flex-column gap-1 overflow-auto flex-grow-1" style="min-height: 0;" id="nv-time-filter"></div>
         </div>
     </div>

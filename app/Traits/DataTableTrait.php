@@ -331,11 +331,32 @@ trait DataTableTrait
         return $html;
     }
 
+    /**
+     * Nilai kolom kunci dari semua baris yang lolos filter tabel (dipakai "centang semua").
+     * Filter keyword, pencarian kolom dan global search tetap berlaku, tetapi tanpa paging dan
+     * langsung lewat SQL, jadi tidak ada model maupun kolom aksi yang dibuat per baris.
+     *
+     * @return string[]
+     */
+    public function filteredKeys(string $column): array
+    {
+        return $this->dataTable(app()->call([$this, 'query']))
+            ->skipPaging()
+            ->getFilteredQuery()
+            ->reorder()
+            ->distinct()
+            ->pluck($column)
+            ->map(fn ($value) => (string) $value)
+            ->all();
+    }
+
     private function actionButtons($data, $actions)
     {
         $user = Auth::user();
         $button = '';
-        $services = collect($user->serviceNames());
+        // Dihitung sekali per request: serviceNames() menjalankan beberapa query, dan method ini
+        // dipanggil per baris sehingga request "All"/export (length=-1) bisa melewati batas waktu PHP
+        $services = once(fn () => collect($user?->serviceNames() ?? []));
 
         foreach ($actions as $action) {
             $class = $action['action'] . '-' . strtolower(last(explode(' ', $action['service'])));

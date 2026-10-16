@@ -49,6 +49,7 @@ export default class GroupLocationForm {
                 $('#LOCATION_NO').val(data.LOCATION_NO);
                 $('#ID_LOC').val(data.ID_LOC);
                 $('#location_group').val(data.location_group);
+                $('#stream').val(data.stream);
             })
             .catch(error => {
                 toast.error('Failed to fetch group location data');

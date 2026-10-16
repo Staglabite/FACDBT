@@ -40,7 +40,6 @@ class FACDBTF002DataTable extends DataTable
                         'part_no', 
                         'inventory_part_description', 
                         'accounting_group', 
-                        'stream', 
                         'seg', 
                         'prod_group', 
                         'part_group'
@@ -78,18 +77,10 @@ class FACDBTF002DataTable extends DataTable
             ->columns($this->getColumns())
             ->minifiedAjax()
             ->parameters([
+                // Data diambil per halaman dari server; tanpa ini seluruh tabel dimuat sekaligus dan memori PHP habis
+                'serverSide' => true,
                 'processing' => false,
                 'orderCellsTop' => true,
-                'buttons' => [
-                    [
-                        'extend' => 'excel',
-                        'className' => 'd-none',
-                        'filename' => $this->filename(),
-                        'exportOptions' => [
-                            'columns' => ':visible:not(:first-child):not(:last-child)',
-                        ],
-                    ],
-                ],
                 'initComplete' => '
                     function () {
                         var table = this.api();
@@ -135,7 +126,6 @@ class FACDBTF002DataTable extends DataTable
             Column::make('part_no')->title('Part No'),
             Column::make('inventory_part_description')->title('Description'),
             Column::make('accounting_group')->title('Accounting Group'),
-            Column::make('stream')->title('Stream'),
             Column::make('seg')->title('Seg'),
             Column::make('prod_group')->title('Prod Group'),
             Column::make('part_group')->title('Part Group'),

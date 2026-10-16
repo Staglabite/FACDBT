@@ -3,13 +3,17 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class FACDBTD001 extends Controller
 {
+    use CachesDashboard;
+    use FiltersTakingRange;
+
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
 
@@ -26,8 +30,9 @@ class FACDBTD001 extends Controller
         8 => [1, '11:00', '7-11.00'],
     ];
 
-    // Unit cost per part: dari book, fallback ke master unit cost (alias bk & uc di variancePartsQuery)
-    private const VARIANCE_UNIT_COST = 'COALESCE(NULLIF(bk.unit_cost, 0), uc.unit_cost, 0)';
+    // Unit cost per part dari master unit cost (mat + lab + foh, alias uc di variancePartsQuery).
+    // UNIT_COST di book tidak dipakai.
+    private const VARIANCE_UNIT_COST = 'COALESCE(uc.unit_cost, 0)';
 
     private const NON_OIL_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8];
     private const OIL_SLOTS     = [0, 2, 3, 4, 8];
@@ -84,24 +89,103 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Subquery pemetaan lokasi -> area (location_group dari SIM_INV_GROUP_LOCATION).
-     * DISTINCT per (lokasi, area) supaya lokasi di lebih dari satu group tidak hilang.
+     * Pemetaan lokasi -> daftar area (location_group dari SIM_INV_GROUP_LOCATION).
+     * Lokasi di lebih dari satu group masuk ke semua group-nya. Dikerjakan di PHP karena
+     * join dengan TRIM() di SQL membuat index tidak terpakai.
+     *
+     * @return array<string, array<int, string|null>> [location_no => [area, ...]]
      */
-    private function areaMapSub($db)
+    private function locationAreaMap($db): array
     {
-        return $db->table('SIM_INV_GROUP_LOCATION as gl')
-            ->select(
-                DB::raw('TRIM(gl.LOCATION_NO) as loc_no'),
-                DB::raw("NULLIF(TRIM(gl.location_group), '') as area_name")
-            )
-            ->distinct();
+        return $this->dashboardCache('FACDBTD001:location-area-map:v1', function () use ($db) {
+            $map = [];
+            foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->get() as $r) {
+                $loc   = trim((string) $r->LOCATION_NO);
+                $group = trim((string) $r->location_group);
+                $map[$loc][$group === '' ? '' : $group] = $group === '' ? null : $group;
+            }
+
+            return array_map('array_values', $map);
+        });
     }
 
     /**
-     * Periode taking aktif + waktu filter tombol slot + INV_LIST_NO terbaru.
+     * Label area untuk chart progress by area.
+     * - Part oil (inventory_uom = ml) di lokasi / group PPC  -> 'PPC-OIL'
+     * - Part oil lainnya                                     -> 'OIL <location_group>'
+     * - Part non-oil                                         -> '<location_group>'
+     * Lokasi tanpa group -> 'UNKNOWN'.
+     */
+    public static function areaLabel(string $locationNo, ?string $area, bool $isOil): string
+    {
+        if ($isOil && (str_contains(strtoupper($locationNo), 'PPC') || str_contains(strtoupper((string) $area), 'PPC'))) {
+            return 'PPC-OIL';
+        }
+
+        $base = $area ?? 'UNKNOWN';
+
+        if ($isOil && !str_starts_with(strtoupper($base), 'OIL ')) {
+            return 'OIL ' . $base;
+        }
+
+        return $base;
+    }
+
+    /**
+     * Qty book per (area, part) untuk chart progress by area.
+     *
+     * @return \Illuminate\Support\Collection<int, object{area_label: string, PART_NO: string, qty_book: float}>
+     */
+    private function bookPerAreaPart($db, string $takingDate, string $closeDate, string $invListNo)
+    {
+        $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
+            ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+            ->where('INV_LIST_NO', $invListNo)
+            ->groupBy('LOCATION_NO', 'PART_NO')
+            ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'))
+            ->get();
+
+        return collect(self::groupBookByArea(
+            $book,
+            $this->oilPartsSub($db)->pluck('is_oil', 'part_no')->all(),
+            $this->locationAreaMap($db)
+        ));
+    }
+
+    /**
+     * Jumlahkan qty book per (area, part). Lokasi di beberapa group dihitung di tiap group-nya.
+     *
+     * @param  iterable<object{LOCATION_NO: string, PART_NO: string, qty: float}>  $book
+     * @param  array<string, int|string>  $oilParts  [part_no => is_oil]
+     * @param  array<string, array<int, string|null>>  $areaMap  [location_no => [area, ...]]
+     * @return array<int, object{area_label: string, PART_NO: string, qty_book: float}>
+     */
+    public static function groupBookByArea(iterable $book, array $oilParts, array $areaMap): array
+    {
+        $totals = [];
+        foreach ($book as $r) {
+            $isOil = (int) ($oilParts[$r->PART_NO] ?? 0) === 1;
+            foreach ($areaMap[trim((string) $r->LOCATION_NO)] ?? [null] as $area) {
+                $label = self::areaLabel((string) $r->LOCATION_NO, $area, $isOil);
+                $totals[$label][$r->PART_NO] = ($totals[$label][$r->PART_NO] ?? 0.0) + (float) $r->qty;
+            }
+        }
+
+        $rows = [];
+        foreach ($totals as $label => $parts) {
+            foreach ($parts as $part => $qty) {
+                $rows[] = (object) ['area_label' => (string) $label, 'PART_NO' => (string) $part, 'qty_book' => $qty];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Periode taking aktif + rentang filter waktu (Dari - Sampai) + INV_LIST_NO terbaru.
      * Dipakai oleh chart bawah (progress by area) dan chart variance.
      *
-     * @return array{0: string, 1: string, 2: string, 3: string}|null [takingDate, closeDate, selectedTime, invListNo]
+     * @return array{0: string, 1: string, 2: string, 3: string, 4: string}|null [takingDate, closeDate, takingFrom, takingTo, invListNo]
      */
     private function resolvePeriod($db, Request $request): ?array
     {
@@ -118,18 +202,8 @@ class FACDBTD001 extends Controller
         $takingDate = $baseDay->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($concluding->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
 
-        // Parameter waktu filter (default ke slot 6-07.30 jika belum ada yang diklik)
-        $selectedTime = $request->get('time');
-        if ($selectedTime) {
-            try {
-                $selectedTime = Carbon::parse($selectedTime)->format('Y-m-d H:i:s');
-            } catch (\Throwable $e) {
-                $selectedTime = null;
-            }
-        }
-        if (!$selectedTime) {
-            $selectedTime = $baseDay->copy()->setTime(7, 30, 0)->format('Y-m-d H:i:s');
-        }
+        // Rentang filter waktu; tanpa filter: seluruh periode taking
+        [$takingFrom, $takingTo] = $this->takingRange($request, $takingDate, $closeDate);
 
         $latestInvListNo = $this->latestInvListNo($db, $takingDate, $closeDate);
 
@@ -137,7 +211,7 @@ class FACDBTD001 extends Controller
             return null;
         }
 
-        return [$takingDate, $closeDate, $selectedTime, $latestInvListNo];
+        return [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo];
     }
 
     /**
@@ -170,7 +244,7 @@ class FACDBTD001 extends Controller
 
         $cacheKey = "FACDBTD001:v6:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
-        $payload = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
+        $payload = $this->dashboardCache($cacheKey, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
             $slotTimes = [];
             foreach (self::SLOTS as $i => [$dayOffset, $hm]) {
                 [$h, $m] = explode(':', $hm);
@@ -251,52 +325,23 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Mengambil daftar tombol filter waktu untuk bagian atas
+     * Pilihan hari untuk filter rentang waktu (Dari - Sampai) chart bawah & variance.
      */
-    public function getTimeSlots()
+    public function getTimeRange()
     {
-        $db = DB::connection(self::CONN);
-        $concluding = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('TAKING_DATE')
+        $concluding = DB::connection(self::CONN)->table('SIM_INV_TAKING_CONCLUDING_TAB')
+            ->select('TAKING_DATE', 'CLOSE_DATE')
             ->orderByDesc('TAKING_DATE')
             ->first();
 
         if (!$concluding) {
-            return response()->json([]);
+            return response()->json(['days' => []]);
         }
 
-        $baseDay = Carbon::parse($concluding->TAKING_DATE)->startOfDay();
-        $slots = [];
-
-        // Definisi: [dayOffset, 'jam:menit', 'format jam titik']
-        // dayOffset 0 = hari pertama Taking, dayOffset 1 = hari kedua Taking
-        $filterSlots = [
-            [0, '00:00', '00.00'],
-            [0, '07:30', '07.30'],
-            [0, '13:00', '13.00'],
-            [0, '16:15', '16.15'],
-            [0, '19:30', '19.30'],
-            [1, '09:00', '09.00'],
-            [1, '10:00', '10.00'],
-            [1, '11:00', '11.00'],
-        ];
-
-        foreach ($filterSlots as $key => [$dayOffset, $hm, $timeDot]) {
-            [$h, $m] = explode(':', $hm);
-            $slotDate = $baseDay->copy()->addDays($dayOffset)->setTime((int) $h, (int) $m, 0);
-
-            // $slotDate->format('j') menghasilkan angka tanggal tanpa leading zero (misal: 6, 12, 13)
-            // Hasil label: "12-07.30", "13-09.00", dsb.
-            $label = $slotDate->format('j') . '-' . $timeDot;
-
-            $slots[] = [
-                'key'       => $key,
-                'label'     => $label,
-                'full_time' => $slotDate->format('Y-m-d H:i:s'),
-            ];
-        }
-
-        return response()->json($slots);
+        return response()->json($this->timeRangePayload(
+            Carbon::parse($concluding->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s'),
+            Carbon::parse($concluding->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s')
+        ));
     }
 
     /**
@@ -312,42 +357,21 @@ class FACDBTD001 extends Controller
             return response()->json(['parts' => [], 'oil' => []]);
         }
 
-        [$takingDate, $closeDate, $selectedTime, $latestInvListNo] = $period;
+        [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:area:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+        $cacheKey = "FACDBTD001:area:v10:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
-        $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo) {
-            $areaSub = $this->areaMapSub($db);
-
-            // Book dikelompokkan di database: 1 baris per (area, part).
-            // Part oil (inventory_uom = ml) dipisah ke area 'OIL <location_group>' per part,
-            // karena satu lokasi bisa berisi part oil dan non-oil sekaligus.
-            // Part oil di lokasi / group PPC digabung menjadi satu area 'PPC-OIL'.
-            $bookRows = $db->table('SIM_INV_TAKING_BOOK_TAB as b')
-                ->leftJoinSub($areaSub, 'ar', DB::raw('TRIM(b.LOCATION_NO)'), '=', 'ar.loc_no')
-                ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
-                ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
-                ->where('b.INV_LIST_NO', $latestInvListNo)
-                ->groupBy('area_label', 'b.PART_NO')
-                ->select([
-                    DB::raw("CASE
-                        WHEN COALESCE(cost.is_oil, 0) = 1
-                            AND (UPPER(b.LOCATION_NO) LIKE '%PPC%' OR UPPER(COALESCE(ar.area_name, '')) LIKE '%PPC%')
-                            THEN 'PPC-OIL'
-                        WHEN COALESCE(cost.is_oil, 0) = 1 AND COALESCE(ar.area_name, 'UNKNOWN') NOT LIKE 'OIL %'
-                            THEN CONCAT('OIL ', COALESCE(ar.area_name, 'UNKNOWN'))
-                        ELSE COALESCE(ar.area_name, 'UNKNOWN')
-                    END as area_label"),
-                    'b.PART_NO',
-                    DB::raw('SUM(b.QUANTITY) as qty_book'),
-                ])
-                ->get();
+        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo) {
+            // 1 baris per (area, part). Part oil (inventory_uom = ml) dipisah per part ke area
+            // 'OIL <location_group>' / 'PPC-OIL' (lihat areaLabel), karena satu lokasi bisa berisi
+            // part oil dan non-oil sekaligus.
+            $bookRows = $this->bookPerAreaPart($db, $takingDate, $closeDate, $latestInvListNo);
 
             if ($bookRows->isEmpty()) {
                 return ['parts' => [], 'oil' => []];
             }
 
-            // Taking kumulatif s/d waktu filter. Memakai JOIN ke daftar part book,
+            // Taking yang di-scan di rentang filter. Memakai JOIN ke daftar part book,
             // bukan whereIn dengan ribuan nilai.
             $partsSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
@@ -357,7 +381,7 @@ class FACDBTD001 extends Controller
 
             $takingData = $db->table('SIM_INV_TAKING_DATA_TAB as t')
                 ->joinSub($partsSub, 'bp', 'bp.PART_NO', '=', 't.PART_NO')
-                ->whereBetween('t.CREATED_DATETIME', [$takingDate, $selectedTime])
+                ->whereBetween('t.CREATED_DATETIME', [$takingFrom, $takingTo])
                 ->groupBy('t.PART_NO')
                 ->select('t.PART_NO', DB::raw('SUM(t.QTY) as total_qty_taking'))
                 ->pluck('total_qty_taking', 'PART_NO')
@@ -429,25 +453,26 @@ class FACDBTD001 extends Controller
 
         // /...?debug=1 -> tampilkan lokasi book yang belum terpetakan ke area (penyebab UNKNOWN)
         if ($request->boolean('debug')) {
-            $result['unmapped'] = $db->table('SIM_INV_TAKING_BOOK_TAB as b')
-                ->leftJoinSub($this->areaMapSub($db), 'ar', DB::raw('TRIM(b.LOCATION_NO)'), '=', 'ar.loc_no')
-                ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
-                ->where('b.INV_LIST_NO', $latestInvListNo)
-                ->whereNull('ar.area_name')
-                ->groupBy('b.LOCATION_NO', 'b.WAREHOUSE')
-                ->select('b.LOCATION_NO', 'b.WAREHOUSE', DB::raw('COUNT(DISTINCT b.PART_NO) as parts'))
-                ->get();
+            $areaMap = $this->locationAreaMap($db);
+            $result['unmapped'] = $db->table('SIM_INV_TAKING_BOOK_TAB')
+                ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+                ->where('INV_LIST_NO', $latestInvListNo)
+                ->groupBy('LOCATION_NO', 'WAREHOUSE')
+                ->select('LOCATION_NO', 'WAREHOUSE', DB::raw('COUNT(DISTINCT PART_NO) as parts'))
+                ->get()
+                ->filter(fn ($r) => empty(array_filter($areaMap[trim((string) $r->LOCATION_NO)] ?? [])))
+                ->values();
         }
 
         return response()->json($result);
     }
 
     /**
-     * Query dasar variance: 1 baris per part yang ada di book dan/atau taking s/d $takingUntil,
-     * sudah di-join ke qty/unit cost book (alias bk) dan master unit cost (alias uc).
+     * Query dasar variance: 1 baris per part yang ada di book dan/atau taking di rentang $takingFrom - $takingTo,
+     * sudah di-join ke qty book (alias bk) dan master unit cost (alias uc).
      * Pemanggil menambahkan join ke data taking (alias tk) dan select-nya sendiri.
      */
-    private function variancePartsQuery($db, string $takingDate, string $closeDate, string $takingUntil, string $invListNo)
+    private function variancePartsQuery($db, string $takingDate, string $closeDate, string $takingFrom, string $takingTo, string $invListNo)
     {
         $bookSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
@@ -455,8 +480,7 @@ class FACDBTD001 extends Controller
             ->groupBy('PART_NO')
             ->select(
                 'PART_NO',
-                DB::raw('SUM(QUANTITY) as qty_book'),
-                DB::raw('MAX(UNIT_COST) as unit_cost')
+                DB::raw('SUM(QUANTITY) as qty_book')
             );
 
         $costSub = $db->table('SIM_INV_UNIT_COST_TEST')
@@ -473,7 +497,7 @@ class FACDBTD001 extends Controller
             ->select('PART_NO')
             ->union(
                 $db->table('SIM_INV_TAKING_DATA_TAB')
-                    ->whereBetween('CREATED_DATETIME', [$takingDate, $takingUntil])
+                    ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
                     ->select('PART_NO')
             );
 
@@ -485,12 +509,12 @@ class FACDBTD001 extends Controller
 
     /**
      * Endpoint untuk Chart Variance (Nett & Absolute Variance).
-     * Amount = qty x unit cost per part. Unit cost dari book (UNIT_COST), fallback ke
-     * SIM_INV_UNIT_COST_TEST (mat + lab + foh) untuk part yang tidak ada di book.
+     * Amount = qty x unit cost per part. Unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh);
+     * UNIT_COST di book tidak dipakai.
      * - Nett variance     : total amount taking - total amount book
      * - Absolute variance : jumlah ABS(amount taking - amount book) per part
      * Dikelompokkan per part_group (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
-     * Taking dihitung kumulatif s/d waktu filter tombol slot (sama seperti chart progress by area).
+     * Taking hanya yang di-scan di rentang filter waktu (sama seperti chart progress by area).
      */
     public function getVariance(Request $request)
     {
@@ -508,18 +532,18 @@ class FACDBTD001 extends Controller
             return response()->json($empty);
         }
 
-        [$takingDate, $closeDate, $selectedTime, $latestInvListNo] = $period;
+        [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:variance:v1:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+        $cacheKey = "FACDBTD001:variance:v3:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
-        $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo, $empty) {
+        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo, $empty) {
             $takingSub = $db->table('SIM_INV_TAKING_DATA_TAB')
-                ->whereBetween('CREATED_DATETIME', [$takingDate, $selectedTime])
+                ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
                 ->groupBy('PART_NO')
                 ->select('PART_NO', DB::raw('SUM(QTY) as qty_taking'));
 
             // 1 baris per part: variance amount = (qty taking - qty book) x unit cost
-            $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo)
+            $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo)
                 ->leftJoinSub($takingSub, 'tk', 'tk.PART_NO', '=', 'p.PART_NO')
                 ->leftJoin('SIM_INV_PART_TEST as pm', 'pm.part_no', '=', 'p.PART_NO')
                 ->select(
@@ -593,9 +617,9 @@ class FACDBTD001 extends Controller
             return response()->json([]);
         }
 
-        $cacheKey = "FACDBTD001:variance-trend:v1:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+        $cacheKey = "FACDBTD001:variance-trend:v2:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
-        $series = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
+        $series = $this->dashboardCache($cacheKey, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
             $slotTimes = [];
             foreach (self::NON_OIL_SLOTS as $i) {
                 [$dayOffset, $hm] = self::SLOTS[$i];
@@ -613,7 +637,7 @@ class FACDBTD001 extends Controller
                 $takingSub->selectRaw("SUM(CASE WHEN CREATED_DATETIME <= ? THEN QTY ELSE 0 END) as qty_{$i}", [$time]);
             }
 
-            $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $lastSlot, $latestInvListNo)
+            $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $takingDate, $lastSlot, $latestInvListNo)
                 ->leftJoinSub($takingSub, 'tk', 'tk.PART_NO', '=', 'p.PART_NO')
                 ->select(
                     DB::raw('COALESCE(bk.qty_book, 0) as qty_book'),

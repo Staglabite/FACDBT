@@ -37,12 +37,6 @@
                                 <input type="text" class="form-control" id="accounting_group" name="accounting_group">
                             </div>
 
-                            <!-- Stream -->
-                            <div class="mb-3">
-                                <label for="stream" class="form-label">Stream</label>
-                                <input type="text" class="form-control" id="stream" name="stream">
-                            </div>
-
                         </div>
 
                         <!-- Kanan -->

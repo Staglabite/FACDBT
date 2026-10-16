@@ -33,7 +33,7 @@ class FACDBTF001 implements ToCollection, WithHeadingRow, WithStartRow
         return 2;
     }
 
-    public function collection(Collection $collection)
+    public function collection(Collection $collection): void
     {
         if ($collection === null || $collection->isEmpty()) {
             throw new SpreadsheetException('The file is empty', 422);
@@ -46,6 +46,12 @@ class FACDBTF001 implements ToCollection, WithHeadingRow, WithStartRow
         $seen = [];
 
         foreach ($collection as $row) {
+            // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
+            if (collect($row)->every(fn ($value) => $value === null || trim((string) $value) === '')) {
+                $currentRowIndex++;
+                continue;
+            }
+
             $row['row'] = $currentRowIndex;
             $row = $row->toArray();
 

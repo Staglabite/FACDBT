@@ -14,7 +14,7 @@ class NettVarianceService extends VarianceDashboardService
 {
     protected function cachePrefix(): string
     {
-        return 'FACDBTD004:data:v3';
+        return 'FACDBTD004:data:v4';
     }
 
     protected function emptyResult(): array

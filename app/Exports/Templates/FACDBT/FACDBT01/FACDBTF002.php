@@ -20,7 +20,6 @@ class FACDBTF002 implements FromArray, WithHeadings, ShouldAutoSize, WithEvents
             'Part No',
             'Description',
             'Accounting Group',
-            'Stream',
             'Seg',
             'Prod',
             'Part Group',

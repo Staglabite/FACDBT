@@ -4,22 +4,30 @@ namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF002DataTable;
 use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF002 as Template;
+use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Original\FACDBT\FACDBT01\Concerns\SavesImportRows;
 use App\Http\Requests\FACDBT\FACDBT01\PartImportRequest; 
 use App\Http\Requests\FACDBT\FACDBT01\PartRequest;
 use App\Imports\FACDBT\FACDBT01\FACDBTF002 as Import;
 use App\Models\FACDBT01\FACDBT_MSHPART as Part; // Sesuai dengan namespace model Anda
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Maatwebsite\Excel\Excel;
 use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 // Part controller
 class FACDBTF002 extends Controller
 {
+    use SavesImportRows;
+
     public function index(FACDBTF002DataTable $dataTable)
     {
+        // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
+        if (request()->boolean('ids_only')) {
+            return response()->json(['ids' => $dataTable->filteredKeys('part_no')]);
+        }
+
         return $dataTable->render('modules.FACDBT.FACDBT01.FACDBTF002.FACDBTF002');
     }
 
@@ -29,7 +37,6 @@ class FACDBTF002 extends Controller
             'part_no'                    => $request->part_no,
             'inventory_part_description' => $request->inventory_part_description,
             'accounting_group'           => $request->accounting_group,
-            'stream'                     => $request->stream,
             'seg'                        => $request->seg,
             'prod_group'                 => $request->prod_group,
             'part_group'                 => $request->part_group,
@@ -68,7 +75,6 @@ class FACDBTF002 extends Controller
         $part->update([
             'inventory_part_description' => $request->inventory_part_description,
             'accounting_group'           => $request->accounting_group,
-            'stream'                     => $request->stream,
             'seg'                        => $request->seg,
             'prod_group'                 => $request->prod_group,
             'part_group'                 => $request->part_group,
@@ -132,6 +138,27 @@ class FACDBTF002 extends Controller
         }
     }
 
+    /**
+     * Export CSV: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
+     */
+    public function export(Request $request)
+    {
+        $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
+
+        $query = Part::query()
+            ->when(!empty($ids), fn ($q) => $q->whereIn('part_no', $ids))
+            ->orderBy('part_no');
+
+        return (new MasterDataExport($query, [
+            'part_no' => 'Part No',
+            'inventory_part_description' => 'Description',
+            'accounting_group' => 'Accounting Group',
+            'seg' => 'Seg',
+            'prod_group' => 'Prod',
+            'part_group' => 'Part Group',
+        ]))->download('Master_Part-' . date('YmdHis') . '.csv');
+    }
+
     public function downloadTemplate()
     {
         return FacadesExcel::download(new Template, 'Master_Part_Template.xlsx');
@@ -139,9 +166,13 @@ class FACDBTF002 extends Controller
 
     public function import(PartImportRequest $request)
     {
+        // File besar butuh waktu lebih dari batas default PHP (30 detik)
+        set_time_limit(300);
+
         try {
             $import = new Import; 
-            FacadesExcel::import($import, $request->file, Excel::XLSX);
+            // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
+            FacadesExcel::import($import, $request->file('file'));
 
             $result = $import->getResult();
             if ($result->totalError > 0) {
@@ -162,37 +193,27 @@ class FACDBTF002 extends Controller
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
 
-            DB::beginTransaction();
+            // Transaksi di koneksi INV_TAKING (tempat data master disimpan)
+            $db = DB::connection('INV_TAKING');
+            $db->beginTransaction();
 
             try {
-                // Upsert untuk menimpa data lama jika part_no sudah ada
-                Part::upsert(
-                    $cleaned, 
-                    ['part_no'], 
-                    [ 
-                        'inventory_part_description',
-                        'accounting_group',
-                        'stream',
-                        'seg',
-                        'prod_group',
-                        'part_group'
-                    ]
-                );
+                // part_no sudah ada -> ditimpa, belum ada -> dibuat baru
+                [$insertedCount, $updatedCount] = $this->saveImportRows(new Part, $cleaned, ['part_no']);
 
-                $insertedCount = count($cleaned);
-
-                DB::commit();
+                $db->commit();
 
                 return response()->json([
                     'success' => true,
-                    'message' => "Successfully imported and/or updated {$insertedCount} part(s).",
+                    'message' => "Successfully imported {$insertedCount} new and updated {$updatedCount} existing part(s).",
                     'data' => [
                         'total_imported' => $insertedCount,
+                        'total_updated' => $updatedCount,
                         'total_processed' => count($cleaned),
                     ],
                 ], 200);
             } catch (\Exception $e) {
-                DB::rollBack();
+                $db->rollBack();
 
                 return response()->json([
                     'success' => false,

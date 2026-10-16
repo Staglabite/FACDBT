@@ -7,17 +7,23 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithStartRow;
 use PhpOffice\PhpSpreadsheet\Exception as SpreadsheetException;
 
-class FACDBTF004 implements ToCollection, WithHeadingRow, WithStartRow
+class FACDBTF004 implements ToCollection, WithHeadingRow, WithStartRow, WithChunkReading
 {
     protected $logs = [];
 
     protected $totalError = 0;
 
     protected $createdBy = null;
+
+    // Disimpan di property karena collection() dipanggil sekali per chunk
+    protected $currentRowIndex = null;
+
+    protected $seen = [];
 
     // Disesuaikan dengan field tabel SIM_INV_TAKING_BOOK_TAB (sesuai Model)
     protected $columns = [
@@ -51,20 +57,34 @@ class FACDBTF004 implements ToCollection, WithHeadingRow, WithStartRow
         return 2;
     }
 
-    public function collection(Collection $collection)
+    // File dibaca per 1000 baris supaya file book yang besar tidak dimuat sekaligus ke memori
+    public function chunkSize(): int
     {
-        if ($collection === null || $collection->isEmpty()) {
-            throw new SpreadsheetException('The file is empty', 422);
+        return 1000;
+    }
+
+    public function collection(Collection $collection): void
+    {
+        if ($this->currentRowIndex === null) {
+            if ($collection === null || $collection->isEmpty()) {
+                throw new SpreadsheetException('The file is empty', 422);
+            }
+
+            // Ambil User yang sedang login
+            $this->createdBy = Auth::user()->VUSERNAME ?? 'SYSTEM';
+            $this->currentRowIndex = $this->startRow();
         }
 
-        // Ambil User yang sedang login
-        $this->createdBy = Auth::user()->VUSERNAME ?? 'SYSTEM'; 
-        $currentRowIndex = $this->startRow();
-        $seen = [];
-
         foreach ($collection as $row) {
-            $row['row'] = $currentRowIndex;
-            $row = $row->toArray();
+            // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
+            if (collect($row)->every(fn ($value) => $value === null || trim((string) $value) === '')) {
+                $this->currentRowIndex++;
+                continue;
+            }
+
+            // Heading row dibaca sebagai huruf kecil (inv_list_no), sedangkan kolom memakai huruf besar
+            $row = array_change_key_case($row->toArray(), CASE_UPPER);
+            $row['row'] = $this->currentRowIndex;
 
             foreach ($this->columns as $col) {
                 // Parsing nilai angka (cost/qty/seq/id dll) untuk menghindari error type mismatch
@@ -77,9 +97,9 @@ class FACDBTF004 implements ToCollection, WithHeadingRow, WithStartRow
 
             $this->setLog($row);
             
-            // Kolom yang menjadi Composite Primary Key wajib diisi (Required)
+            // Kolom yang menjadi Composite Primary Key wajib diisi (Required).
+            // INV_LIST_NO tidak wajib karena selalu diganti dengan nomor baru saat disimpan.
             $this->required($row, [
-                'INV_LIST_NO',
                 'SEQ',
                 'MONTH',
                 'YEAR',
@@ -89,10 +109,9 @@ class FACDBTF004 implements ToCollection, WithHeadingRow, WithStartRow
                 'LOT_BATCH_NO'
             ]); 
 
-            // Cek Duplikasi berdasarkan gabungan (Composite Key)
-            // Membentuk string key unik dari 8 kolom Primary Key
+            // Cek Duplikasi berdasarkan gabungan (Composite Key) tanpa INV_LIST_NO,
+            // karena seluruh baris akan memakai INV_LIST_NO yang sama
             $compositeKey = implode('|', [
-                $row['INV_LIST_NO'] ?? '',
                 $row['SEQ'] ?? '',
                 $row['MONTH'] ?? '',
                 $row['YEAR'] ?? '',
@@ -103,15 +122,15 @@ class FACDBTF004 implements ToCollection, WithHeadingRow, WithStartRow
             ]);
             
             // Pastikan gabungan key tidak kosong sepenuhnya (mencegah validasi baris kosong)
-            if ($compositeKey !== '|||||||') {
-                if (isset($seen[$compositeKey])) {
-                    $this->setLog($row, "Duplicate primary key combination found in row {$seen[$compositeKey]}.");
+            if ($compositeKey !== '||||||') {
+                if (isset($this->seen[$compositeKey])) {
+                    $this->setLog($row, "Duplicate primary key combination found in row {$this->seen[$compositeKey]}.");
                 } else {
-                    $seen[$compositeKey] = $currentRowIndex;
+                    $this->seen[$compositeKey] = $this->currentRowIndex;
                 }
             }
 
-            $currentRowIndex++;
+            $this->currentRowIndex++;
         }
     }
 

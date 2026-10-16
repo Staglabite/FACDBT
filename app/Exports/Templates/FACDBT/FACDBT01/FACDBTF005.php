@@ -20,6 +20,7 @@ class FACDBTF005 implements FromArray, WithHeadings, ShouldAutoSize, WithEvents
             'Location No',
             'ID Loc',
             'Location Group',
+            'Stream',
         ];
     }
 

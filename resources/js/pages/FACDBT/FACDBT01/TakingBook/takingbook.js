@@ -115,24 +115,19 @@ class TakingBook {
 
     async #selectAllAcrossPages() {
         this.#selectAllPromise = (async () => {
-            const params = this.#takingBookTable.DataTable().ajax.params() || {};
+            const table = this.#takingBookTable.DataTable();
+            // Filter tabel saat ini + keyword dari URL ajax; server hanya mengembalikan ID-nya
+            const ajaxUrl = new URL(table.ajax.url() || window.location.href, window.location.origin);
+            const query = $.param({
+              ...(table.ajax.params() || {}),
+              ...Object.fromEntries(ajaxUrl.searchParams),
+              ids_only: 1
+            });
             try {
-                const response = await axios.get(window.location.pathname, {
-                    params: {
-                        ...params,
-                        start: 0,
-                        length: -1
-                    }
-                });
+                const response = await axios.get(`${window.location.pathname}?${query}`);
 
                 this.#selectedTakingBookIds.clear();
-
-                (response.data?.data || []).forEach((row) => {
-                    // Update field key based on the primary key for the Taking Book model (INV_LIST_NO)
-                    if (row?.INV_LIST_NO) { 
-                        this.#selectedTakingBookIds.add(String(row.INV_LIST_NO));
-                    }
-                });
+                (response.data?.ids || []).forEach(id => this.#selectedTakingBookIds.add(String(id)));
 
                 this.#applySelectionToVisibleRows();
                 this.#refreshSelectionUI();

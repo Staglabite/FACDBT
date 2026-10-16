@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF001DataTable;
 use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF001 as Template;
+use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FACDBT\FACDBT01\LocationImportRequest;
@@ -12,7 +13,6 @@ use App\Imports\FACDBT\FACDBT01\FACDBTF001 as Import;
 use App\Models\FACDBT01\FACDBT_MSHLOCATION as Location;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Maatwebsite\Excel\Excel;
 use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 // Location controller
@@ -20,6 +20,11 @@ class FACDBTF001 extends Controller
 {
     public function index(FACDBTF001DataTable $dataTable)
     {
+        // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
+        if (request()->boolean('ids_only')) {
+            return response()->json(['ids' => $dataTable->filteredKeys('location_no')]);
+        }
+
         return $dataTable->render('modules.FACDBT.FACDBT01.FACDBTF001.FACDBTF001');
     }
 
@@ -126,6 +131,27 @@ class FACDBTF001 extends Controller
         }
     }
 
+    /**
+     * Export CSV: data yang dicentang saja, atau semua data bila tidak ada yang dicentang.
+     */
+    public function export(Request $request)
+    {
+        $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
+
+        $query = Location::query()
+            ->when(!empty($ids), fn ($q) => $q->whereIn('location_no', $ids))
+            ->orderBy('location_no');
+
+        return (new MasterDataExport($query, [
+            'location_no' => 'Location No',
+            'location_group' => 'Location Group',
+            'site' => 'Site',
+            'warehouse' => 'Warehouse',
+            'location_description' => 'Location Description',
+            'location_group_description' => 'Location Group Description',
+        ]))->download('Master_Location-' . date('YmdHis') . '.csv');
+    }
+
     public function downloadTemplate()
     {
         return FacadesExcel::download(new Template, 'Master_Location_Template.xlsx');
@@ -135,7 +161,8 @@ class FACDBTF001 extends Controller
     {
         try {
             $import = new Import; // Pastikan class import Anda benar
-            FacadesExcel::import($import, $request->file, Excel::XLSX);
+            // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
+            FacadesExcel::import($import, $request->file('file'));
 
             $result = $import->getResult();
             if ($result->totalError > 0) {

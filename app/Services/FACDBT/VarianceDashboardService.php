@@ -4,7 +4,6 @@ namespace App\Services\FACDBT;
 
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\BuildsVarianceLines;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -37,7 +36,7 @@ abstract class VarianceDashboardService
     abstract protected function build(iterable $lines, array $names): array;
 
     /**
-     * Payload dashboard untuk filter request `time` (tanpa filter: semua taking di periode taking)
+     * Payload dashboard untuk filter request `from` / `to` (rentang scan taking; tanpa filter: seluruh periode taking)
      * dan `areas[]` (tanpa filter: semua area). Hasil di-cache supaya ringkasan & DataTable memakai hasil yang sama.
      */
     public function compute(Request $request): array
@@ -49,7 +48,7 @@ abstract class VarianceDashboardService
             return $this->emptyResult();
         }
 
-        $takingUntil = $this->parseTime($request->get('time')) ?? $period['closeDate'];
+        [$takingFrom, $takingTo] = $this->takingRange($request, $period['takingDate'], $period['closeDate']);
         $selected = collect((array) $request->input('areas', []))
             ->map(fn ($a) => trim((string) $a))
             ->filter()
@@ -58,14 +57,14 @@ abstract class VarianceDashboardService
             ->values()
             ->all();
 
-        $cacheKey = $this->cachePrefix() . ':' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingUntil, implode(',', $selected)]));
+        $cacheKey = $this->cachePrefix() . ':' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingFrom, $takingTo, implode(',', $selected)]));
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($db, $period, $takingUntil, $selected) {
+        return $this->dashboardCache($cacheKey, function () use ($db, $period, $takingFrom, $takingTo, $selected) {
             $areas      = $this->locationAreas($db);
             $areaFilter = array_flip($selected);
 
             $lines = [];
-            foreach ($this->varianceLines($db, $period, $takingUntil) as $line) {
+            foreach ($this->varianceLines($db, $period, $takingFrom, $takingTo) as $line) {
                 $area = $areas[$line[0]] ?? 'UNKNOWN';
                 if ($areaFilter && !isset($areaFilter[$area])) {
                     continue;
@@ -128,7 +127,7 @@ abstract class VarianceDashboardService
      */
     protected function partNames($db): array
     {
-        return Cache::remember('FACDBT04:part-names:v1', self::CACHE_TTL, function () use ($db) {
+        return $this->dashboardCache('FACDBT04:part-names:v1', function () use ($db) {
             return $db->table('SIM_INV_PART_TEST')
                 ->select('part_no', 'inventory_part_description')
                 ->get()

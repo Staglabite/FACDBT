@@ -77,18 +77,10 @@ class FACDBTF001DataTable extends DataTable
             ->columns($this->getColumns())
             ->minifiedAjax()
             ->parameters([
+                // Data diambil per halaman dari server; tanpa ini seluruh tabel dimuat sekaligus dan memori PHP habis
+                'serverSide' => true,
                 'processing' => false,
                 'orderCellsTop' => true,
-                'buttons' => [
-                    [
-                        'extend' => 'excel',
-                        'className' => 'd-none',
-                        'filename' => $this->filename(),
-                        'exportOptions' => [
-                            'columns' => ':visible:not(:first-child):not(:last-child)',
-                        ],
-                    ],
-                ],
                 'initComplete' => '
                     function () {
                         var table = this.api();

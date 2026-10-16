@@ -53,7 +53,6 @@ export default class PartForm {
                 $('#part_no').val(data.part_no);
                 $('#inventory_part_description').val(data.inventory_part_description);
                 $('#accounting_group').val(data.accounting_group);
-                $('#stream').val(data.stream);
                 $('#seg').val(data.seg);
                 $('#prod_group').val(data.prod_group);
                 $('#part_group').val(data.part_group);

@@ -24,10 +24,15 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
         'part_no',
         'inventory_part_description',
         'accounting_group',
-        'stream',
         'seg',
         'prod_group',
         'part_group',
+    ];
+
+    // Judul kolom di template/export (slug) => kolom tabel
+    protected $aliases = [
+        'description' => 'inventory_part_description',
+        'prod' => 'prod_group',
     ];
 
     public function startRow(): int
@@ -35,7 +40,7 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
         return 2;
     }
 
-    public function collection(Collection $collection)
+    public function collection(Collection $collection): void
     {
         if ($collection === null || $collection->isEmpty()) {
             throw new SpreadsheetException('The file is empty', 422);
@@ -45,11 +50,22 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
         // Assuming your Auth::user() structure is similar to the template, adjust 'VUSERNAME' if necessary.
         $this->createdBy = "'" . Auth::user()->VUSERNAME . "'"; 
         $currentRowIndex = $this->startRow();
-        $seen = [];
 
         foreach ($collection as $row) {
+            // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
+            if (collect($row)->every(fn ($value) => $value === null || trim((string) $value) === '')) {
+                $currentRowIndex++;
+                continue;
+            }
+
             $row['row'] = $currentRowIndex;
             $row = $row->toArray();
+
+            foreach ($this->aliases as $heading => $column) {
+                if (! isset($row[$column]) && isset($row[$heading])) {
+                    $row[$column] = $row[$heading];
+                }
+            }
 
             foreach ($this->columns as $col) {
                 $row[$col] = isset($row[$col]) && $row[$col] !== '' ? trim((string) $row[$col]) : null;
@@ -61,14 +77,7 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
             $this->required($row, ['part_no']); 
             $this->mapRelations($row);
 
-            $key = $row['part_no'];
-            if (! empty($key)) {
-                if (isset($seen[$key])) {
-                    $this->setLog($row, "Duplicate part_no {$row['part_no']} found in row {$seen[$key]}.");
-                } else {
-                    $seen[$key] = $currentRowIndex;
-                }
-            }
+            // part_no berulang di file tidak dianggap error; baris paling bawah yang dipakai (lihat store())
 
             $currentRowIndex++;
         }
@@ -82,6 +91,9 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
             ->map(function ($item) {
                 return Arr::only($item, $this->columns);
             })
+            // Satu baris per part_no; bila berulang, baris paling bawah yang dipakai (menimpa)
+            ->keyBy(fn ($item) => mb_strtolower(rtrim((string) $item['part_no'])))
+            ->values()
             ->toArray();
     }
 
