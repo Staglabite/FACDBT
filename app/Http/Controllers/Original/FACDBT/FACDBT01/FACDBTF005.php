@@ -7,18 +7,20 @@ use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF005 as Template;
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Original\FACDBT\FACDBT01\Concerns\SavesImportRows;
 use App\Http\Requests\FACDBT\FACDBT01\GroupLocationImportRequest;
 use App\Http\Requests\FACDBT\FACDBT01\GroupLocationRequest;
 use App\Imports\FACDBT\FACDBT01\FACDBTF005 as Import;
 use App\Models\FACDBT01\FACDBT_SIMINVGROUPLOCATION as GroupLocation;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 // Group Location controller
 class FACDBTF005 extends Controller
 {
+    use SavesImportRows;
+
     public function index(FACDBTF005DataTable $dataTable)
     {
         // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
@@ -128,6 +130,9 @@ class FACDBTF005 extends Controller
 
     public function import(GroupLocationImportRequest $request)
     {
+        // File besar butuh waktu lebih dari batas default PHP (30 detik)
+        set_time_limit(300);
+
         try {
             $import = new Import;
             // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
@@ -155,28 +160,22 @@ class FACDBTF005 extends Controller
             DB::connection('INV_TAKING')->beginTransaction();
 
             try {
-                // Tabel tidak punya kolom unik selain IID (auto increment), sehingga upsert tidak bisa dipakai.
-                // Baris dengan kombinasi LOCATION_NO, ID_LOC dan location_group yang sudah ada tidak ditambah lagi,
-                // hanya stream-nya yang diperbarui.
-                $insertedCount = 0;
-                foreach ($cleaned as $row) {
-                    $groupLocation = GroupLocation::updateOrCreate(
-                        Arr::only($row, ['LOCATION_NO', 'ID_LOC', 'location_group']),
-                        ['stream' => $row['stream']]
-                    );
-
-                    if ($groupLocation->wasRecentlyCreated) {
-                        $insertedCount++;
-                    }
-                }
+                // Kombinasi LOCATION_NO, ID_LOC & location_group yang sudah ada tidak ditambah lagi,
+                // hanya stream-nya yang ditimpa; kombinasi baru dibuat sebagai baris baru.
+                [$insertedCount, $updatedCount] = $this->saveImportRows(
+                    new GroupLocation,
+                    $cleaned,
+                    ['LOCATION_NO', 'ID_LOC', 'location_group']
+                );
 
                 DB::connection('INV_TAKING')->commit();
 
                 return response()->json([
                     'success' => true,
-                    'message' => "Successfully imported {$insertedCount} new group location(s), " . (count($cleaned) - $insertedCount) . " existing updated.",
+                    'message' => "Successfully imported {$insertedCount} new and updated {$updatedCount} existing group location(s).",
                     'data' => [
                         'total_imported' => $insertedCount,
+                        'total_updated' => $updatedCount,
                         'total_processed' => count($cleaned),
                     ],
                 ], 200);

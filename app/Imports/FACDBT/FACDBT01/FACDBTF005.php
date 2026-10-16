@@ -89,7 +89,7 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
                 return $data;
             })
             // Baris berulang disimpan sekali; stream memakai baris terakhir
-            ->keyBy(fn ($data) => implode('|', [$data['LOCATION_NO'], $data['ID_LOC'], $data['location_group']]))
+            ->keyBy(fn ($data) => mb_strtolower(implode('|', [$data['LOCATION_NO'], $data['ID_LOC'], $data['location_group']])))
             ->values()
             ->toArray();
     }

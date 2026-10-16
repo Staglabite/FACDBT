@@ -7,7 +7,7 @@ use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF002 as Template;
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Original\FACDBT\FACDBT01\Concerns\SavesByPartNo;
+use App\Http\Controllers\Original\FACDBT\FACDBT01\Concerns\SavesImportRows;
 use App\Http\Requests\FACDBT\FACDBT01\PartImportRequest; 
 use App\Http\Requests\FACDBT\FACDBT01\PartRequest;
 use App\Imports\FACDBT\FACDBT01\FACDBTF002 as Import;
@@ -19,7 +19,7 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 // Part controller
 class FACDBTF002 extends Controller
 {
-    use SavesByPartNo;
+    use SavesImportRows;
 
     public function index(FACDBTF002DataTable $dataTable)
     {
@@ -166,6 +166,9 @@ class FACDBTF002 extends Controller
 
     public function import(PartImportRequest $request)
     {
+        // File besar butuh waktu lebih dari batas default PHP (30 detik)
+        set_time_limit(300);
+
         try {
             $import = new Import; 
             // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
@@ -196,7 +199,7 @@ class FACDBTF002 extends Controller
 
             try {
                 // part_no sudah ada -> ditimpa, belum ada -> dibuat baru
-                [$insertedCount, $updatedCount] = $this->saveByPartNo(new Part, $cleaned);
+                [$insertedCount, $updatedCount] = $this->saveImportRows(new Part, $cleaned, ['part_no']);
 
                 $db->commit();
 
