@@ -76,13 +76,6 @@
                     
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3"
-                            id="import-excel">
-                            <i class="icon-base ti tabler-upload"></i> Import
-                        </button>
-                    </div>
-                    
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3"
                             id="download-template">
                             <i class="icon-base ti tabler-download"></i> Download Template
                         </button>
@@ -124,15 +117,12 @@
 
     {{-- Path include disesuaikan ke folder FACDBT01/FACDBT004 --}}
     @include('modules.FACDBT.FACDBT01.FACDBTF004.partials._takingbook-form')
-    @include('modules.FACDBT.FACDBT01.FACDBTF004.partials._takingbook-import-modal')
-    @include('modules.FACDBT.FACDBT01.FACDBTF004.partials._takingbook-import-error')
 @endsection
 
 @section('page-script')
     {{ $dataTable->scripts(attributes: ['type' => 'module']) }}
     {{-- Path vite disesuaikan ke folder js takingbook --}}
     @vite([
-        'resources/js/pages/facdbt/facdbt01/takingbook/takingbook.js', 
-        'resources/js/pages/facdbt/facdbt01/takingbook/takingbook-import.js'
+        'resources/js/pages/facdbt/facdbt01/takingbook/takingbook.js'
     ])
 @endsection
