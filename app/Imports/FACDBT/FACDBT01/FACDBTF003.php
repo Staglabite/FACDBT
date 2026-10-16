@@ -55,6 +55,12 @@ class FACDBTF003 implements ToCollection, WithHeadingRow, WithStartRow
         $currentRowIndex = $this->startRow();
 
         foreach ($collection as $row) {
+            // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
+            if (collect($row)->every(fn ($value) => $value === null || trim((string) $value) === '')) {
+                $currentRowIndex++;
+                continue;
+            }
+
             $row['row'] = $currentRowIndex;
             $row = $row->toArray();
 

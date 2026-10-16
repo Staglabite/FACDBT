@@ -76,6 +76,12 @@ class FACDBTF004 implements ToCollection, WithHeadingRow, WithStartRow, WithChun
         }
 
         foreach ($collection as $row) {
+            // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
+            if (collect($row)->every(fn ($value) => $value === null || trim((string) $value) === '')) {
+                $this->currentRowIndex++;
+                continue;
+            }
+
             // Heading row dibaca sebagai huruf kecil (inv_list_no), sedangkan kolom memakai huruf besar
             $row = array_change_key_case($row->toArray(), CASE_UPPER);
             $row['row'] = $this->currentRowIndex;
