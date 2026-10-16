@@ -44,7 +44,7 @@ class FACDBTF003 implements ToCollection, WithHeadingRow, WithStartRow
         return 2;
     }
 
-    public function collection(Collection $collection)
+    public function collection(Collection $collection): void
     {
         if ($collection === null || $collection->isEmpty()) {
             throw new SpreadsheetException('The file is empty', 422);

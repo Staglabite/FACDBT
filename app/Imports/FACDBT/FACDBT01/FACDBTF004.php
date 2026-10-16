@@ -63,7 +63,7 @@ class FACDBTF004 implements ToCollection, WithHeadingRow, WithStartRow, WithChun
         return 1000;
     }
 
-    public function collection(Collection $collection)
+    public function collection(Collection $collection): void
     {
         if ($this->currentRowIndex === null) {
             if ($collection === null || $collection->isEmpty()) {
