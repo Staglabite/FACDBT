@@ -33,7 +33,7 @@ class FACDBTF004 extends Controller
     {
         // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
         if (request()->boolean('ids_only')) {
-            return response()->json(['ids' => $dataTable->filteredKeys('INV_LIST_NO')]);
+            return response()->json(['ids' => $dataTable->filteredKeys('b.INV_LIST_NO')]);
         }
 
         $invListNo = $this->getInvListNo();

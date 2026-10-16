@@ -5,6 +5,7 @@ namespace App\DataTables\Original\FACDBT01;
 use App\Models\FACDBT01\FACDBT_SIMINVTAKINGBOOKTAB as TakingBook; // Mengambil model Taking Book
 use App\Traits\DataTableTrait;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
 use Yajra\DataTables\EloquentDataTable;
 use Yajra\DataTables\Html\Builder as HtmlBuilder;
@@ -37,12 +38,13 @@ class FACDBTF004DataTable extends DataTable
                 if (! empty($keyword)) {
                     // Pencarian teks disesuaikan dengan kolom-kolom utama pada Taking Book
                     $query->whereAny([
-                        'INV_LIST_NO', 
-                        'PART_NO', 
-                        'LOCATION_NO', 
-                        'LOT_BATCH_NO', 
-                        'CONTRACT', 
-                        'WAREHOUSE'
+                        'b.PART_NO',
+                        'p.inventory_part_description',
+                        'b.LOCATION_NO',
+                        'l.location_description',
+                        'b.LOT_BATCH_NO',
+                        'b.WAREHOUSE',
+                        'l.location_group',
                     ], 'LIKE', "%{$keyword}%");
                 }
             });
@@ -53,17 +55,81 @@ class FACDBTF004DataTable extends DataTable
      *
      * @return QueryBuilder<TakingBook>
      */
-public function query(TakingBook $model)
-{
-    // 1. Ambil nilai INV_LIST_NO terbesar (paling baru)
-    $latestInvListNo = DB::connection('INV_TAKING')
-        ->table('SIM_INV_TAKING_BOOK_TAB')
-        ->max(DB::raw('CAST(INV_LIST_NO AS UNSIGNED)'));
+    public function query(TakingBook $model): QueryBuilder
+    {
+        // 1. Ambil nilai INV_LIST_NO terbesar (paling baru)
+        $latestInvListNo = DB::connection('INV_TAKING')
+            ->table('SIM_INV_TAKING_BOOK_TAB')
+            ->max(DB::raw('CAST(INV_LIST_NO AS UNSIGNED)'));
 
-    // 2. Filter query DataTable hanya untuk INV_LIST_NO terbaru tersebut
-    return $model->newQuery()
-        ->where('INV_LIST_NO', $latestInvListNo);
-}
+        $select = ['b.*'];
+        foreach (self::JOINED_COLUMNS as $alias => $column) {
+            $select[] = "{$column} as {$alias}";
+        }
+        foreach ($this->optionalColumns() as $alias => $column) {
+            $select[] = $column ? DB::raw("{$column} as {$alias}") : DB::raw("NULL as {$alias}");
+        }
+
+        // 2. Filter query DataTable hanya untuk INV_LIST_NO terbaru tersebut.
+        //    Deskripsi part dari SIM_INV_PART_TEST, nama & group lokasi dari SIM_INV_LOCATION_TEST.
+        return $model->newQuery()
+            ->from('SIM_INV_TAKING_BOOK_TAB as b')
+            ->leftJoin('SIM_INV_PART_TEST as p', 'p.part_no', '=', 'b.PART_NO')
+            ->leftJoin('SIM_INV_LOCATION_TEST as l', 'l.location_no', '=', 'b.LOCATION_NO')
+            ->where('b.INV_LIST_NO', $latestInvListNo)
+            ->select($select);
+    }
+
+    // Kolom dari tabel Part (p) dan Location (l): alias => kolom
+    private const JOINED_COLUMNS = [
+        'part_description' => 'p.inventory_part_description',
+        'location_name' => 'l.location_description',
+        'accounting_group' => 'p.accounting_group',
+        'location_group' => 'l.location_group',
+        'location_group_desc' => 'l.location_group_description',
+    ];
+
+    // Kolom yang belum pasti ada di database: alias => kandidat nama kolom,
+    // dicari berurutan di tabel book (b), part (p) lalu location (l)
+    private const OPTIONAL_COLUMNS = [
+        'accounting_group_desc' => ['accounting_group_desc', 'accounting_group_description'],
+        'dim_quality' => ['dim_quality', 'dimquality'],
+        'product_family' => ['product_family', 'prod_family'],
+        'product_family_desc' => ['product_family_desc', 'product_family_description', 'prod_family_desc', 'prod_family_description'],
+    ];
+
+    /**
+     * Kolom opsional yang ditemukan di database, contoh ['dim_quality' => 'b.DIM_QUALITY'].
+     * Bernilai null bila kolomnya tidak ada; selnya tampil "-" dan tidak bisa dicari/diurutkan.
+     *
+     * @return array<string, string|null>
+     */
+    private function optionalColumns(): array
+    {
+        return once(function () {
+            $schema = Schema::connection('INV_TAKING');
+            $tables = [
+                'b' => $schema->getColumnListing('SIM_INV_TAKING_BOOK_TAB'),
+                'p' => $schema->getColumnListing('SIM_INV_PART_TEST'),
+                'l' => $schema->getColumnListing('SIM_INV_LOCATION_TEST'),
+            ];
+
+            $found = [];
+            foreach (self::OPTIONAL_COLUMNS as $alias => $candidates) {
+                $found[$alias] = null;
+                foreach ($tables as $tableAlias => $columns) {
+                    foreach ($columns as $column) {
+                        if (in_array(strtolower($column), $candidates, true)) {
+                            $found[$alias] = "{$tableAlias}.{$column}";
+                            break 3;
+                        }
+                    }
+                }
+            }
+
+            return $found;
+        });
+    }
 
     /**
      * Optional method if you want to use the html builder.
@@ -132,20 +198,49 @@ public function query(TakingBook $model)
                 ->searchable(false)
                 ->width(30)
                 ->addClass('text-center'),
-            Column::make('INV_LIST_NO')->title('Inv List No'),
-            Column::make('SEQ')->title('Seq'),
-            Column::make('PART_NO')->title('Part No'),
-            Column::make('LOCATION_NO')->title('Location No'),
-            Column::make('LOT_BATCH_NO')->title('Lot/Batch No'),
-            Column::make('QUANTITY')->title('Quantity'),
-            Column::make('UNIT_COST')->title('Unit Cost'),
-            Column::make('WAREHOUSE')->title('Warehouse'),
+            Column::make('MONTH')->name('b.MONTH')->title('Month'),
+            Column::make('YEAR')->name('b.YEAR')->title('Year'),
+            Column::make('PART_NO')->name('b.PART_NO')->title('Part No'),
+            Column::make('part_description')->name(self::JOINED_COLUMNS['part_description'])->title('Part Description'),
+            Column::make('LOCATION_NO')->name('b.LOCATION_NO')->title('Location No'),
+            Column::make('location_name')->name(self::JOINED_COLUMNS['location_name'])->title('Location Name'),
+            Column::make('HANDLING_UNIT_TYPE_ID')->name('b.HANDLING_UNIT_TYPE_ID')->title('Handling Unit Type Id'),
+            Column::make('QUANTITY')->name('b.QUANTITY')->title('On Hand Qty'),
+            Column::make('UNIT_MEAS')->name('b.UNIT_MEAS')->title('UoM'),
+            Column::make('LOT_BATCH_NO')->name('b.LOT_BATCH_NO')->title('Lot Batch No'),
+            Column::make('WDR')->name('b.WDR')->title('WDR'),
+            Column::make('WAREHOUSE')->name('b.WAREHOUSE')->title('Warehouse'),
+            Column::make('BAY_NO')->name('b.BAY_NO')->title('Bay'),
+            Column::make('ROW_NO')->name('b.ROW_NO')->title('Row'),
+            Column::make('TIER_NO')->name('b.TIER_NO')->title('Tier'),
+            Column::make('BIN_NO')->name('b.BIN_NO')->title('Bin'),
+            Column::make('AVAILABILITY_CONTROL_ID')->name('b.AVAILABILITY_CONTROL_ID')->title('Availability Control Id'),
+            Column::make('AVAILABILITY_CONTROL_DESC')->name('b.AVAILABILITY_CONTROL_DESC')->title('Availability Control Description'),
+            Column::make('accounting_group')->name(self::JOINED_COLUMNS['accounting_group'])->title('Accounting Group'),
+            $this->optionalColumn('accounting_group_desc', 'Accounting Group Desc'),
+            $this->optionalColumn('dim_quality', 'Dim/Quality'),
+            Column::make('location_group')->name(self::JOINED_COLUMNS['location_group'])->title('Location Group'),
+            Column::make('location_group_desc')->name(self::JOINED_COLUMNS['location_group_desc'])->title('Location Group Desc'),
+            $this->optionalColumn('product_family', 'Product Family'),
+            $this->optionalColumn('product_family_desc', 'Product Family Description'),
             Column::computed('action')
                 ->exportable(false)
                 ->printable(false)
                 ->width(60)
                 ->addClass('text-center'),
         ];
+    }
+
+    private function optionalColumn(string $alias, string $title): Column
+    {
+        $column = $this->optionalColumns()[$alias];
+
+        return Column::make($alias)
+            ->name($column ?? $alias)
+            ->title($title)
+            ->defaultContent('-')
+            ->searchable($column !== null)
+            ->orderable($column !== null);
     }
 
     /**
