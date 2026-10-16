@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -11,6 +12,7 @@ use Carbon\Carbon;
 class FACDBTD001 extends Controller
 {
     use CachesDashboard;
+    use FiltersTakingRange;
 
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
@@ -179,10 +181,10 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Periode taking aktif + waktu filter tombol slot + INV_LIST_NO terbaru.
+     * Periode taking aktif + rentang filter waktu (Dari - Sampai) + INV_LIST_NO terbaru.
      * Dipakai oleh chart bawah (progress by area) dan chart variance.
      *
-     * @return array{0: string, 1: string, 2: string, 3: string}|null [takingDate, closeDate, selectedTime, invListNo]
+     * @return array{0: string, 1: string, 2: string, 3: string, 4: string}|null [takingDate, closeDate, takingFrom, takingTo, invListNo]
      */
     private function resolvePeriod($db, Request $request): ?array
     {
@@ -199,18 +201,8 @@ class FACDBTD001 extends Controller
         $takingDate = $baseDay->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($concluding->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
 
-        // Parameter waktu filter (default ke slot 6-07.30 jika belum ada yang diklik)
-        $selectedTime = $request->get('time');
-        if ($selectedTime) {
-            try {
-                $selectedTime = Carbon::parse($selectedTime)->format('Y-m-d H:i:s');
-            } catch (\Throwable $e) {
-                $selectedTime = null;
-            }
-        }
-        if (!$selectedTime) {
-            $selectedTime = $baseDay->copy()->setTime(7, 30, 0)->format('Y-m-d H:i:s');
-        }
+        // Rentang filter waktu; tanpa filter: seluruh periode taking
+        [$takingFrom, $takingTo] = $this->takingRange($request, $takingDate, $closeDate);
 
         $latestInvListNo = $this->latestInvListNo($db, $takingDate, $closeDate);
 
@@ -218,7 +210,7 @@ class FACDBTD001 extends Controller
             return null;
         }
 
-        return [$takingDate, $closeDate, $selectedTime, $latestInvListNo];
+        return [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo];
     }
 
     /**
@@ -332,52 +324,23 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Mengambil daftar tombol filter waktu untuk bagian atas
+     * Pilihan hari untuk filter rentang waktu (Dari - Sampai) chart bawah & variance.
      */
-    public function getTimeSlots()
+    public function getTimeRange()
     {
-        $db = DB::connection(self::CONN);
-        $concluding = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('TAKING_DATE')
+        $concluding = DB::connection(self::CONN)->table('SIM_INV_TAKING_CONCLUDING_TAB')
+            ->select('TAKING_DATE', 'CLOSE_DATE')
             ->orderByDesc('TAKING_DATE')
             ->first();
 
         if (!$concluding) {
-            return response()->json([]);
+            return response()->json(['days' => []]);
         }
 
-        $baseDay = Carbon::parse($concluding->TAKING_DATE)->startOfDay();
-        $slots = [];
-
-        // Definisi: [dayOffset, 'jam:menit', 'format jam titik']
-        // dayOffset 0 = hari pertama Taking, dayOffset 1 = hari kedua Taking
-        $filterSlots = [
-            [0, '00:00', '00.00'],
-            [0, '07:30', '07.30'],
-            [0, '13:00', '13.00'],
-            [0, '16:15', '16.15'],
-            [0, '19:30', '19.30'],
-            [1, '09:00', '09.00'],
-            [1, '10:00', '10.00'],
-            [1, '11:00', '11.00'],
-        ];
-
-        foreach ($filterSlots as $key => [$dayOffset, $hm, $timeDot]) {
-            [$h, $m] = explode(':', $hm);
-            $slotDate = $baseDay->copy()->addDays($dayOffset)->setTime((int) $h, (int) $m, 0);
-
-            // $slotDate->format('j') menghasilkan angka tanggal tanpa leading zero (misal: 6, 12, 13)
-            // Hasil label: "12-07.30", "13-09.00", dsb.
-            $label = $slotDate->format('j') . '-' . $timeDot;
-
-            $slots[] = [
-                'key'       => $key,
-                'label'     => $label,
-                'full_time' => $slotDate->format('Y-m-d H:i:s'),
-            ];
-        }
-
-        return response()->json($slots);
+        return response()->json($this->timeRangePayload(
+            Carbon::parse($concluding->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s'),
+            Carbon::parse($concluding->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s')
+        ));
     }
 
     /**
@@ -393,11 +356,11 @@ class FACDBTD001 extends Controller
             return response()->json(['parts' => [], 'oil' => []]);
         }
 
-        [$takingDate, $closeDate, $selectedTime, $latestInvListNo] = $period;
+        [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:area:v9:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+        $cacheKey = "FACDBTD001:area:v10:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
-        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo) {
+        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo) {
             // 1 baris per (area, part). Part oil (inventory_uom = ml) dipisah per part ke area
             // 'OIL <location_group>' / 'PPC-OIL' (lihat areaLabel), karena satu lokasi bisa berisi
             // part oil dan non-oil sekaligus.
@@ -407,7 +370,7 @@ class FACDBTD001 extends Controller
                 return ['parts' => [], 'oil' => []];
             }
 
-            // Taking kumulatif s/d waktu filter. Memakai JOIN ke daftar part book,
+            // Taking yang di-scan di rentang filter. Memakai JOIN ke daftar part book,
             // bukan whereIn dengan ribuan nilai.
             $partsSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
@@ -417,7 +380,7 @@ class FACDBTD001 extends Controller
 
             $takingData = $db->table('SIM_INV_TAKING_DATA_TAB as t')
                 ->joinSub($partsSub, 'bp', 'bp.PART_NO', '=', 't.PART_NO')
-                ->whereBetween('t.CREATED_DATETIME', [$takingDate, $selectedTime])
+                ->whereBetween('t.CREATED_DATETIME', [$takingFrom, $takingTo])
                 ->groupBy('t.PART_NO')
                 ->select('t.PART_NO', DB::raw('SUM(t.QTY) as total_qty_taking'))
                 ->pluck('total_qty_taking', 'PART_NO')
@@ -504,11 +467,11 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Query dasar variance: 1 baris per part yang ada di book dan/atau taking s/d $takingUntil,
+     * Query dasar variance: 1 baris per part yang ada di book dan/atau taking di rentang $takingFrom - $takingTo,
      * sudah di-join ke qty/unit cost book (alias bk) dan master unit cost (alias uc).
      * Pemanggil menambahkan join ke data taking (alias tk) dan select-nya sendiri.
      */
-    private function variancePartsQuery($db, string $takingDate, string $closeDate, string $takingUntil, string $invListNo)
+    private function variancePartsQuery($db, string $takingDate, string $closeDate, string $takingFrom, string $takingTo, string $invListNo)
     {
         $bookSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
@@ -534,7 +497,7 @@ class FACDBTD001 extends Controller
             ->select('PART_NO')
             ->union(
                 $db->table('SIM_INV_TAKING_DATA_TAB')
-                    ->whereBetween('CREATED_DATETIME', [$takingDate, $takingUntil])
+                    ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
                     ->select('PART_NO')
             );
 
@@ -551,7 +514,7 @@ class FACDBTD001 extends Controller
      * - Nett variance     : total amount taking - total amount book
      * - Absolute variance : jumlah ABS(amount taking - amount book) per part
      * Dikelompokkan per part_group (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
-     * Taking dihitung kumulatif s/d waktu filter tombol slot (sama seperti chart progress by area).
+     * Taking hanya yang di-scan di rentang filter waktu (sama seperti chart progress by area).
      */
     public function getVariance(Request $request)
     {
@@ -569,18 +532,18 @@ class FACDBTD001 extends Controller
             return response()->json($empty);
         }
 
-        [$takingDate, $closeDate, $selectedTime, $latestInvListNo] = $period;
+        [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:variance:v1:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$selectedTime}";
+        $cacheKey = "FACDBTD001:variance:v2:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
-        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo, $empty) {
+        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo, $empty) {
             $takingSub = $db->table('SIM_INV_TAKING_DATA_TAB')
-                ->whereBetween('CREATED_DATETIME', [$takingDate, $selectedTime])
+                ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
                 ->groupBy('PART_NO')
                 ->select('PART_NO', DB::raw('SUM(QTY) as qty_taking'));
 
             // 1 baris per part: variance amount = (qty taking - qty book) x unit cost
-            $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $selectedTime, $latestInvListNo)
+            $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo)
                 ->leftJoinSub($takingSub, 'tk', 'tk.PART_NO', '=', 'p.PART_NO')
                 ->leftJoin('SIM_INV_PART_TEST as pm', 'pm.part_no', '=', 'p.PART_NO')
                 ->select(

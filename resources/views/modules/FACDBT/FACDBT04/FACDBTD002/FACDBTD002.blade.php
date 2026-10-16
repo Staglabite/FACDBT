@@ -37,8 +37,8 @@
 <div class="d-flex align-items-center gap-3 mb-4">
     <div class="border border-secondary px-3 py-2 text-body small flex-shrink-0 bg-white">Count</div>
     <div class="flex-grow-1 border border-dark rounded-3 shadow-sm bg-white px-3 py-2">
-        {{-- Tombol melebar mengisi kotak dan rata tengah; turun ke baris berikutnya bila layar sempit --}}
-        <div class="d-flex flex-wrap justify-content-center align-items-center gap-1" id="time-filter-container">
+        {{-- Filter rentang waktu Dari - Sampai --}}
+        <div id="time-filter-container">
             {{-- Diisi secara dinamis oleh JavaScript --}}
         </div>
     </div>

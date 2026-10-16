@@ -39,7 +39,7 @@
             <div class="d-flex align-items-center gap-2 small text-body flex-shrink-0">
                 <span class="d-inline-block bg-dark" style="width: 12px; height: 12px;"></span> Count
             </div>
-            <div class="d-flex flex-wrap justify-content-center align-items-center gap-1 flex-grow-1" id="time-filter-container">
+            <div class="flex-grow-1" id="time-filter-container">
                 {{-- Diisi secara dinamis oleh JavaScript --}}
             </div>
         </div>

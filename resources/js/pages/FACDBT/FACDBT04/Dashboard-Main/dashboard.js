@@ -1,6 +1,7 @@
 import axios from 'axios';
 import ApexCharts from 'apexcharts';
 import { autoRefresh, track } from '../shared/dashboardStatus';
+import { TimeRangeFilter } from '../shared/timeRangeFilter';
 
 // Konfigurasi Chart Atas
 const MIN_QTY_LABEL = 10;
@@ -67,16 +68,10 @@ const VARIANCE_THEME = {
 // Part group yang ditampilkan di chart variance, sesuai urutan (group lain seperti OTHERS tidak ditampilkan)
 const PART_GROUP_ORDER = ['4W', '2W'];
 
-const SLOT_THEME = {
-    border: '#C27D60',
-    activeBg: '#333333',
-    text: '#333333'
-};
-
 class Dashboard {
     constructor() {
         this.charts = {};
-        this.selectedTime = null;
+        this.timeFilter = new TimeRangeFilter(document.getElementById('time-slots-container'), () => this.loadBottomCharts());
         this.progressChart = null;
         this.progressItems = [];
         this.oilChart = null;
@@ -87,16 +82,15 @@ class Dashboard {
 
     init() {
         this.loadTopCharts();
-        this.loadTimeSlots();
+        this.loadTimeRange();
+        this.loadBottomCharts();
         this.loadVarianceTrend();
         this.watchColumnHeights();
 
-        // Perbarui semua chart secara berkala (filter waktu yang dipilih tetap dipakai)
+        // Perbarui semua chart secara berkala (rentang waktu yang diterapkan tetap dipakai)
         autoRefresh(() => {
             this.loadTopCharts();
-            if (this.selectedTime) {
-                this.loadBottomCharts();
-            }
+            this.loadBottomCharts();
             this.loadVarianceTrend();
         });
     }
@@ -318,85 +312,16 @@ class Dashboard {
     }
 
     // -------------------------------------------------------------
-    // 2. Tombol Filter Slot Waktu & Chart Bawah
+    // 2. Filter rentang waktu Dari - Sampai & Chart Bawah (default: seluruh periode taking)
     // -------------------------------------------------------------
-    styleSlotButton(btn, isActive) {
-        btn.className = `btn btn-sm px-3 py-2 rounded-1 ${isActive ? 'fw-bold' : 'fw-normal'}`;
-        btn.style.border = `1px solid ${SLOT_THEME.border}`;
-        btn.style.fontStyle = 'italic';
-        btn.style.minWidth = '72px';
-        // Jangan menyusut / terlipat; kalau tidak muat, daftar slot digeser dengan tombol panah
-        btn.style.flexShrink = '0';
-        btn.style.whiteSpace = 'nowrap';
-        btn.style.backgroundColor = isActive ? SLOT_THEME.activeBg : '#FFFFFF';
-        btn.style.color = isActive ? '#FFFFFF' : SLOT_THEME.text;
-    }
-
-    loadTimeSlots() {
-        axios.get('FACDBT/ds/main-dashboard/time-slots')
-            .then(res => {
-                const slots = res.data || [];
-                const container = document.getElementById('time-slots-container');
-                if (!container || slots.length === 0) return;
-
-                container.innerHTML = '';
-                const buttons = [];
-
-                slots.forEach((s, idx) => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.innerText = s.label;
-
-                    // Default aktif pada slot ke-2 (6-07.30)
-                    const isActive = idx === 1;
-                    if (isActive) {
-                        this.selectedTime = s.full_time;
-                    }
-                    this.styleSlotButton(btn, isActive);
-
-                    btn.addEventListener('click', () => {
-                        buttons.forEach(b => this.styleSlotButton(b, b === btn));
-
-                        // Filter waktu hanya memanggil ulang kedua chart bawah
-                        this.selectedTime = s.full_time;
-                        this.loadBottomCharts();
-                    });
-
-                    buttons.push(btn);
-                    container.appendChild(btn);
-                });
-
-                this.addSlotScroller(container);
-                this.loadBottomCharts();
-            })
-            .catch(err => console.error('Error load time slots:', err));
-    }
-
-    // Tombol panah ">" untuk menggeser daftar slot bila tidak muat di layar
-    addSlotScroller(container) {
-        container.parentElement.querySelectorAll('.slot-scroller').forEach(n => n.remove());
-
-        const next = document.createElement('button');
-        next.type = 'button';
-        next.className = 'btn btn-sm btn-link text-dark px-1 slot-scroller';
-        next.setAttribute('aria-label', 'Next time slots');
-        next.innerHTML = '<i class="icon-base ti tabler-chevron-right"></i>';
-        next.addEventListener('click', () => {
-            const atEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 2;
-            container.scrollTo({ left: atEnd ? 0 : container.scrollLeft + container.clientWidth * 0.6, behavior: 'smooth' });
-        });
-
-        container.insertAdjacentElement('afterend', next);
-
-        const toggle = () => {
-            next.classList.toggle('d-none', container.scrollWidth <= container.clientWidth);
-        };
-        toggle();
-        window.addEventListener('resize', toggle);
+    loadTimeRange() {
+        axios.get('FACDBT/ds/main-dashboard/time-range')
+            .then(res => this.timeFilter.setDays(res.data?.days))
+            .catch(err => console.error('Error load time range:', err));
     }
 
     loadBottomCharts() {
-        track(axios.get('FACDBT/ds/main-dashboard/progress-by-area', { params: { time: this.selectedTime } }))
+        track(axios.get('FACDBT/ds/main-dashboard/progress-by-area', { params: this.timeFilter.params() }))
         .then(res => {
             const data = res.data || { parts: [], oil: [] };
             this.renderProgressChart(data.parts || []);
@@ -408,10 +333,10 @@ class Dashboard {
     }
 
     // -------------------------------------------------------------
-    // 3. Variance (mengikuti filter waktu tombol slot)
+    // 3. Variance (mengikuti filter rentang waktu)
     // -------------------------------------------------------------
     loadVariance() {
-        track(axios.get('FACDBT/ds/main-dashboard/variance', { params: { time: this.selectedTime } }))
+        track(axios.get('FACDBT/ds/main-dashboard/variance', { params: this.timeFilter.params() }))
             .then(res => {
                 const data = res.data || {};
                 const partGroups = this.sortPartGroups(data.by_part_group || []);

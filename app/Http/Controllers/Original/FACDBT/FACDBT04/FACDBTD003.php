@@ -21,16 +21,16 @@ class FACDBTD003 extends Controller
     }
 
     /**
-     * Daftar tombol filter waktu. Label memakai tanggal taking sebenarnya, contoh "6-07.30".
+     * Pilihan hari untuk filter rentang waktu (Dari - Sampai).
      */
-    public function getTimeSlots()
+    public function getTimeRange()
     {
         $period = $this->resolvePeriod(DB::connection(self::CONN));
         if ($period === null) {
-            return response()->json([]);
+            return response()->json(['days' => []]);
         }
 
-        return response()->json($this->timeSlotsPayload($period['baseDay']));
+        return response()->json($this->timeRangePayload($period['takingDate'], $period['closeDate']));
     }
 
     /**
@@ -40,7 +40,7 @@ class FACDBTD003 extends Controller
      * - Nett     : jumlah variance per area
      * - Absolute : jumlah ABS(variance) per area
      * - Var (+) / Var (-) : jumlah variance positif / negatif
-     * Taking kumulatif s/d waktu filter; tanpa filter waktu: semua taking di periode taking.
+     * Taking hanya yang di-scan di rentang waktu filter; tanpa filter: seluruh periode taking.
      */
     public function getData(Request $request)
     {
@@ -51,12 +51,12 @@ class FACDBTD003 extends Controller
             return response()->json($this->summarize([]));
         }
 
-        $takingUntil = $this->parseTime($request->get('time')) ?? $period['closeDate'];
-        $result = $this->dashboardCache('FACDBTD003:data:v2:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingUntil])), function () use ($db, $period, $takingUntil) {
+        [$takingFrom, $takingTo] = $this->takingRange($request, $period['takingDate'], $period['closeDate']);
+        $result = $this->dashboardCache('FACDBTD003:data:v3:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingFrom, $takingTo])), function () use ($db, $period, $takingFrom, $takingTo) {
             $areas   = $this->locationAreas($db);
             $perArea = [];
 
-            foreach ($this->varianceLines($db, $period, $takingUntil) as [$loc, , $qtyBook, $qtyTaking, $unitCost]) {
+            foreach ($this->varianceLines($db, $period, $takingFrom, $takingTo) as [$loc, , $qtyBook, $qtyTaking, $unitCost]) {
                 $area   = $areas[$loc] ?? 'UNKNOWN';
                 $varQty = $qtyTaking - $qtyBook;
                 $varAmt = $varQty * $unitCost;

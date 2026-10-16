@@ -7,25 +7,14 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Bahan bersama dashboard variance (FACDBTD003 & FACDBTD004):
- * periode taking, slot filter waktu, pemetaan lokasi -> area, unit cost, dan variance per (lokasi, part).
+ * periode taking, filter rentang waktu, pemetaan lokasi -> area, unit cost, dan variance per (lokasi, part).
  *
  * Class pemakai wajib punya konstanta CONN dan CACHE_TTL.
  */
 trait BuildsVarianceLines
 {
     use CachesDashboard;
-
-    // Slot filter waktu (sama dengan tombol slot di dashboard utama): [dayOffset, 'jam:menit']
-    private static array $varianceSlots = [
-        [0, '00:00'],
-        [0, '07:30'],
-        [0, '13:00'],
-        [0, '16:15'],
-        [0, '19:30'],
-        [1, '09:00'],
-        [1, '10:00'],
-        [1, '11:00'],
-    ];
+    use FiltersTakingRange;
 
     /**
      * Periode taking aktif (TAKING_DATE s/d CLOSE_DATE terbaru) + INV_LIST_NO terbaru.
@@ -64,39 +53,8 @@ trait BuildsVarianceLines
     }
 
     /**
-     * Tombol filter waktu. Label memakai tanggal taking sebenarnya, contoh "6-07.30".
-     */
-    private function timeSlotsPayload(Carbon $baseDay): array
-    {
-        $slots = [];
-        foreach (self::$varianceSlots as [$dayOffset, $hm]) {
-            [$h, $m] = explode(':', $hm);
-            $slotDate = $baseDay->copy()->addDays($dayOffset)->setTime((int) $h, (int) $m, 0);
-
-            $slots[] = [
-                'label'     => $slotDate->format('j') . '-' . $slotDate->format('H.i'),
-                'full_time' => $slotDate->format('Y-m-d H:i:s'),
-            ];
-        }
-
-        return $slots;
-    }
-
-    private function parseTime($value): ?string
-    {
-        if (!$value) {
-            return null;
-        }
-
-        try {
-            return Carbon::parse($value)->format('Y-m-d H:i:s');
-        } catch (\Throwable $e) {
-            return null;
-        }
-    }
-
-    /**
      * Variance per (lokasi, part), cache dipakai bersama oleh dashboard variance.
+     * Taking hanya yang di-scan di rentang $takingFrom s/d $takingTo; book tetap penuh periode.
      * Tabel besar diagregasi tanpa join; pemetaan unit cost di PHP karena join dengan TRIM()
      * membuat index tidak terpakai.
      * Unit cost dari book (UNIT_COST), fallback ke SIM_INV_UNIT_COST_TEST (mat + lab + foh).
@@ -104,11 +62,11 @@ trait BuildsVarianceLines
      * @return array<int, array{0: string, 1: string, 2: float, 3: float, 4: float}>
      *         [[location_no, part_no, qty_book, qty_taking, unit_cost], ...]
      */
-    private function varianceLines($db, array $period, string $takingUntil): array
+    private function varianceLines($db, array $period, string $takingFrom, string $takingTo): array
     {
-        $key = 'FACDBT04:variance-lines:v1:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingUntil]));
+        $key = 'FACDBT04:variance-lines:v2:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingFrom, $takingTo]));
 
-        return $this->dashboardCache($key, function () use ($db, $period, $takingUntil) {
+        return $this->dashboardCache($key, function () use ($db, $period, $takingFrom, $takingTo) {
             $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $period['closeDate']])
                 ->where('INV_LIST_NO', $period['invListNo'])
@@ -117,7 +75,7 @@ trait BuildsVarianceLines
                 ->get();
 
             $taking = $db->table('SIM_INV_TAKING_DATA_TAB')
-                ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $takingUntil])
+                ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
                 ->groupBy('LOCATION_NO', 'PART_NO')
                 ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QTY) as qty'))
                 ->get();

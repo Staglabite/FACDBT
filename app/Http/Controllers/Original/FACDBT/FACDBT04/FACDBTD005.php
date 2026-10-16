@@ -27,7 +27,7 @@ class FACDBTD005 extends Controller
     }
 
     /**
-     * Pilihan filter: slot waktu dan area (location_group dari SIM_INV_GROUP_LOCATION).
+     * Pilihan filter: hari untuk rentang waktu dan area (location_group dari SIM_INV_GROUP_LOCATION).
      */
     public function getFilters()
     {
@@ -42,7 +42,7 @@ class FACDBTD005 extends Controller
             ->pluck('location_group');
 
         return response()->json([
-            'times' => $period ? $this->timeSlotsPayload($period['baseDay']) : [],
+            'time_range' => $period ? $this->timeRangePayload($period['takingDate'], $period['closeDate']) : ['days' => []],
             'areas' => $areas,
         ]);
     }

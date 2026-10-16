@@ -1,6 +1,7 @@
 import axios from 'axios';
 import ApexCharts from 'apexcharts';
 import { autoRefresh, track } from '../shared/dashboardStatus';
+import { TimeRangeFilter } from '../shared/timeRangeFilter';
 
 const ENDPOINT = 'FACDBT/ds/progress-dashboard';
 
@@ -10,7 +11,6 @@ const THEME = {
     guide: '#BBBBBB',
     groupBg: '#E9E9E9',
     groupBorder: '#8C8C8C',
-    timeBg: '#E8703A',
     activeBg: '#333333'
 };
 
@@ -19,7 +19,7 @@ const ROW_HEIGHT = 48;
 class DashboardProgress {
     constructor() {
         this.selectedGroup = '';
-        this.selectedTime = null;
+        this.timeFilter = new TimeRangeFilter(document.getElementById('time-filter-container'), () => this.loadData());
         this.charts = {};
         this.dataRequest = null;
     }
@@ -27,7 +27,8 @@ class DashboardProgress {
     init() {
         this.bindScrollers();
         this.loadGroups();
-        this.loadTimeSlots();
+        this.loadTimeRange();
+        this.loadData();
 
         // Perbarui chart secara berkala dengan filter yang sedang dipilih
         autoRefresh(() => this.loadData());
@@ -88,61 +89,19 @@ class DashboardProgress {
     }
 
     // -------------------------------------------------------------
-    // Filter Waktu (default: tidak dipilih = semua data taking)
+    // Filter rentang waktu Dari - Sampai (default: seluruh periode taking)
     // -------------------------------------------------------------
-    loadTimeSlots() {
-        axios.get(`${ENDPOINT}/time-slots`)
-            .then(res => {
-                const slots = res.data || [];
-                const container = document.getElementById('time-filter-container');
-                if (!container) return;
-
-                container.innerHTML = '';
-                const buttons = [];
-
-                slots.forEach(slot => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.innerText = slot.label;
-                    btn.dataset.time = slot.full_time;
-                    this.styleTimeButton(btn, false);
-
-                    // Klik slot yang sama sekali lagi untuk menghapus filter waktu
-                    btn.addEventListener('click', () => {
-                        this.selectedTime = this.selectedTime === slot.full_time ? null : slot.full_time;
-                        buttons.forEach(b => this.styleTimeButton(b, b.dataset.time === this.selectedTime));
-                        this.loadData();
-                    });
-
-                    buttons.push(btn);
-                    container.appendChild(btn);
-                });
-
-                this.loadData();
-            })
-            .catch(err => console.error('Error load time slots:', err));
-    }
-
-    styleTimeButton(btn, isActive) {
-        btn.className = 'btn btn-sm rounded-0 px-2 py-2 fs-6';
-        // Lebar sama rata mengisi kotak filter, dibatasi supaya tidak terlalu lebar di layar besar
-        btn.style.flex = '1 1 0';
-        btn.style.minWidth = '84px';
-        btn.style.maxWidth = '140px';
-        btn.style.whiteSpace = 'nowrap';
-        btn.style.border = `1px solid ${THEME.groupBorder}`;
-        btn.style.backgroundColor = isActive ? THEME.activeBg : THEME.timeBg;
-        btn.style.color = '#FFFFFF';
+    loadTimeRange() {
+        axios.get(`${ENDPOINT}/time-range`)
+            .then(res => this.timeFilter.setDays(res.data?.days))
+            .catch(err => console.error('Error load time range:', err));
     }
 
     // -------------------------------------------------------------
     // Chart Progress by Loc (% Item & % Qty)
     // -------------------------------------------------------------
     loadData() {
-        const params = {};
-        if (this.selectedTime) {
-            params.time = this.selectedTime;
-        }
+        const params = this.timeFilter.params();
         if (this.selectedGroup) {
             params.group = this.selectedGroup;
         }

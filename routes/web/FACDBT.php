@@ -98,7 +98,7 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     Route::group(['prefix' => 'main-dashboard', 'controller' => FACDBTD001::class], function () {
         Route::get('/', 'index')->name('main-dashboard.index'); 
         Route::get('/data', 'getData')->name('main-dashboard.getdata'); 
-        Route::get('/time-slots', 'getTimeSlots')->name('main-dashboard.time-slots');
+        Route::get('/time-range', 'getTimeRange')->name('main-dashboard.time-range');
         Route::get('/progress-by-area', 'getProgressByArea')->name('main-dashboard.progress-by-area');
         Route::get('/variance', 'getVariance')->name('main-dashboard.variance');
         Route::get('/variance-trend', 'getVarianceTrend')->name('main-dashboard.variance-trend');
@@ -108,14 +108,14 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     Route::group(['prefix' => 'progress-dashboard', 'controller' => FACDBTD002::class], function () {
         Route::get('/', 'index')->name('progress-dashboard.index');
         Route::get('/groups', 'getGroups')->name('progress-dashboard.groups');
-        Route::get('/time-slots', 'getTimeSlots')->name('progress-dashboard.time-slots');
+        Route::get('/time-range', 'getTimeRange')->name('progress-dashboard.time-range');
         Route::get('/data', 'getData')->name('progress-dashboard.data');
     });
 
     // Dashboard Variance by Area (FACDBTD003)
     Route::group(['prefix' => 'variance-dashboard', 'controller' => FACDBTD003::class], function () {
         Route::get('/', 'index')->name('variance-dashboard.index');
-        Route::get('/time-slots', 'getTimeSlots')->name('variance-dashboard.time-slots');
+        Route::get('/time-range', 'getTimeRange')->name('variance-dashboard.time-range');
         Route::get('/data', 'getData')->name('variance-dashboard.data');
     });
 
