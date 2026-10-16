@@ -5,7 +5,6 @@ namespace App\DataTables\Original\FACDBT01;
 use App\Models\FACDBT01\FACDBT_SIMINVTAKINGBOOKTAB as TakingBook; // Mengambil model Taking Book
 use App\Traits\DataTableTrait;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
 use Yajra\DataTables\EloquentDataTable;
 use Yajra\DataTables\Html\Builder as HtmlBuilder;
@@ -66,9 +65,6 @@ class FACDBTF004DataTable extends DataTable
         foreach (self::JOINED_COLUMNS as $alias => $column) {
             $select[] = "{$column} as {$alias}";
         }
-        foreach ($this->optionalColumns() as $alias => $column) {
-            $select[] = $column ? DB::raw("{$column} as {$alias}") : DB::raw("NULL as {$alias}");
-        }
 
         // 2. Filter query DataTable hanya untuk INV_LIST_NO terbaru tersebut.
         //    Deskripsi part dari SIM_INV_PART_TEST, nama & group lokasi dari SIM_INV_LOCATION_TEST.
@@ -89,45 +85,6 @@ class FACDBTF004DataTable extends DataTable
         'location_group_desc' => 'l.location_group_description',
         'product_family' => 'p.prod_group',
     ];
-
-    // Kolom yang belum pasti ada di database: alias => kandidat nama kolom,
-    // dicari berurutan di tabel book (b), part (p) lalu location (l)
-    private const OPTIONAL_COLUMNS = [
-        'product_family_desc' => ['product_family_desc', 'product_family_description', 'prod_family_desc', 'prod_family_description'],
-    ];
-
-    /**
-     * Kolom opsional yang ditemukan di database, contoh ['product_family_desc' => 'p.product_family_desc'].
-     * Bernilai null bila kolomnya tidak ada; selnya tampil "-" dan tidak bisa dicari/diurutkan.
-     *
-     * @return array<string, string|null>
-     */
-    private function optionalColumns(): array
-    {
-        return once(function () {
-            $schema = Schema::connection('INV_TAKING');
-            $tables = [
-                'b' => $schema->getColumnListing('SIM_INV_TAKING_BOOK_TAB'),
-                'p' => $schema->getColumnListing('SIM_INV_PART_TEST'),
-                'l' => $schema->getColumnListing('SIM_INV_LOCATION_TEST'),
-            ];
-
-            $found = [];
-            foreach (self::OPTIONAL_COLUMNS as $alias => $candidates) {
-                $found[$alias] = null;
-                foreach ($tables as $tableAlias => $columns) {
-                    foreach ($columns as $column) {
-                        if (in_array(strtolower($column), $candidates, true)) {
-                            $found[$alias] = "{$tableAlias}.{$column}";
-                            break 3;
-                        }
-                    }
-                }
-            }
-
-            return $found;
-        });
-    }
 
     /**
      * Optional method if you want to use the html builder.
@@ -218,25 +175,12 @@ class FACDBTF004DataTable extends DataTable
             Column::make('location_group')->name(self::JOINED_COLUMNS['location_group'])->title('Location Group'),
             Column::make('location_group_desc')->name(self::JOINED_COLUMNS['location_group_desc'])->title('Location Group Desc'),
             Column::make('product_family')->name(self::JOINED_COLUMNS['product_family'])->title('Product Family'),
-            $this->optionalColumn('product_family_desc', 'Product Family Description'),
             Column::computed('action')
                 ->exportable(false)
                 ->printable(false)
                 ->width(60)
                 ->addClass('text-center'),
         ];
-    }
-
-    private function optionalColumn(string $alias, string $title): Column
-    {
-        $column = $this->optionalColumns()[$alias];
-
-        return Column::make($alias)
-            ->name($column ?? $alias)
-            ->title($title)
-            ->defaultContent('-')
-            ->searchable($column !== null)
-            ->orderable($column !== null);
     }
 
     /**
