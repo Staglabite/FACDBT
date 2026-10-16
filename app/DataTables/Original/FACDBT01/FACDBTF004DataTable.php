@@ -87,19 +87,17 @@ class FACDBTF004DataTable extends DataTable
         'accounting_group' => 'p.accounting_group',
         'location_group' => 'l.location_group',
         'location_group_desc' => 'l.location_group_description',
+        'product_family' => 'p.prod_group',
     ];
 
     // Kolom yang belum pasti ada di database: alias => kandidat nama kolom,
     // dicari berurutan di tabel book (b), part (p) lalu location (l)
     private const OPTIONAL_COLUMNS = [
-        'accounting_group_desc' => ['accounting_group_desc', 'accounting_group_description'],
-        'dim_quality' => ['dim_quality', 'dimquality'],
-        'product_family' => ['product_family', 'prod_family'],
         'product_family_desc' => ['product_family_desc', 'product_family_description', 'prod_family_desc', 'prod_family_description'],
     ];
 
     /**
-     * Kolom opsional yang ditemukan di database, contoh ['dim_quality' => 'b.DIM_QUALITY'].
+     * Kolom opsional yang ditemukan di database, contoh ['product_family_desc' => 'p.product_family_desc'].
      * Bernilai null bila kolomnya tidak ada; selnya tampil "-" dan tidak bisa dicari/diurutkan.
      *
      * @return array<string, string|null>
@@ -217,11 +215,9 @@ class FACDBTF004DataTable extends DataTable
             Column::make('AVAILABILITY_CONTROL_ID')->name('b.AVAILABILITY_CONTROL_ID')->title('Availability Control Id'),
             Column::make('AVAILABILITY_CONTROL_DESC')->name('b.AVAILABILITY_CONTROL_DESC')->title('Availability Control Description'),
             Column::make('accounting_group')->name(self::JOINED_COLUMNS['accounting_group'])->title('Accounting Group'),
-            $this->optionalColumn('accounting_group_desc', 'Accounting Group Desc'),
-            $this->optionalColumn('dim_quality', 'Dim/Quality'),
             Column::make('location_group')->name(self::JOINED_COLUMNS['location_group'])->title('Location Group'),
             Column::make('location_group_desc')->name(self::JOINED_COLUMNS['location_group_desc'])->title('Location Group Desc'),
-            $this->optionalColumn('product_family', 'Product Family'),
+            Column::make('product_family')->name(self::JOINED_COLUMNS['product_family'])->title('Product Family'),
             $this->optionalColumn('product_family_desc', 'Product Family Description'),
             Column::computed('action')
                 ->exportable(false)
