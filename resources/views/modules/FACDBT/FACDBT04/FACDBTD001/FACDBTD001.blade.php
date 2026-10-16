@@ -37,7 +37,6 @@
 
         {{-- Filter rentang waktu Dari - Sampai (chart bawah & variance) --}}
         <div class="d-flex align-items-center gap-2">
-            <div class="border border-secondary px-3 py-2 text-body small flex-shrink-0 bg-white">Count</div>
             <div class="flex-grow-1" id="time-slots-container">
                 {{-- Diisi secara dinamis oleh JavaScript --}}
             </div>

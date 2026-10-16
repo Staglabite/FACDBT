@@ -35,7 +35,6 @@
 
 {{-- Filter Waktu --}}
 <div class="d-flex align-items-center gap-3 mb-4">
-    <div class="border border-secondary px-3 py-2 text-body small flex-shrink-0 bg-white">Count</div>
     <div class="flex-grow-1 border border-dark rounded-3 shadow-sm bg-white px-3 py-2">
         {{-- Filter rentang waktu Dari - Sampai --}}
         <div id="time-filter-container">

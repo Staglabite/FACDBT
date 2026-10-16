@@ -71,7 +71,7 @@ const PART_GROUP_ORDER = ['4W', '2W'];
 class Dashboard {
     constructor() {
         this.charts = {};
-        this.timeFilter = new TimeRangeFilter(document.getElementById('time-slots-container'), () => this.loadBottomCharts());
+        this.timeFilter = new TimeRangeFilter(document.getElementById('time-slots-container'), () => this.loadBottomCharts(), { inline: true });
         this.progressChart = null;
         this.progressItems = [];
         this.oilChart = null;

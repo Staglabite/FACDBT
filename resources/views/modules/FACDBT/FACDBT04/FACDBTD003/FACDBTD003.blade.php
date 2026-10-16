@@ -36,9 +36,6 @@
     @if ($key === 'qty')
         {{-- Filter Waktu (berlaku untuk semua chart di halaman ini) --}}
         <div class="d-flex align-items-center gap-3 mb-3">
-            <div class="d-flex align-items-center gap-2 small text-body flex-shrink-0">
-                <span class="d-inline-block bg-dark" style="width: 12px; height: 12px;"></span> Count
-            </div>
             <div class="flex-grow-1" id="time-filter-container">
                 {{-- Diisi secara dinamis oleh JavaScript --}}
             </div>

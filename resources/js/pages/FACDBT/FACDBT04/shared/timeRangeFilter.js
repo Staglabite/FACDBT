@@ -7,14 +7,17 @@
  *
  * Pemakaian:
  *   const filter = new TimeRangeFilter(container, () => this.loadData(), { vertical: true });
+ *   - vertical : semua isian & tombol bersusun ke bawah (kolom sempit)
+ *   - inline   : satu baris tanpa turun baris, tombol tepat di sebelah isian jam
  *   filter.setDays(res.data.days);
  *   axios.get(url, { params: { ...filter.params() } });
  */
 export class TimeRangeFilter {
-    constructor(container, onChange, { vertical = false } = {}) {
+    constructor(container, onChange, { vertical = false, inline = false } = {}) {
         this.container = container;
         this.onChange = onChange;
         this.vertical = vertical;
+        this.inline = inline;
         this.days = [];
         this.applied = null; // { from: 'Y-m-d H:i', to: 'Y-m-d H:i' }
     }
@@ -39,17 +42,24 @@ export class TimeRangeFilter {
         const timeInput = (role, value) => `<input type="time" class="form-control form-control-sm" data-role="${role}" value="${value}" aria-label="Jam">`;
         const label = text => `<span class="small fw-semibold text-dark">${text}</span>`;
 
-        const group = this.vertical ? 'd-flex flex-column gap-1' : 'd-flex align-items-center gap-1';
+        const group = this.vertical
+            ? 'd-flex flex-column gap-1'
+            : `d-flex align-items-center gap-1${this.inline ? ' flex-shrink-0' : ''}`;
         const wrapper = this.vertical
             ? 'd-flex flex-column gap-2'
-            : 'd-flex flex-wrap align-items-center justify-content-center gap-2';
+            : this.inline
+                ? 'd-flex flex-nowrap align-items-center gap-2 overflow-auto'
+                : 'd-flex flex-wrap align-items-center justify-content-center gap-2';
+        const buttons = this.vertical
+            ? 'd-flex flex-column gap-1'
+            : `d-flex gap-1 flex-shrink-0${this.inline ? '' : ' align-self-end'}`;
 
         this.container.innerHTML = `
             <div class="${wrapper}">
                 <div class="${group}">${label('Dari')}${daySelect('from-day')}${timeInput('from-time', '00:00')}</div>
                 <div class="${group}">${label('Sampai')}${daySelect('to-day')}${timeInput('to-time', '23:59')}</div>
-                <div class="d-flex gap-1${this.vertical ? '' : ' align-self-end'}">
-                    <button type="button" class="btn btn-sm btn-dark flex-grow-1" data-role="apply">Terapkan</button>
+                <div class="${buttons}">
+                    <button type="button" class="btn btn-sm btn-dark" data-role="apply">Terapkan</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-role="reset" title="Seluruh periode taking">Reset</button>
                 </div>
             </div>
