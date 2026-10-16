@@ -30,8 +30,9 @@ class FACDBTD001 extends Controller
         8 => [1, '11:00', '7-11.00'],
     ];
 
-    // Unit cost per part: dari book, fallback ke master unit cost (alias bk & uc di variancePartsQuery)
-    private const VARIANCE_UNIT_COST = 'COALESCE(NULLIF(bk.unit_cost, 0), uc.unit_cost, 0)';
+    // Unit cost per part dari master unit cost (mat + lab + foh, alias uc di variancePartsQuery).
+    // UNIT_COST di book tidak dipakai.
+    private const VARIANCE_UNIT_COST = 'COALESCE(uc.unit_cost, 0)';
 
     private const NON_OIL_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8];
     private const OIL_SLOTS     = [0, 2, 3, 4, 8];
@@ -468,7 +469,7 @@ class FACDBTD001 extends Controller
 
     /**
      * Query dasar variance: 1 baris per part yang ada di book dan/atau taking di rentang $takingFrom - $takingTo,
-     * sudah di-join ke qty/unit cost book (alias bk) dan master unit cost (alias uc).
+     * sudah di-join ke qty book (alias bk) dan master unit cost (alias uc).
      * Pemanggil menambahkan join ke data taking (alias tk) dan select-nya sendiri.
      */
     private function variancePartsQuery($db, string $takingDate, string $closeDate, string $takingFrom, string $takingTo, string $invListNo)
@@ -479,8 +480,7 @@ class FACDBTD001 extends Controller
             ->groupBy('PART_NO')
             ->select(
                 'PART_NO',
-                DB::raw('SUM(QUANTITY) as qty_book'),
-                DB::raw('MAX(UNIT_COST) as unit_cost')
+                DB::raw('SUM(QUANTITY) as qty_book')
             );
 
         $costSub = $db->table('SIM_INV_UNIT_COST_TEST')
@@ -509,8 +509,8 @@ class FACDBTD001 extends Controller
 
     /**
      * Endpoint untuk Chart Variance (Nett & Absolute Variance).
-     * Amount = qty x unit cost per part. Unit cost dari book (UNIT_COST), fallback ke
-     * SIM_INV_UNIT_COST_TEST (mat + lab + foh) untuk part yang tidak ada di book.
+     * Amount = qty x unit cost per part. Unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh);
+     * UNIT_COST di book tidak dipakai.
      * - Nett variance     : total amount taking - total amount book
      * - Absolute variance : jumlah ABS(amount taking - amount book) per part
      * Dikelompokkan per part_group (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
@@ -534,7 +534,7 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:variance:v2:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:variance:v3:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
         $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo, $empty) {
             $takingSub = $db->table('SIM_INV_TAKING_DATA_TAB')
@@ -617,7 +617,7 @@ class FACDBTD001 extends Controller
             return response()->json([]);
         }
 
-        $cacheKey = "FACDBTD001:variance-trend:v1:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+        $cacheKey = "FACDBTD001:variance-trend:v2:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
         $series = $this->dashboardCache($cacheKey, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
             $slotTimes = [];
@@ -637,7 +637,7 @@ class FACDBTD001 extends Controller
                 $takingSub->selectRaw("SUM(CASE WHEN CREATED_DATETIME <= ? THEN QTY ELSE 0 END) as qty_{$i}", [$time]);
             }
 
-            $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $lastSlot, $latestInvListNo)
+            $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $takingDate, $lastSlot, $latestInvListNo)
                 ->leftJoinSub($takingSub, 'tk', 'tk.PART_NO', '=', 'p.PART_NO')
                 ->select(
                     DB::raw('COALESCE(bk.qty_book, 0) as qty_book'),

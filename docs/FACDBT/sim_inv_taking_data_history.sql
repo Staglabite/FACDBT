@@ -1,6 +1,7 @@
 -- History hasil taking (FACDBTD006).
 -- Satu baris = satu (location_no, part_no, LOT_BATCH_NO) dalam satu periode taking.
--- Diisi sekali saat periode di SIM_INV_TAKING_CONCLUDING_TAB ditutup (php artisan facdbt:taking-history).
+-- Diisi sekali saat periode di SIM_INV_TAKING_CONCLUDING_TAB ditutup (ROWSTATE Started -> Closed),
+-- oleh php artisan facdbt:taking-history yang dijadwalkan tiap jam.
 -- Nilai master (site, area, part, cost) disalin saat itu supaya history tidak berubah bila master diubah.
 
 CREATE TABLE IF NOT EXISTS SIM_INV_TAKING_DATA_HISTORY (

@@ -17,7 +17,7 @@ class AbsoluteVarianceService extends VarianceDashboardService
 {
     protected function cachePrefix(): string
     {
-        return 'FACDBTD005:data:v1';
+        return 'FACDBTD005:data:v2';
     }
 
     protected function emptyResult(): array

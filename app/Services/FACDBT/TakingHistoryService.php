@@ -19,8 +19,8 @@ class TakingHistoryService
     private const CONN = 'INV_TAKING';
     private const TABLE = 'SIM_INV_TAKING_DATA_HISTORY';
 
-    // Periode yang masih berjalan; selain ini dianggap sudah ditutup
-    private const ACTIVE_ROWSTATE = 'Started';
+    // ROWSTATE periode di SIM_INV_TAKING_CONCLUDING_TAB berubah dari Started menjadi Closed saat taking ditutup
+    private const CLOSED_ROWSTATE = 'Closed';
 
     private function db(): Connection
     {
@@ -28,15 +28,14 @@ class TakingHistoryService
     }
 
     /**
-     * Periode yang sudah ditutup (ROWSTATE bukan Started dan CLOSE_DATE sudah lewat) tetapi belum ada di history.
+     * Periode yang sudah ditutup (ROWSTATE = Closed) tetapi belum ada di history.
      */
     public function pendingPeriods(): array
     {
         return $this->db()->table('SIM_INV_TAKING_CONCLUDING_TAB as c')
-            ->where(fn ($q) => $q->whereNull('c.ROWSTATE')->orWhere('c.ROWSTATE', '<>', self::ACTIVE_ROWSTATE))
+            ->where('c.ROWSTATE', self::CLOSED_ROWSTATE)
             ->whereNotNull('c.TAKING_DATE')
             ->whereNotNull('c.CLOSE_DATE')
-            ->where('c.CLOSE_DATE', '<', now()->startOfDay())
             ->whereNotExists(fn ($q) => $q->select(DB::raw(1))
                 ->from(self::TABLE . ' as h')
                 ->whereRaw('h.TAKING_DATE = DATE(c.TAKING_DATE)'))

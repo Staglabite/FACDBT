@@ -57,21 +57,21 @@ trait BuildsVarianceLines
      * Taking hanya yang di-scan di rentang $takingFrom s/d $takingTo; book tetap penuh periode.
      * Tabel besar diagregasi tanpa join; pemetaan unit cost di PHP karena join dengan TRIM()
      * membuat index tidak terpakai.
-     * Unit cost dari book (UNIT_COST), fallback ke SIM_INV_UNIT_COST_TEST (mat + lab + foh).
+     * Unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh); UNIT_COST di book tidak dipakai.
      *
      * @return array<int, array{0: string, 1: string, 2: float, 3: float, 4: float}>
      *         [[location_no, part_no, qty_book, qty_taking, unit_cost], ...]
      */
     private function varianceLines($db, array $period, string $takingFrom, string $takingTo): array
     {
-        $key = 'FACDBT04:variance-lines:v2:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingFrom, $takingTo]));
+        $key = 'FACDBT04:variance-lines:v3:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingFrom, $takingTo]));
 
         return $this->dashboardCache($key, function () use ($db, $period, $takingFrom, $takingTo) {
             $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $period['closeDate']])
                 ->where('INV_LIST_NO', $period['invListNo'])
                 ->groupBy('LOCATION_NO', 'PART_NO')
-                ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'), DB::raw('MAX(UNIT_COST) as unit_cost'))
+                ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'))
                 ->get();
 
             $taking = $db->table('SIM_INV_TAKING_DATA_TAB')
@@ -80,23 +80,23 @@ trait BuildsVarianceLines
                 ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QTY) as qty'))
                 ->get();
 
-            // [lokasi|part => [qty_book, qty_taking, unit_cost_book]]
+            // [lokasi|part => [qty_book, qty_taking]]
             $merged = [];
             foreach ($book as $r) {
-                $merged[trim((string) $r->LOCATION_NO) . '|' . $r->PART_NO] = [(float) $r->qty, 0.0, (float) $r->unit_cost];
+                $merged[trim((string) $r->LOCATION_NO) . '|' . $r->PART_NO] = [(float) $r->qty, 0.0];
             }
             foreach ($taking as $r) {
                 $k = trim((string) $r->LOCATION_NO) . '|' . $r->PART_NO;
-                $merged[$k] ??= [0.0, 0.0, 0.0];
+                $merged[$k] ??= [0.0, 0.0];
                 $merged[$k][1] += (float) $r->qty;
             }
 
             $unitCosts = $this->masterUnitCosts($db);
 
             $lines = [];
-            foreach ($merged as $k => [$qtyBook, $qtyTaking, $bookCost]) {
+            foreach ($merged as $k => [$qtyBook, $qtyTaking]) {
                 [$loc, $part] = explode('|', $k, 2);
-                $lines[] = [$loc, $part, $qtyBook, $qtyTaking, $bookCost != 0.0 ? $bookCost : ($unitCosts[$part] ?? 0.0)];
+                $lines[] = [$loc, $part, $qtyBook, $qtyTaking, $unitCosts[$part] ?? 0.0];
             }
 
             return $lines;
