@@ -2,6 +2,8 @@
 -- DATA DUMMY untuk mengetes dashboard FACDBT (FACDBTD001 - FACDBTD006)
 -- =====================================================================================
 -- PERHATIAN
+-- - JANGAN dijalankan di database utama. SIM_INV_TAKING_CONCLUDING_TAB juga dibaca sistem taking/scanner,
+--   sehingga periode dummy (ROWSTATE Started) bisa membuat scan asli masuk ke periode yang salah.
 -- - Jalankan di database TEST (koneksi INV_TAKING). Periode dummy memakai tanggal HARI INI,
 --   sehingga menjadi periode aktif dan dashboard tidak lagi menampilkan periode asli.
 -- - Semua data dummy berawalan "DMY-" dan CREATED_BY = 'DUMMY'.
