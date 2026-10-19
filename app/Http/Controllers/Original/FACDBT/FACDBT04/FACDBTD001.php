@@ -155,6 +155,8 @@ class FACDBTD001 extends Controller
     /**
      * Jumlahkan qty book per (area, part). Lokasi di beberapa group dihitung di tiap group-nya.
      *
+     * Dipakai untuk book maupun taking (qty taking per lokasi dipetakan ke area yang sama).
+     *
      * @param  iterable<object{LOCATION_NO: string, PART_NO: string, qty: float}>  $book
      * @param  array<string, int|string>  $oilParts  [part_no => is_oil]
      * @param  array<string, array<int, string|null>>  $areaMap  [location_no => [area, ...]]
@@ -359,7 +361,7 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:area:v10:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:area:v11:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
         $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo) {
             // 1 baris per (area, part). Part oil (inventory_uom = ml) dipisah per part ke area
@@ -371,21 +373,32 @@ class FACDBTD001 extends Controller
                 return ['parts' => [], 'oil' => []];
             }
 
-            // Taking yang di-scan di rentang filter. Memakai JOIN ke daftar part book,
-            // bukan whereIn dengan ribuan nilai.
+            // Taking yang di-scan di rentang filter, per (lokasi, part), lalu dipetakan ke area dengan
+            // aturan yang sama seperti book. Taking hanya dihitung untuk area lokasi tempat part di-scan,
+            // bukan untuk semua area yang punya part tersebut di book.
+            // Memakai JOIN ke daftar part book, bukan whereIn dengan ribuan nilai.
             $partsSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
                 ->where('INV_LIST_NO', $latestInvListNo)
                 ->select('PART_NO')
                 ->distinct();
 
-            $takingData = $db->table('SIM_INV_TAKING_DATA_TAB as t')
+            $takingRows = $db->table('SIM_INV_TAKING_DATA_TAB as t')
                 ->joinSub($partsSub, 'bp', 'bp.PART_NO', '=', 't.PART_NO')
                 ->whereBetween('t.CREATED_DATETIME', [$takingFrom, $takingTo])
-                ->groupBy('t.PART_NO')
-                ->select('t.PART_NO', DB::raw('SUM(t.QTY) as total_qty_taking'))
-                ->pluck('total_qty_taking', 'PART_NO')
-                ->toArray();
+                ->groupBy('t.LOCATION_NO', 't.PART_NO')
+                ->select('t.LOCATION_NO', 't.PART_NO', DB::raw('SUM(t.QTY) as qty'))
+                ->get();
+
+            // [area => [part => qty taking]]
+            $takingData = [];
+            foreach (self::groupBookByArea(
+                $takingRows,
+                $this->oilPartsSub($db)->pluck('is_oil', 'part_no')->all(),
+                $this->locationAreaMap($db)
+            ) as $row) {
+                $takingData[$row->area_label][$row->PART_NO] = $row->qty_book;
+            }
 
             $partsData = [];
             $oilData   = [];
@@ -410,9 +423,9 @@ class FACDBTD001 extends Controller
                 $qtyTaking  = 0.0;
 
                 foreach ($items as $row) {
-                    if (isset($takingData[$row->PART_NO])) {
+                    if (isset($takingData[$areaName][$row->PART_NO])) {
                         $itemTaking++;
-                        $qtyTaking += (float) $takingData[$row->PART_NO];
+                        $qtyTaking += (float) $takingData[$areaName][$row->PART_NO];
                     }
                 }
 

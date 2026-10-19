@@ -56,4 +56,20 @@ class ProgressAreaLabelTest extends TestCase
             'UNKNOWN'     => ['P3' => 2],
         ], $rows);
     }
+
+    public function test_taking_hanya_masuk_ke_area_lokasi_scan(): void
+    {
+        $areaMap = ['ENG-01' => ['ENG'], 'PRD-01' => ['PROD-1B']];
+
+        // Part X ada di book area ENG, tetapi di-scan di lokasi area PROD-1B
+        $taking = FACDBTD001::groupBookByArea(
+            [(object) ['LOCATION_NO' => 'PRD-01', 'PART_NO' => 'X', 'qty' => 5]],
+            [],
+            $areaMap
+        );
+
+        $areas = array_map(fn ($r) => $r->area_label, $taking);
+        $this->assertSame(['PROD-1B'], $areas);
+        $this->assertNotContains('ENG', $areas);
+    }
 }
