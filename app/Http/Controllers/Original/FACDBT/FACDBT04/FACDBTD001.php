@@ -481,17 +481,20 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Query dasar variance: 1 baris per part yang ada di book dan/atau taking di rentang $takingFrom - $takingTo,
-     * sudah di-join ke qty book (alias bk) dan master unit cost (alias uc).
-     * Pemanggil menambahkan join ke data taking (alias tk) dan select-nya sendiri.
+     * Query dasar variance: 1 baris per (lokasi, part) yang ada di book dan/atau taking di rentang
+     * $takingFrom - $takingTo, sudah di-join ke qty book (alias bk) dan master unit cost (alias uc).
+     * Per lokasi supaya part yang di-scan di lokasi lain tetap tercatat sebagai Var(-) di lokasi book
+     * dan Var(+) di lokasi scan (sama seperti dashboard Absolute Variance).
+     * Pemanggil menambahkan join ke data taking (alias tk, per LOCATION_NO & PART_NO) dan select-nya sendiri.
      */
     private function variancePartsQuery($db, string $takingDate, string $closeDate, string $takingFrom, string $takingTo, string $invListNo)
     {
         $bookSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('INV_LIST_NO', $invListNo)
-            ->groupBy('PART_NO')
+            ->groupBy('LOCATION_NO', 'PART_NO')
             ->select(
+                'LOCATION_NO',
                 'PART_NO',
                 DB::raw('SUM(QUANTITY) as qty_book')
             );
@@ -503,20 +506,20 @@ class FACDBTD001 extends Controller
                 DB::raw('MAX(COALESCE(mat_cost, 0) + COALESCE(lab_cost, 0) + COALESCE(foh_cost, 0)) as unit_cost')
             );
 
-        // Semua part yang ada di book dan/atau taking
+        // Semua (lokasi, part) yang ada di book dan/atau taking
         $partsSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('INV_LIST_NO', $invListNo)
-            ->select('PART_NO')
+            ->select('LOCATION_NO', 'PART_NO')
             ->union(
                 $db->table('SIM_INV_TAKING_DATA_TAB')
                     ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
-                    ->select('PART_NO')
+                    ->select('LOCATION_NO', 'PART_NO')
             );
 
         return $db->query()
             ->fromSub($partsSub, 'p')
-            ->leftJoinSub($bookSub, 'bk', 'bk.PART_NO', '=', 'p.PART_NO')
+            ->leftJoinSub($bookSub, 'bk', fn ($j) => $j->on('bk.LOCATION_NO', '=', 'p.LOCATION_NO')->on('bk.PART_NO', '=', 'p.PART_NO'))
             ->leftJoinSub($costSub, 'uc', 'uc.part_no', '=', 'p.PART_NO');
     }
 
@@ -525,7 +528,7 @@ class FACDBTD001 extends Controller
      * Amount = qty x unit cost per part. Unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh);
      * UNIT_COST di book tidak dipakai.
      * - Nett variance     : total amount taking - total amount book
-     * - Absolute variance : jumlah ABS(amount taking - amount book) per part
+     * - Absolute variance : jumlah ABS(amount taking - amount book) per (lokasi, part)
      * Dikelompokkan per part_group (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
      * Taking hanya yang di-scan di rentang filter waktu (sama seperti chart progress by area).
      */
@@ -547,17 +550,17 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:variance:v3:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:variance:v4:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
         $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo, $empty) {
             $takingSub = $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
-                ->groupBy('PART_NO')
-                ->select('PART_NO', DB::raw('SUM(QTY) as qty_taking'));
+                ->groupBy('LOCATION_NO', 'PART_NO')
+                ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QTY) as qty_taking'));
 
-            // 1 baris per part: variance amount = (qty taking - qty book) x unit cost
+            // 1 baris per (lokasi, part): variance amount = (qty taking - qty book) x unit cost
             $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo)
-                ->leftJoinSub($takingSub, 'tk', 'tk.PART_NO', '=', 'p.PART_NO')
+                ->leftJoinSub($takingSub, 'tk', fn ($j) => $j->on('tk.LOCATION_NO', '=', 'p.LOCATION_NO')->on('tk.PART_NO', '=', 'p.PART_NO'))
                 ->leftJoin('SIM_INV_PART_TEST as pm', 'pm.part_no', '=', 'p.PART_NO')
                 ->select(
                     DB::raw("COALESCE(NULLIF(TRIM(pm.part_group), ''), 'OTHERS') as part_group"),
@@ -603,8 +606,8 @@ class FACDBTD001 extends Controller
     /**
      * Endpoint untuk Chart Absolute Variance per slot waktu (Abs Var [+] dan Abs Var [-]).
      * Slot waktu sama dengan chart atas (Counting Progress keseluruhan), tidak terpengaruh filter tombol waktu.
-     * - Abs Var [+] : jumlah variance amount per part yang positif (taking > book)
-     * - Abs Var [-] : jumlah ABS variance amount per part yang negatif (taking < book)
+     * - Abs Var [+] : jumlah variance amount per (lokasi, part) yang positif (taking > book)
+     * - Abs Var [-] : jumlah ABS variance amount per (lokasi, part) yang negatif (taking < book)
      * Taking dihitung kumulatif s/d jam slot.
      */
     public function getVarianceTrend(Request $request)
@@ -630,7 +633,7 @@ class FACDBTD001 extends Controller
             return response()->json([]);
         }
 
-        $cacheKey = "FACDBTD001:variance-trend:v2:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+        $cacheKey = "FACDBTD001:variance-trend:v3:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
         $series = $this->dashboardCache($cacheKey, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
             $slotTimes = [];
@@ -641,17 +644,17 @@ class FACDBTD001 extends Controller
             }
             $lastSlot = max($slotTimes);
 
-            // Qty taking kumulatif per part untuk setiap slot dalam satu query
+            // Qty taking kumulatif per (lokasi, part) untuk setiap slot dalam satu query
             $takingSub = $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $lastSlot])
-                ->groupBy('PART_NO')
-                ->select('PART_NO');
+                ->groupBy('LOCATION_NO', 'PART_NO')
+                ->select('LOCATION_NO', 'PART_NO');
             foreach ($slotTimes as $i => $time) {
                 $takingSub->selectRaw("SUM(CASE WHEN CREATED_DATETIME <= ? THEN QTY ELSE 0 END) as qty_{$i}", [$time]);
             }
 
             $perPart = $this->variancePartsQuery($db, $takingDate, $closeDate, $takingDate, $lastSlot, $latestInvListNo)
-                ->leftJoinSub($takingSub, 'tk', 'tk.PART_NO', '=', 'p.PART_NO')
+                ->leftJoinSub($takingSub, 'tk', fn ($j) => $j->on('tk.LOCATION_NO', '=', 'p.LOCATION_NO')->on('tk.PART_NO', '=', 'p.PART_NO'))
                 ->select(
                     DB::raw('COALESCE(bk.qty_book, 0) as qty_book'),
                     DB::raw(self::VARIANCE_UNIT_COST . ' as unit_cost')
