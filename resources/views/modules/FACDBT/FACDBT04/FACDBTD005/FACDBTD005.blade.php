@@ -49,7 +49,7 @@
 
     <div class="card shadow-sm border border-dark rounded-3" style="flex: 3 1 0; min-width: 0;">
         <div class="card-header text-center pt-2 pb-0">
-            <div class="fw-semibold text-dark">Absolute Variance</div>
+            <div class="fw-semibold text-dark">Nett Variance</div>
         </div>
         <div class="card-body p-1">
             <div id="av-chart-posneg"></div>

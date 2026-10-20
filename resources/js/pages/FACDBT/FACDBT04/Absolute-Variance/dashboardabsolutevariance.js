@@ -13,7 +13,7 @@ const TABLES = {
     negative: { id: 'facdbtd005-negative-table', url: `/${ENDPOINT}/negative-table` }
 };
 
-// Tinggi chart di baris atas (kotak TIME, chart, dan card Absolute Var memakai tinggi yang sama)
+// Tinggi chart di baris atas (kotak TIME, chart, dan card Nett Var memakai tinggi yang sama)
 const TOP_CHART_HEIGHT = 205;
 
 const THEME = {
@@ -132,7 +132,7 @@ class DashboardAbsoluteVariance {
         this.setText('av-negative-qty', this.fmtThousand(negative.qty));
         this.setText('av-negative-amount', this.fmtMillion(negative.amount));
 
-        this.renderPosNeg(Number(positive.amount || 0), Number(negative.amount || 0));
+        this.renderNett(Number(positive.amount || 0), Number(negative.amount || 0));
         this.renderAreaWaterfall(data.by_area || [], Number(data.nett_amount || 0));
         // Tabel dimuat setelah ringkasan selesai supaya memakai hasil perhitungan yang sudah di-cache
         this.reloadTables(!keepTablePage);
@@ -219,17 +219,20 @@ class DashboardAbsoluteVariance {
         };
     }
 
-    // Var (+) naik dari 0, Var (-) (bertanda minus) turun dari 0
-    renderPosNeg(positive, negative) {
+    // Waterfall Nett Variance: Var (+) naik dari 0, Var (-) (bertanda minus) turun dari ujung Var (+),
+    // ditutup bar Nett (= Var (+) + Var (-))
+    renderNett(positive, negative) {
         const el = document.getElementById('av-chart-posneg');
         if (!el) return;
 
         this.destroyChart('posneg');
         el.innerHTML = '';
 
+        const nett = positive + negative;
         const points = [
-            { x: 'Var (+)', y: [0, positive], fillColor: THEME.increase, value: positive },
-            { x: 'Var (-)', y: [Math.min(0, negative), Math.max(0, negative)], fillColor: THEME.decrease, value: negative }
+            { x: 'Var (+)', y: [Math.min(0, positive), Math.max(0, positive)], fillColor: THEME.increase, value: positive },
+            { x: 'Var (-)', y: [Math.min(positive, nett), Math.max(positive, nett)], fillColor: THEME.decrease, value: negative },
+            { x: 'Nett', y: [Math.min(0, nett), Math.max(0, nett)], fillColor: THEME.total, value: nett }
         ];
 
         this.charts.posneg = new ApexCharts(el, this.waterfallOptions(points, TOP_CHART_HEIGHT, {
