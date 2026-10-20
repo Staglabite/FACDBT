@@ -30,7 +30,7 @@ abstract class VarianceDetailDataTable extends DataTable
     abstract protected function tablePrefix(): string;
 
     /**
-     * Prefix nama route ajax, contoh "nett-variance-dashboard" -> "nett-variance-dashboard.positive-table".
+     * Prefix nama route ajax, contoh "taking-qty-amount" -> "taking-qty-amount.positive-table".
      */
     abstract protected function routePrefix(): string;
 
@@ -60,6 +60,7 @@ abstract class VarianceDetailDataTable extends DataTable
                     $instance->collection = $instance->collection->filter(
                         fn ($row) => str_contains(strtolower($row['name']), $keyword)
                             || str_contains(strtolower($row['part_no']), $keyword)
+                            || str_contains(strtolower($row['location_no'] ?? ''), $keyword)
                     );
                 }
             }, true);

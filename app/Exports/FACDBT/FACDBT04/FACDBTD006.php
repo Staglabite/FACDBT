@@ -43,11 +43,15 @@ class FACDBTD006
         'remark_part_no' => 'Remark Part No',
         'seg' => 'Seg',
         'part_group' => 'Part Group',
+        'progress' => 'Progress %',
     ];
+
+    /** Progress % = qty taking / qty book x 100; kosong bila qty book 0 */
+    public const PROGRESS_SQL = 'CASE WHEN qty_book <> 0 THEN ROUND(qty_taking / qty_book * 100, 2) END';
 
     public static function download(Builder $query): StreamedResponse
     {
-        return (new MasterDataExport($query, self::COLUMNS))
+        return (new MasterDataExport($query, self::COLUMNS, ['progress' => self::PROGRESS_SQL]))
             ->download('History_Taking-' . date('YmdHis') . '.csv');
     }
 }

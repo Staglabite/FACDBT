@@ -2,6 +2,7 @@ import axios from 'axios';
 import ApexCharts from 'apexcharts';
 import { autoRefresh, track } from '../shared/dashboardStatus';
 import { TimeRangeFilter } from '../shared/timeRangeFilter';
+import { VarianceAreaCharts } from '../shared/varianceAreaCharts';
 
 const ENDPOINT = 'FACDBT/ds/progress-dashboard';
 
@@ -19,7 +20,13 @@ const ROW_HEIGHT = 48;
 class DashboardProgress {
     constructor() {
         this.selectedGroup = '';
-        this.timeFilter = new TimeRangeFilter(document.getElementById('time-filter-container'), () => this.loadData());
+        // Filter waktu berlaku untuk chart progress dan chart variance
+        this.timeFilter = new TimeRangeFilter(document.getElementById('time-filter-container'), () => {
+            this.loadData();
+            this.loadVariance();
+        });
+        this.varianceCharts = new VarianceAreaCharts();
+        this.varianceRequest = null;
         this.charts = {};
         this.dataRequest = null;
     }
@@ -29,9 +36,13 @@ class DashboardProgress {
         this.loadGroups();
         this.loadTimeRange();
         this.loadData();
+        this.loadVariance();
 
         // Perbarui chart secara berkala dengan filter yang sedang dipilih
-        autoRefresh(() => this.loadData());
+        autoRefresh(() => {
+            this.loadData();
+            this.loadVariance();
+        });
     }
 
     // -------------------------------------------------------------
@@ -95,6 +106,29 @@ class DashboardProgress {
         axios.get(`${ENDPOINT}/time-range`)
             .then(res => this.timeFilter.setDays(res.data?.days))
             .catch(err => console.error('Error load time range:', err));
+    }
+
+    // -------------------------------------------------------------
+    // Chart Variance by Area (ikut filter waktu, tidak ikut filter group/area)
+    // -------------------------------------------------------------
+    loadVariance() {
+        if (this.varianceRequest) {
+            this.varianceRequest.abort();
+        }
+        const controller = new AbortController();
+        this.varianceRequest = controller;
+
+        track(axios.get(`${ENDPOINT}/variance`, { params: this.timeFilter.params(), signal: controller.signal, timeout: 60000 }))
+            .then(res => this.varianceCharts.render(res.data || {}, ['amount']))
+            .catch(err => {
+                if (axios.isCancel(err)) return;
+                console.error('Error load variance by area:', err);
+            })
+            .finally(() => {
+                if (this.varianceRequest === controller) {
+                    this.varianceRequest = null;
+                }
+            });
     }
 
     // -------------------------------------------------------------

@@ -12,6 +12,9 @@ use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD003;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD004;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD005;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD006;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD007;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD008;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\DashboardDataVersion;
 use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'ts', 'middleware' => 'auth'], function () {
@@ -95,6 +98,9 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
 });
 
 Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
+
+    // Versi data taking: dashboard memuat ulang chart hanya bila ada scan / book baru
+    Route::get('/data-version', DashboardDataVersion::class)->name('dashboard.data-version');
     
     Route::group(['prefix' => 'main-dashboard', 'controller' => FACDBTD001::class], function () {
         Route::get('/', 'index')->name('main-dashboard.index'); 
@@ -111,6 +117,8 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/groups', 'getGroups')->name('progress-dashboard.groups');
         Route::get('/time-range', 'getTimeRange')->name('progress-dashboard.time-range');
         Route::get('/data', 'getData')->name('progress-dashboard.data');
+        // Chart Nett / Absolute Variance by Area (sama dengan Variance Dashboard)
+        Route::get('/variance', [FACDBTD003::class, 'getData'])->name('progress-dashboard.variance');
     });
 
     // Dashboard Variance by Area (FACDBTD003)
@@ -120,28 +128,47 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/data', 'getData')->name('variance-dashboard.data');
     });
 
-    // Nett Variance Dashboard (FACDBTD004)
-    Route::group(['prefix' => 'nett-variance-dashboard', 'controller' => FACDBTD004::class], function () {
-        Route::get('/', 'index')->name('nett-variance-dashboard.index');
-        Route::get('/filters', 'getFilters')->name('nett-variance-dashboard.filters');
-        Route::get('/data', 'getData')->name('nett-variance-dashboard.data');
-        Route::get('/positive-table', 'positiveTable')->name('nett-variance-dashboard.positive-table');
-        Route::get('/negative-table', 'negativeTable')->name('nett-variance-dashboard.negative-table');
+    // Variance Taking by Qty & Amount (FACDBTD004)
+    Route::group(['prefix' => 'taking-qty-amount', 'controller' => FACDBTD004::class], function () {
+        Route::get('/', 'index')->name('taking-qty-amount.index');
+        Route::get('/filters', 'getFilters')->name('taking-qty-amount.filters');
+        Route::get('/data', 'getData')->name('taking-qty-amount.data');
+        Route::get('/positive-table', 'positiveTable')->name('taking-qty-amount.positive-table');
+        Route::get('/negative-table', 'negativeTable')->name('taking-qty-amount.negative-table');
     });
 
-    // Absolute Variance Dashboard (FACDBTD005)
-    Route::group(['prefix' => 'absolute-variance-dashboard', 'controller' => FACDBTD005::class], function () {
-        Route::get('/', 'index')->name('absolute-variance-dashboard.index');
-        Route::get('/filters', 'getFilters')->name('absolute-variance-dashboard.filters');
-        Route::get('/data', 'getData')->name('absolute-variance-dashboard.data');
-        Route::get('/positive-table', 'positiveTable')->name('absolute-variance-dashboard.positive-table');
-        Route::get('/negative-table', 'negativeTable')->name('absolute-variance-dashboard.negative-table');
+    // Variance Taking by Part No per Location No (FACDBTD005)
+    Route::group(['prefix' => 'variance-part-location', 'controller' => FACDBTD005::class], function () {
+        Route::get('/', 'index')->name('variance-part-location.index');
+        Route::get('/filters', 'getFilters')->name('variance-part-location.filters');
+        Route::get('/data', 'getData')->name('variance-part-location.data');
+        Route::get('/positive-table', 'positiveTable')->name('variance-part-location.positive-table');
+        Route::get('/negative-table', 'negativeTable')->name('variance-part-location.negative-table');
     });
+
+    // Alamat lama (sebelum ganti nama menu) tetap bisa dibuka
+    Route::redirect('/nett-variance-dashboard', '/FACDBT/ds/taking-qty-amount');
+    Route::redirect('/absolute-variance-dashboard', '/FACDBT/ds/variance-part-location');
 
     // History Taking (FACDBTD006)
     Route::group(['prefix' => 'taking-history', 'controller' => FACDBTD006::class], function () {
         Route::get('/', 'index')->name('taking-history.index');
         Route::get('/filters', 'getFilters')->name('taking-history.filters');
         Route::post('/export', 'export')->name('taking-history.export');
+    });
+
+    // Overview Taking Data by Location (FACDBTD007)
+    Route::group(['prefix' => 'taking-by-location', 'controller' => FACDBTD007::class], function () {
+        Route::get('/', 'index')->name('taking-by-location.index');
+        Route::post('/export', 'export')->name('taking-by-location.export');
+    });
+
+    // Taking Data Revision (FACDBTD008)
+    Route::group(['prefix' => 'taking-data-revision', 'controller' => FACDBTD008::class], function () {
+        Route::get('/', 'index')->name('taking-data-revision.index');
+        Route::get('/data', 'getData')->name('taking-data-revision.data');
+        Route::get('/table', 'table')->name('taking-data-revision.table');
+        Route::get('/periods', 'getPeriods')->name('taking-data-revision.periods');
+        Route::post('/export', 'export')->name('taking-data-revision.export');
     });
 });

@@ -1,6 +1,6 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'Dashboard - Nett Variance')
+@section('title', 'Dashboard - Variance Taking by Qty & Amount')
 
 @section('content')
 
@@ -12,7 +12,7 @@
             <li class="breadcrumb-item">
                 <a href="javascript:void(0);">Dashboard</a>
             </li>
-            <li class="breadcrumb-item active">Nett Variance</li>
+            <li class="breadcrumb-item active">Variance Taking by Qty &amp; Amount</li>
         </ol>
     </nav>
 

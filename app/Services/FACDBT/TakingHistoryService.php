@@ -250,7 +250,7 @@ class TakingHistoryService
     }
 
     /**
-     * @return array<string, string> [location_no => location_group SIM_INV_GROUP_LOCATION]; lokasi di beberapa group memakai group pertama
+     * @return array<string, string> [location_no => area (SIM_INV_GROUP_LOCATION.location_group)]; lokasi di beberapa area memakai area pertama
      */
     private function areas(): array
     {

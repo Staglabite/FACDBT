@@ -1,6 +1,6 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'Dashboard - Absolute Variance')
+@section('title', 'Dashboard - Variance Taking by Part No per Location No')
 
 @section('content')
 
@@ -12,7 +12,7 @@
             <li class="breadcrumb-item">
                 <a href="javascript:void(0);">Dashboard</a>
             </li>
-            <li class="breadcrumb-item active">Absolute Variance</li>
+            <li class="breadcrumb-item active">Variance Taking by Part No per Location No</li>
         </ol>
     </nav>
 
@@ -25,9 +25,12 @@
     /* Baris atas: tinggi chart & card mengikuti tinggi kotak TIME */
     .av-top { height: 250px; }
     .av-card-cols { width: 170px; flex: 0 0 170px; }
-    /* Warna baris berselang: biru untuk tabel variance lebih, merah untuk tabel variance kurang */
-    #facdbtd005-positive-table tbody tr:nth-child(odd) td { background-color: #A9D2F5; }
-    #facdbtd005-negative-table tbody tr:nth-child(odd) td { background-color: #F4C2AE; }
+    /* Tabel detail: Part No & Part Name abu-abu (dikelompokkan per part), Location No berselang
+       biru (variance lebih) / merah (variance kurang) */
+    .av-detail-table td.av-part-cell { background-color: #8C8C8C; color: #fff; }
+    .av-detail-table tr.av-part-continued td.av-part-cell { color: transparent; border-top-color: #8C8C8C; }
+    #facdbtd005-positive-table tbody tr:nth-child(odd) td.av-location-cell { background-color: #A9D2F5; }
+    #facdbtd005-negative-table tbody tr:nth-child(odd) td.av-location-cell { background-color: #F4C2AE; }
     @media (max-width: 1199.98px) {
         .av-top { height: auto; }
         .av-filter-col, .av-card-cols { width: 100%; flex: 1 1 auto; }
@@ -46,7 +49,7 @@
 
     <div class="card shadow-sm border border-dark rounded-3" style="flex: 3 1 0; min-width: 0;">
         <div class="card-header text-center pt-2 pb-0">
-            <div class="fw-semibold text-dark">Absolute Variance</div>
+            <div class="fw-semibold text-dark">Nett Variance</div>
         </div>
         <div class="card-body p-1">
             <div id="av-chart-posneg"></div>
@@ -55,7 +58,7 @@
 
     <div class="card shadow-sm border border-dark rounded-3" style="flex: 7 1 0; min-width: 0;">
         <div class="card-header text-center pt-2 pb-0">
-            <div class="fw-semibold text-dark">Absolute Variance by Area</div>
+            <div class="fw-semibold text-dark">Nett Variance by Area</div>
         </div>
         <div class="card-body px-2 pt-0 pb-1">
             <div id="av-chart-area"></div>
@@ -63,16 +66,16 @@
     </div>
 
     <div class="d-flex flex-column gap-3 av-card-cols">
-        <div class="card shadow-none rounded-3 text-center text-white flex-fill" style="background-color: #0F1C6E;">
+        <div class="card shadow-none rounded-3 text-center text-white flex-fill" style="background-color: #000;">
             <div class="card-body py-2 d-flex flex-column justify-content-center">
-                <div class="fw-bold fs-3" id="av-absolute-qty">-</div>
-                <div class="small fw-semibold">Absolute Var Qty</div>
+                <div class="fw-bold fs-3" id="av-nett-qty">-</div>
+                <div class="small fw-semibold">Nett Var Qty</div>
             </div>
         </div>
-        <div class="card shadow-none rounded-3 text-center text-white flex-fill" style="background-color: #0F1C6E;">
+        <div class="card shadow-none rounded-3 text-center text-white flex-fill" style="background-color: #000;">
             <div class="card-body py-2 d-flex flex-column justify-content-center">
-                <div class="fw-bold fs-3" id="av-absolute-amount">-</div>
-                <div class="small fw-semibold">Absolute Var Amount</div>
+                <div class="fw-bold fs-3" id="av-nett-amount">-</div>
+                <div class="small fw-semibold">Nett Var Amount</div>
             </div>
         </div>
     </div>
@@ -124,7 +127,7 @@
                             </div>
                         </div>
 
-                        {{ $table->table(['class' => 'table table-sm'], true) }}
+                        {{ $table->table(['class' => 'table table-sm av-detail-table'], true) }}
                     </div>
                 </div>
             </div>

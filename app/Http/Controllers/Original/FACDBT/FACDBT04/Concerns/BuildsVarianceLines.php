@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns;
 
+use App\Services\FACDBT\RunningTakingPeriod;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -21,10 +22,7 @@ trait BuildsVarianceLines
      */
     private function resolvePeriod($db): ?array
     {
-        $concluding = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('TAKING_DATE', 'CLOSE_DATE')
-            ->orderByDesc('TAKING_DATE')
-            ->first();
+        $concluding = RunningTakingPeriod::find($db);
 
         if (!$concluding) {
             return null;
@@ -104,11 +102,11 @@ trait BuildsVarianceLines
     }
 
     /**
-     * @return array<string, string> [location_no => location_group]; lokasi di beberapa group memakai group pertama
+     * @return array<string, string> [location_no => area (location_group)]; lokasi di beberapa area memakai area pertama
      */
     private function locationAreas($db): array
     {
-        return $this->dashboardCache('FACDBT04:location-areas:v1', function () use ($db) {
+        return $this->dashboardCache('FACDBT04:location-areas:v3', function () use ($db) {
             $map = [];
             foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->orderBy('IID')->get() as $r) {
                 $loc   = trim((string) $r->LOCATION_NO);

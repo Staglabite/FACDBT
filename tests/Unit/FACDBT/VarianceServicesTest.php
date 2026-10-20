@@ -71,23 +71,43 @@ class VarianceServicesTest extends TestCase
         // |+200| + |-300| dan qty |2| + |3| + |3| + |3|
         $this->assertEquals(500, $result['absolute_amount']);
         $this->assertEquals(11, $result['absolute_qty']);
-        $this->assertEquals($result['positive']['amount'] + $result['negative']['amount'], $result['absolute_amount']);
+        $this->assertEquals($result['positive']['amount'] - $result['negative']['amount'], $result['absolute_amount']);
 
-        // P1 muncul di kedua sisi (lebih di L1, kurang di L2); part tanpa selisih tidak ditampilkan
-        $this->assertSame(['P1', 'P3'], $this->partNos($result['positive']));
-        $this->assertSame(['P1', 'P4'], $this->partNos($result['negative']));
-        $this->assertEquals(300, $result['negative']['amount']);
-
-        // nilai sisi kurang ditampilkan absolut
-        foreach ($result['negative']['rows'] as $row) {
-            $this->assertGreaterThanOrEqual(0, $row['qty']);
-            $this->assertGreaterThanOrEqual(0, $row['amount']);
-        }
-
+        // Nett & nett per area (chart Nett Variance by Area)
+        $this->assertEquals(-1, $result['nett_qty']);
+        $this->assertEquals(-100, $result['nett_amount']);
         $this->assertSame(
-            [['area' => 'B', 'value' => 300.0], ['area' => 'A', 'value' => 200.0]],
+            [['area' => 'A', 'value' => 200.0], ['area' => 'B', 'value' => -300.0]],
             $result['by_area']
         );
+
+        // Satu baris per (part, lokasi): P1 muncul di kedua tabel dengan lokasi berbeda
+        $pairs = fn ($detail) => array_map(fn ($r) => $r['part_no'] . '@' . $r['location_no'], $detail['rows']);
+        $this->assertSame(['P1@L1', 'P3@L4'], $pairs($result['positive']));
+        $this->assertSame(['P1@L2', 'P4@L5'], $pairs($result['negative']));
+
+        // Sisi kurang bertanda minus
+        $this->assertEquals(-300, $result['negative']['amount']);
+        $this->assertEquals(-6, $result['negative']['qty']);
+    }
+
+    public function test_absolute_tables_order_by_part_variance(): void
+    {
+        $lines = [
+            ['part_no' => 'A', 'location_no' => 'L1', 'qty' => 1, 'amount' => 100],
+            ['part_no' => 'B', 'location_no' => 'L1', 'qty' => 1, 'amount' => 300],
+            ['part_no' => 'A', 'location_no' => 'L2', 'qty' => 1, 'amount' => 250],
+            ['part_no' => 'C', 'location_no' => 'L3', 'qty' => 1, 'amount' => 50],
+        ];
+
+        // Biru: part dengan total terbesar dulu (A = 350, B = 300, C = 50), lokasi dalam part terbesar dulu
+        $rows = AbsoluteVarianceService::locationDetail($lines, [], false)['rows'];
+        $this->assertSame(['A@L2', 'A@L1', 'B@L1', 'C@L3'], array_map(fn ($r) => $r['part_no'] . '@' . $r['location_no'], $rows));
+
+        // Merah: part paling minus dulu
+        $negative = array_map(fn ($l) => ['qty' => -$l['qty'], 'amount' => -$l['amount']] + $l, $lines);
+        $rows = AbsoluteVarianceService::locationDetail($negative, [], true)['rows'];
+        $this->assertSame(['A@L2', 'A@L1', 'B@L1', 'C@L3'], array_map(fn ($r) => $r['part_no'] . '@' . $r['location_no'], $rows));
     }
 
     public function test_unknown_part_name(): void

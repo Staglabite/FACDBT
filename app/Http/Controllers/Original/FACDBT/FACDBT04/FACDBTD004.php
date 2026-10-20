@@ -10,7 +10,7 @@ use App\Services\FACDBT\NettVarianceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-// Nett Variance Dashboard (ringkasan + detail part positif / negatif)
+// Variance Taking by Qty & Amount / Nett Variance Dashboard (ringkasan + detail part positif / negatif)
 class FACDBTD004 extends Controller
 {
     use BuildsVarianceLines;
@@ -35,11 +35,11 @@ class FACDBTD004 extends Controller
         $period = $this->resolvePeriod($db);
 
         $areas = $db->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(location_group) as location_group')
+            ->selectRaw('TRIM(location_group) as area')
             ->whereRaw("TRIM(location_group) <> ''")
             ->distinct()
-            ->orderBy('location_group')
-            ->pluck('location_group');
+            ->orderBy('area')
+            ->pluck('area');
 
         return response()->json([
             'time_range' => $period ? $this->timeRangePayload($period['takingDate'], $period['closeDate']) : ['days' => []],
