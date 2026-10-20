@@ -250,14 +250,14 @@ class TakingHistoryService
     }
 
     /**
-     * @return array<string, string> [location_no => location_group SIM_INV_GROUP_LOCATION]; lokasi di beberapa group memakai group pertama
+     * @return array<string, string> [location_no => area (SIM_INV_GROUP_LOCATION.ID_LOC)]; lokasi di beberapa area memakai area pertama
      */
     private function areas(): array
     {
         $map = [];
-        foreach ($this->db()->table('SIM_INV_GROUP_LOCATION')->orderBy('IID')->get(['LOCATION_NO', 'location_group']) as $r) {
+        foreach ($this->db()->table('SIM_INV_GROUP_LOCATION')->orderBy('IID')->get(['LOCATION_NO', 'ID_LOC']) as $r) {
             $loc   = trim((string) $r->LOCATION_NO);
-            $group = trim((string) $r->location_group);
+            $group = trim((string) $r->ID_LOC);
             if ($group !== '' && !isset($map[$loc])) {
                 $map[$loc] = $group;
             }

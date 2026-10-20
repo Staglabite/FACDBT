@@ -17,7 +17,7 @@ class TakingDataVersion
     private const CONN = 'INV_TAKING';
 
     // Jarak minimal antar perhitungan ulang dashboard (detik)
-    public const VERSION_TTL = 15;
+    public const VERSION_TTL = 5;
 
     public static function current(): string
     {

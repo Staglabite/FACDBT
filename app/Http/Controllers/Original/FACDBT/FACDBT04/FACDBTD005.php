@@ -27,7 +27,7 @@ class FACDBTD005 extends Controller
     }
 
     /**
-     * Pilihan filter: hari untuk rentang waktu dan area (location_group dari SIM_INV_GROUP_LOCATION).
+     * Pilihan filter: hari untuk rentang waktu dan area (ID_LOC dari SIM_INV_GROUP_LOCATION).
      */
     public function getFilters()
     {
@@ -35,11 +35,11 @@ class FACDBTD005 extends Controller
         $period = $this->resolvePeriod($db);
 
         $areas = $db->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(location_group) as location_group')
-            ->whereRaw("TRIM(location_group) <> ''")
+            ->selectRaw('TRIM(ID_LOC) as area')
+            ->whereRaw("TRIM(ID_LOC) <> ''")
             ->distinct()
-            ->orderBy('location_group')
-            ->pluck('location_group');
+            ->orderBy('area')
+            ->pluck('area');
 
         return response()->json([
             'time_range' => $period ? $this->timeRangePayload($period['takingDate'], $period['closeDate']) : ['days' => []],

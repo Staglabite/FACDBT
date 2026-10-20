@@ -2,8 +2,8 @@ import axios from 'axios';
 
 // Status data dashboard FACDBT04: indikator loading, label "Terakhir diperbarui", dan auto refresh.
 
-// Cek "ada scan baru?" (request sangat ringan). Server menyimpan versi data 15 detik.
-export const CHECK_INTERVAL = 10 * 1000;
+// Cek "ada scan baru?" (request sangat ringan). Server menyimpan versi data 5 detik.
+export const CHECK_INTERVAL = 5 * 1000;
 
 // Cadangan: muat ulang penuh berkala supaya perubahan master (unit cost, area, dll.) tetap terbaca
 export const REFRESH_INTERVAL = 2 * 60 * 1000;

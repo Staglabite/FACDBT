@@ -24,17 +24,17 @@ class FACDBTD002 extends Controller
     }
 
     /**
-     * Daftar tombol filter lokasi (location_group dari SIM_INV_GROUP_LOCATION).
+     * Daftar tombol filter area (ID_LOC dari SIM_INV_GROUP_LOCATION).
      */
     public function getGroups()
     {
         $groups = DB::connection(self::CONN)
             ->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(location_group) as location_group')
-            ->whereRaw("TRIM(location_group) <> ''")
+            ->selectRaw('TRIM(ID_LOC) as area')
+            ->whereRaw("TRIM(ID_LOC) <> ''")
             ->distinct()
-            ->orderBy('location_group')
-            ->pluck('location_group');
+            ->orderBy('area')
+            ->pluck('area');
 
         return response()->json($groups);
     }
@@ -143,7 +143,7 @@ class FACDBTD002 extends Controller
         });
 
         $locations = $db->table('SIM_INV_GROUP_LOCATION')
-            ->when($group !== '', fn ($q) => $q->whereRaw('TRIM(location_group) = ?', [$group]))
+            ->when($group !== '', fn ($q) => $q->whereRaw('TRIM(ID_LOC) = ?', [$group]))
             ->distinct()
             ->pluck('LOCATION_NO');
 
