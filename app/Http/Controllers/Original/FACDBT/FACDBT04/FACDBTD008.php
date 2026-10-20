@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\DataTables\Original\FACDBT04\FACDBTD008DataTable;
+use App\Exports\FACDBT\FACDBT04\FACDBTD008 as Export;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Services\FACDBT\RunningTakingPeriod;
+use App\Services\FACDBT\TakingRevisionTable;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +19,7 @@ use Illuminate\Support\Facades\DB;
  * - Reason Revision      : porsi revisi per REASON_REVISION
  * - Revision Performance : porsi revisi per MODIFIED_BY
  * Area = SIM_INV_GROUP_LOCATION.location_group dari LOCATION_NO. Filter Modified By & Area boleh lebih dari satu.
+ * Di bawah chart: tabel semua revisi seluruh periode taking (filter Year -> Month -> Event) dengan export CSV.
  */
 class FACDBTD008 extends Controller
 {
@@ -26,9 +30,53 @@ class FACDBTD008 extends Controller
 
     private const UNKNOWN = 'UNKNOWN';
 
-    public function index()
+    public function index(FACDBTD008DataTable $dataTable)
     {
-        return view('modules.FACDBT.FACDBT04.FACDBTD008.FACDBTD008');
+        return view('modules.FACDBT.FACDBT04.FACDBTD008.FACDBTD008', ['dataTable' => $dataTable->html()]);
+    }
+
+    /**
+     * Ajax tabel revisi. Dengan `ids_only`: key semua baris yang lolos filter (untuk "centang semua").
+     */
+    public function table(FACDBTD008DataTable $dataTable)
+    {
+        if (request()->boolean('ids_only')) {
+            $ids = $dataTable->dataTable($dataTable->query())
+                ->skipPaging()
+                ->getFilteredQuery()
+                ->reorder()
+                ->select(DB::raw(TakingRevisionTable::ROW_KEY_SQL . ' as row_key'))
+                ->pluck('row_key')
+                ->all();
+
+            return response()->json(['ids' => $ids]);
+        }
+
+        return $dataTable->ajax();
+    }
+
+    /**
+     * Daftar periode untuk filter Year -> Month -> Event.
+     */
+    public function getPeriods(TakingRevisionTable $table)
+    {
+        return response()->json(['events' => $table->periods()]);
+    }
+
+    /**
+     * Export CSV: data yang dicentang saja, atau semua data pada filter periode & pencarian saat ini.
+     */
+    public function export(Request $request, TakingRevisionTable $table)
+    {
+        $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
+
+        $query = $table->query($request)
+            ->when(!empty($ids), fn ($q) => $q->whereIn(DB::raw(TakingRevisionTable::ROW_KEY_SQL), $ids))
+            ->orderByDesc('r.CREATED_DATETIME')
+            ->orderBy('r.ID_TAKING')
+            ->orderBy('r.REV_NO');
+
+        return Export::download($query);
     }
 
     /**
@@ -107,7 +155,7 @@ class FACDBTD008 extends Controller
         $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
 
-        return $this->dashboardCache("FACDBTD008:source:v1:{$takingDate}:{$closeDate}", function () use ($db, $takingDate, $closeDate, $empty) {
+        return $this->dashboardCache("FACDBTD008:source:v2:{$takingDate}:{$closeDate}", function () use ($db, $takingDate, $closeDate, $empty) {
             $areaOf = $this->locationAreas($db);
             $area   = fn ($loc) => $areaOf[trim((string) $loc)] ?? self::UNKNOWN;
 
@@ -132,8 +180,10 @@ class FACDBTD008 extends Controller
             // [[area, modified by, reason, jumlah revisi], ...]
             $revisions = [];
             $modifiers = [];
+            // Satu revisi = REV_NO bertambah 1, jadi baris REV_NO 0 (data awal) tidak dihitung
             $rows = $db->table('SIM_INV_TAKING_DATA_REVISION_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+                ->where('REV_NO', '>', 0)
                 ->groupBy('LOCATION_NO', 'MODIFIED_BY', 'REASON_REVISION')
                 ->select('LOCATION_NO', 'MODIFIED_BY', 'REASON_REVISION', DB::raw('COUNT(*) as n'))
                 ->get();

@@ -167,5 +167,8 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     Route::group(['prefix' => 'taking-data-revision', 'controller' => FACDBTD008::class], function () {
         Route::get('/', 'index')->name('taking-data-revision.index');
         Route::get('/data', 'getData')->name('taking-data-revision.data');
+        Route::get('/table', 'table')->name('taking-data-revision.table');
+        Route::get('/periods', 'getPeriods')->name('taking-data-revision.periods');
+        Route::post('/export', 'export')->name('taking-data-revision.export');
     });
 });
