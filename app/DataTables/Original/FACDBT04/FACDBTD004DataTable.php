@@ -20,7 +20,7 @@ abstract class FACDBTD004DataTable extends VarianceDetailDataTable
 
     protected function routePrefix(): string
     {
-        return 'nett-variance-dashboard';
+        return 'taking-qty-amount';
     }
 
     // Tabel positif dari amount terbesar, tabel negatif dari yang paling minus

@@ -3,7 +3,7 @@ import ApexCharts from 'apexcharts';
 import { autoRefresh, track } from '../shared/dashboardStatus';
 import { TimeRangeFilter } from '../shared/timeRangeFilter';
 
-const ENDPOINT = 'FACDBT/ds/nett-variance-dashboard';
+const ENDPOINT = 'FACDBT/ds/taking-qty-amount';
 
 // Tabel detail part (DataTable Yajra) dan endpoint ajax-nya.
 // URL harus diawali "/" karena DataTables memakai jQuery ajax (tidak ikut baseURL axios),

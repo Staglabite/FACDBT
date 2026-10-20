@@ -23,7 +23,7 @@ abstract class FACDBTD005DataTable extends VarianceDetailDataTable
 
     protected function routePrefix(): string
     {
-        return 'absolute-variance-dashboard';
+        return 'variance-part-location';
     }
 
     public function html(): HtmlBuilder

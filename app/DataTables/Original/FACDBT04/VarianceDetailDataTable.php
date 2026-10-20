@@ -30,7 +30,7 @@ abstract class VarianceDetailDataTable extends DataTable
     abstract protected function tablePrefix(): string;
 
     /**
-     * Prefix nama route ajax, contoh "nett-variance-dashboard" -> "nett-variance-dashboard.positive-table".
+     * Prefix nama route ajax, contoh "taking-qty-amount" -> "taking-qty-amount.positive-table".
      */
     abstract protected function routePrefix(): string;
 

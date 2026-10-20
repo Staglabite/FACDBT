@@ -126,23 +126,27 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/data', 'getData')->name('variance-dashboard.data');
     });
 
-    // Nett Variance Dashboard (FACDBTD004)
-    Route::group(['prefix' => 'nett-variance-dashboard', 'controller' => FACDBTD004::class], function () {
-        Route::get('/', 'index')->name('nett-variance-dashboard.index');
-        Route::get('/filters', 'getFilters')->name('nett-variance-dashboard.filters');
-        Route::get('/data', 'getData')->name('nett-variance-dashboard.data');
-        Route::get('/positive-table', 'positiveTable')->name('nett-variance-dashboard.positive-table');
-        Route::get('/negative-table', 'negativeTable')->name('nett-variance-dashboard.negative-table');
+    // Variance Taking by Qty & Amount (FACDBTD004)
+    Route::group(['prefix' => 'taking-qty-amount', 'controller' => FACDBTD004::class], function () {
+        Route::get('/', 'index')->name('taking-qty-amount.index');
+        Route::get('/filters', 'getFilters')->name('taking-qty-amount.filters');
+        Route::get('/data', 'getData')->name('taking-qty-amount.data');
+        Route::get('/positive-table', 'positiveTable')->name('taking-qty-amount.positive-table');
+        Route::get('/negative-table', 'negativeTable')->name('taking-qty-amount.negative-table');
     });
 
-    // Absolute Variance Dashboard (FACDBTD005)
-    Route::group(['prefix' => 'absolute-variance-dashboard', 'controller' => FACDBTD005::class], function () {
-        Route::get('/', 'index')->name('absolute-variance-dashboard.index');
-        Route::get('/filters', 'getFilters')->name('absolute-variance-dashboard.filters');
-        Route::get('/data', 'getData')->name('absolute-variance-dashboard.data');
-        Route::get('/positive-table', 'positiveTable')->name('absolute-variance-dashboard.positive-table');
-        Route::get('/negative-table', 'negativeTable')->name('absolute-variance-dashboard.negative-table');
+    // Variance Taking by Part No per Location No (FACDBTD005)
+    Route::group(['prefix' => 'variance-part-location', 'controller' => FACDBTD005::class], function () {
+        Route::get('/', 'index')->name('variance-part-location.index');
+        Route::get('/filters', 'getFilters')->name('variance-part-location.filters');
+        Route::get('/data', 'getData')->name('variance-part-location.data');
+        Route::get('/positive-table', 'positiveTable')->name('variance-part-location.positive-table');
+        Route::get('/negative-table', 'negativeTable')->name('variance-part-location.negative-table');
     });
+
+    // Alamat lama (sebelum ganti nama menu) tetap bisa dibuka
+    Route::redirect('/nett-variance-dashboard', '/FACDBT/ds/taking-qty-amount');
+    Route::redirect('/absolute-variance-dashboard', '/FACDBT/ds/variance-part-location');
 
     // History Taking (FACDBTD006)
     Route::group(['prefix' => 'taking-history', 'controller' => FACDBTD006::class], function () {
