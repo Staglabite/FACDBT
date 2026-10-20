@@ -516,14 +516,14 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * @return array<string, array{0: string, 1: string}> [part_no => [part_group, accounting_group]]
+     * @return array<string, array{0: string, 1: string}> [part_no => [seg (4W / 2W), accounting_group]]
      */
     private function variancePartGroups($db): array
     {
-        return $this->dashboardCache('FACDBTD001:part-groups:v1', function () use ($db) {
+        return $this->dashboardCache('FACDBTD001:part-groups:v2', function () use ($db) {
             $map = [];
-            foreach ($db->table('SIM_INV_PART_TEST')->select('part_no', 'part_group', 'accounting_group')->get() as $r) {
-                $partGroup = strtoupper(trim((string) $r->part_group));
+            foreach ($db->table('SIM_INV_PART_TEST')->select('part_no', 'seg', 'accounting_group')->get() as $r) {
+                $partGroup = strtoupper(trim((string) $r->seg));
                 $accGroup  = strtoupper(trim((string) $r->accounting_group));
                 $map[$r->part_no] = [$partGroup !== '' ? $partGroup : 'OTHERS', $accGroup !== '' ? $accGroup : 'OTHERS'];
             }
@@ -538,7 +538,7 @@ class FACDBTD001 extends Controller
      * unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh); UNIT_COST di book tidak dipakai.
      * - Nett variance     : jumlah amount
      * - Absolute variance : jumlah ABS(amount)
-     * Dikelompokkan per part_group (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
+     * Dikelompokkan per seg (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
      * Taking hanya yang di-scan di rentang filter waktu (sama seperti chart progress by area).
      */
     public function getVariance(Request $request)
@@ -559,7 +559,7 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:variance:v5:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:variance:v6:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
         $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo, $empty) {
             // [lokasi|part => [qty book, qty taking]]
