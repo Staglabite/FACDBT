@@ -1,6 +1,6 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'Dashboard - Absolute Variance')
+@section('title', 'Dashboard - Variance Taking by Part No per Location No')
 
 @section('content')
 
@@ -12,7 +12,7 @@
             <li class="breadcrumb-item">
                 <a href="javascript:void(0);">Dashboard</a>
             </li>
-            <li class="breadcrumb-item active">Absolute Variance</li>
+            <li class="breadcrumb-item active">Variance Taking by Part No per Location No</li>
         </ol>
     </nav>
 

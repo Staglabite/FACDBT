@@ -10,7 +10,7 @@ use App\Services\FACDBT\NettVarianceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-// Nett Variance Dashboard (ringkasan + detail part positif / negatif)
+// Variance Taking by Qty & Amount / Nett Variance Dashboard (ringkasan + detail part positif / negatif)
 class FACDBTD004 extends Controller
 {
     use BuildsVarianceLines;
@@ -27,7 +27,7 @@ class FACDBTD004 extends Controller
     }
 
     /**
-     * Pilihan filter: hari untuk rentang waktu dan area (ID_LOC dari SIM_INV_GROUP_LOCATION).
+     * Pilihan filter: hari untuk rentang waktu dan area (location_group dari SIM_INV_GROUP_LOCATION).
      */
     public function getFilters()
     {
@@ -35,8 +35,8 @@ class FACDBTD004 extends Controller
         $period = $this->resolvePeriod($db);
 
         $areas = $db->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(ID_LOC) as area')
-            ->whereRaw("TRIM(ID_LOC) <> ''")
+            ->selectRaw('TRIM(location_group) as area')
+            ->whereRaw("TRIM(location_group) <> ''")
             ->distinct()
             ->orderBy('area')
             ->pluck('area');

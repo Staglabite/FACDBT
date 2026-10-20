@@ -104,15 +104,15 @@ trait BuildsVarianceLines
     }
 
     /**
-     * @return array<string, string> [location_no => area (ID_LOC)]; lokasi di beberapa area memakai area pertama
+     * @return array<string, string> [location_no => area (location_group)]; lokasi di beberapa area memakai area pertama
      */
     private function locationAreas($db): array
     {
-        return $this->dashboardCache('FACDBT04:location-areas:v2', function () use ($db) {
+        return $this->dashboardCache('FACDBT04:location-areas:v3', function () use ($db) {
             $map = [];
-            foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'ID_LOC')->orderBy('IID')->get() as $r) {
+            foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->orderBy('IID')->get() as $r) {
                 $loc   = trim((string) $r->LOCATION_NO);
-                $group = trim((string) $r->ID_LOC);
+                $group = trim((string) $r->location_group);
                 if ($group !== '' && !isset($map[$loc])) {
                     $map[$loc] = $group;
                 }

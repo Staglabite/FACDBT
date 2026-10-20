@@ -34,7 +34,7 @@ class FACDBTD003 extends Controller
     }
 
     /**
-     * Variance per area (ID_LOC dari SIM_INV_GROUP_LOCATION).
+     * Variance per area (location_group dari SIM_INV_GROUP_LOCATION).
      * Variance dihitung per (lokasi, part): qty taking - qty book, amount = variance qty x unit cost.
      * Unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh); UNIT_COST di book tidak dipakai.
      * - Nett     : jumlah variance per area

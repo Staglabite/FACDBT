@@ -89,7 +89,7 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Pemetaan lokasi -> daftar area (ID_LOC dari SIM_INV_GROUP_LOCATION).
+     * Pemetaan lokasi -> daftar area (location_group dari SIM_INV_GROUP_LOCATION).
      * Lokasi di lebih dari satu group masuk ke semua group-nya. Dikerjakan di PHP karena
      * join dengan TRIM() di SQL membuat index tidak terpakai.
      *
@@ -97,11 +97,11 @@ class FACDBTD001 extends Controller
      */
     private function locationAreaMap($db): array
     {
-        return $this->dashboardCache('FACDBTD001:location-area-map:v2', function () use ($db) {
+        return $this->dashboardCache('FACDBTD001:location-area-map:v3', function () use ($db) {
             $map = [];
-            foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'ID_LOC')->get() as $r) {
+            foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->get() as $r) {
                 $loc   = trim((string) $r->LOCATION_NO);
-                $group = trim((string) $r->ID_LOC);
+                $group = trim((string) $r->location_group);
                 $map[$loc][$group === '' ? '' : $group] = $group === '' ? null : $group;
             }
 
@@ -403,12 +403,12 @@ class FACDBTD001 extends Controller
             $partsData = [];
             $oilData   = [];
 
-            // Daftar area diambil dari MASTER (SIM_INV_GROUP_LOCATION.ID_LOC), bukan hanya dari
+            // Daftar area diambil dari MASTER (SIM_INV_GROUP_LOCATION.location_group), bukan hanya dari
             // data book, supaya semua area tetap tampil (0% bila belum ada data book).
             $grouped      = $bookRows->groupBy('area_label');
             $allAreaNames = $db->table('SIM_INV_GROUP_LOCATION')
-                ->selectRaw('TRIM(ID_LOC) as area_name')
-                ->whereRaw("TRIM(ID_LOC) <> ''")
+                ->selectRaw('TRIM(location_group) as area_name')
+                ->whereRaw("TRIM(location_group) <> ''")
                 ->distinct()
                 ->pluck('area_name')
                 ->all();

@@ -13,7 +13,7 @@
 -- - Dashboard memakai cache: tunggu +/- 1-5 menit atau refresh halaman beberapa kali.
 --
 -- SKENARIO (H1 = hari ini, H2 = besok)
---   Lokasi        Area (ID_LOC) Warehouse  Part   Book   Taking (jam scan)              Hasil
+--   Lokasi        Area (group)  Warehouse  Part   Book   Taking (jam scan)              Hasil
 --   DMY-ENG-01    DMY-ENG       DMY-WH-A   P01    100    100 (H1 08:00)                 Match
 --   DMY-ENG-01    DMY-ENG       DMY-WH-A   P02     50     45 (H1 10:30)                 Var(-) 5
 --   DMY-ENG-01    DMY-ENG       DMY-WH-A   P03     30      -  -> di-scan di DMY-PRD-01   Var(-) 30
@@ -62,7 +62,7 @@ INSERT INTO SIM_INV_LOCATION_TEST (location_no, location_group, site, warehouse,
 ('DMY-WH-01',  'DMY-WH',   'DMY', 'DMY-WH-C', 'Dummy Warehouse 1',   'Dummy Warehouse'),
 ('DMY-PPC-01', 'DMY-WH',   'DMY', 'DMY-WH-C', 'Dummy PPC Oil',       'Dummy Warehouse');
 
--- ---------------------------------------------------------------- Master Group Location (area = ID_LOC)
+-- ---------------------------------------------------------------- Master Group Location (area = location_group)
 INSERT INTO SIM_INV_GROUP_LOCATION (LOCATION_NO, ID_LOC, location_group, stream) VALUES
 ('DMY-ENG-01', 'DMY-ENG',  'DMY-ENG',  'DMY-STREAM'),
 ('DMY-ENG-02', 'DMY-ENG',  'DMY-ENG',  'DMY-STREAM'),
