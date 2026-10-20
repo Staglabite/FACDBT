@@ -520,11 +520,15 @@ class FACDBTD001 extends Controller
      */
     private function variancePartGroups($db): array
     {
-        return $this->dashboardCache('FACDBTD001:part-groups:v2', function () use ($db) {
+        return $this->dashboardCache('FACDBTD001:part-groups:v3', function () use ($db) {
             $map = [];
             foreach ($db->table('SIM_INV_PART_TEST')->select('part_no', 'seg', 'accounting_group')->get() as $r) {
                 $partGroup = strtoupper(trim((string) $r->seg));
                 $accGroup  = strtoupper(trim((string) $r->accounting_group));
+                // WIP-M digabung ke WIP (kotak di dashboard hanya RM / WIP / FG)
+                if (str_starts_with($accGroup, 'WIP-')) {
+                    $accGroup = 'WIP';
+                }
                 $map[$r->part_no] = [$partGroup !== '' ? $partGroup : 'OTHERS', $accGroup !== '' ? $accGroup : 'OTHERS'];
             }
 
@@ -559,7 +563,7 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:variance:v6:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:variance:v7:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
         $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo, $empty) {
             // [lokasi|part => [qty book, qty taking]]
