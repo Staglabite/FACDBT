@@ -24,8 +24,10 @@
     .tr-chart-side { flex: 1.7 1 0; }
     .tr-title { font-weight: 700; color: #333; }
     /* Slicer seperti Excel: tanpa pilihan semua tombol aktif; dengan pilihan hanya yang dipilih */
-    .tr-slicer-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
+    /* Daftar mengisi sisa tinggi card dan bisa di-scroll; tombol tidak boleh menyusut (menumpuk) */
+    .tr-slicer-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1 1 0; min-height: 0; padding-right: 2px; }
     .tr-slicer-item {
+        flex-shrink: 0;
         border: 1px solid #5B9BD5; border-radius: 3px; background: #9DD3F0; color: #1F1F1F;
         padding: 3px 8px; font-size: .8rem; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
