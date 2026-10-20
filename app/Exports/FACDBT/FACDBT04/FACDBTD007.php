@@ -23,7 +23,8 @@ class FACDBTD007
             fputcsv($out, array_values($columns));
 
             foreach ($rows as $row) {
-                fputcsv($out, array_map(fn ($column) => $row[$column], array_keys($columns)));
+                // Baris service: [key, ...kolom COLUMNS]
+                fputcsv($out, array_slice($row, 1));
             }
 
             fclose($out);

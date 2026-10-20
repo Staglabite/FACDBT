@@ -29,7 +29,9 @@ class FACDBTD007DataTable extends DataTable
     {
         $start  = max(0, (int) request('start', 0));
         $length = (int) request('length', 10);
-        $page   = $length > 0 ? $query->slice($start, $length)->values() : $query;
+        $page   = ($length > 0 ? $query->slice($start, $length) : $query)
+            ->map(fn ($row) => TakingByLocationService::assoc($row))
+            ->values();
 
         return (new CollectionDataTable($page))
             ->setTotalRecords($this->totalRows)

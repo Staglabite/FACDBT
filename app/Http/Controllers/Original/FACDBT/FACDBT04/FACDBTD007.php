@@ -13,14 +13,9 @@ class FACDBTD007 extends Controller
 {
     public function index(FACDBTD007DataTable $dataTable, TakingByLocationService $service)
     {
-        // Diagnosa sementara bila tabel kosong
-        if (request()->boolean('diagnose')) {
-            return response()->json($service->diagnose());
-        }
-
         // "Centang semua": cukup kirim key baris yang lolos filter, bukan seluruh isi tabel
         if (request()->boolean('ids_only')) {
-            return response()->json(['ids' => $service->filtered(request())->pluck('key')->all()]);
+            return response()->json(['ids' => $service->filtered(request())->pluck(TakingByLocationService::KEY)->all()]);
         }
 
         return $dataTable->render('modules.FACDBT.FACDBT04.FACDBTD007.FACDBTD007');
@@ -35,7 +30,7 @@ class FACDBTD007 extends Controller
 
         $rows = empty($ids)
             ? $service->filtered($request)
-            : collect($service->rows())->filter(fn ($row) => isset($ids[$row['key']]))->values();
+            : collect($service->rows())->filter(fn ($row) => isset($ids[$row[TakingByLocationService::KEY]]))->values();
 
         return Export::download($rows);
     }

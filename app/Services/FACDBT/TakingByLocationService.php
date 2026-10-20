@@ -45,6 +45,10 @@ class TakingByLocationService
         'LOT_BATCH_NO'     => 'Lot Batch No',
     ];
 
+    // Urutan isi tiap baris: key baris lalu kolom COLUMNS. Baris disimpan sebagai list (bukan array
+    // asosiatif) supaya hemat memori; puluhan ribu baris asosiatif melewati memory_limit saat di-cache.
+    public const KEY = 0;
+
     // Kolom yang dicari oleh kotak Search
     private const SEARCH_COLUMNS = [
         'site', 'warehouse', 'location_group', 'location_no', 'product_family',
@@ -54,7 +58,7 @@ class TakingByLocationService
     /**
      * Semua baris periode taking aktif (di-cache; dihitung ulang bila ada scan / book baru).
      *
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array<int, mixed>> [[key, site, MONTH, ...], ...] sesuai urutan fields()
      */
     public function rows(): array
     {
@@ -69,12 +73,30 @@ class TakingByLocationService
         $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
 
-        // Perhitungan pertama (atau menunggu perhitungan request lain) bisa lebih dari 30 detik
+        // Perhitungan pertama (atau menunggu perhitungan request lain) bisa lebih dari 30 detik,
+        // dan satu periode bisa puluhan ribu baris
         set_time_limit(300);
+        ini_set('memory_limit', '512M');
 
-        return $this->dashboardCache("FACDBTD007:rows:v2:{$takingDate}:{$closeDate}", function () use ($db, $period, $takingDate, $closeDate) {
+        return $this->dashboardCache("FACDBTD007:rows:v3:{$takingDate}:{$closeDate}", function () use ($db, $period, $takingDate, $closeDate) {
             return $this->build($db, $period, $takingDate, $closeDate);
         });
+    }
+
+    /**
+     * @return array<int, string> ['key', 'site', 'MONTH', ...]: nama isi baris sesuai posisinya
+     */
+    public static function fields(): array
+    {
+        return ['key', ...array_keys(self::COLUMNS)];
+    }
+
+    /**
+     * Satu baris list -> array asosiatif (hanya untuk baris yang ditampilkan).
+     */
+    public static function assoc(array $row): array
+    {
+        return array_combine(self::fields(), $row);
     }
 
     /**
@@ -85,11 +107,14 @@ class TakingByLocationService
     {
         $rows = collect($rows ?? $this->rows());
 
+        $index = array_flip(self::fields());
+
         $keyword = mb_strtolower(trim((string) $request->input('keyword', '')));
         if ($keyword !== '') {
-            $rows = $rows->filter(function ($row) use ($keyword) {
-                foreach (self::SEARCH_COLUMNS as $column) {
-                    if (str_contains(mb_strtolower((string) $row[$column]), $keyword)) {
+            $searchIndexes = array_map(fn ($column) => $index[$column], self::SEARCH_COLUMNS);
+            $rows = $rows->filter(function ($row) use ($keyword, $searchIndexes) {
+                foreach ($searchIndexes as $i) {
+                    if (str_contains(mb_strtolower((string) $row[$i]), $keyword)) {
                         return true;
                     }
                 }
@@ -104,7 +129,8 @@ class TakingByLocationService
             if ($value === '' || !is_string($name) || !array_key_exists($name, self::COLUMNS)) {
                 continue;
             }
-            $rows = $rows->filter(fn ($row) => str_contains(mb_strtolower((string) $row[$name]), $value));
+            $i = $index[$name];
+            $rows = $rows->filter(fn ($row) => str_contains(mb_strtolower((string) $row[$i]), $value));
         }
 
         return $rows->values();
@@ -126,70 +152,21 @@ class TakingByLocationService
 
         $numeric = in_array($name, ['qty_book', 'qty_taking', 'progress', 'MONTH', 'YEAR'], true);
         $desc    = strtolower((string) ($first['dir'] ?? 'asc')) === 'desc';
+        $i       = array_flip(self::fields())[$name];
 
-        return $rows->sort(function ($a, $b) use ($name, $numeric) {
+        return $rows->sort(function ($a, $b) use ($i, $numeric) {
             return $numeric
-                ? ((float) $a[$name]) <=> ((float) $b[$name])
-                : strnatcasecmp((string) $a[$name], (string) $b[$name]);
-        }, SORT_REGULAR)->pipe(fn ($c) => $desc ? $c->reverse() : $c)->values();
+                ? ((float) $a[$i]) <=> ((float) $b[$i])
+                : strnatcasecmp((string) $a[$i], (string) $b[$i]);
+        })->pipe(fn ($c) => $desc ? $c->reverse() : $c)->values();
     }
-
-    /**
-     * Diagnosa sementara: waktu tiap langkah dan jumlah baris yang terbaca (tanpa cache).
-     */
-    public function diagnose(): array
-    {
-        set_time_limit(300);
-        $db    = DB::connection(self::CONN);
-        $start = microtime(true);
-        $lap   = function () use (&$start) {
-            $now = microtime(true);
-            $sec = round($now - $start, 2);
-            $start = $now;
-
-            return $sec;
-        };
-
-        $period = RunningTakingPeriod::find($db);
-        if (!$period) {
-            return ['period' => null];
-        }
-
-        $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
-        $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
-        $result = ['period' => $period, 'range' => [$takingDate, $closeDate], 'period_sec' => $lap()];
-
-        try {
-            $result['built_rows'] = count($this->build($db, $period, $takingDate, $closeDate));
-        } catch (\Throwable $e) {
-            $result['built_rows'] = 'ERROR: ' . $e->getMessage();
-        }
-        $result['build_sec'] = $lap();
-        $result['steps_sec'] = $this->timings;
-
-        return $result;
-    }
-
-    /** @var array<string, float> waktu tiap langkah build terakhir (detik), untuk diagnose */
-    private array $timings = [];
 
     private function build($db, object $period, string $takingDate, string $closeDate): array
     {
-        // Data satu periode bisa besar; perhitungan pertama boleh lebih dari batas default 30 detik
-        set_time_limit(300);
-        $this->timings = [];
-        $t = microtime(true);
-        $lap = function (string $step) use (&$t) {
-            $now = microtime(true);
-            $this->timings[$step] = round($now - $t, 2);
-            $t = $now;
-        };
-
         $invListNo = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
             ->orderByRaw('CAST(INV_LIST_NO AS UNSIGNED) DESC')
             ->value('INV_LIST_NO');
-        $lap('inv_list_no');
 
         // [lokasi|part|lot => data] dari book & taking, diagregasi di database tanpa join
         $lines = [];
@@ -221,7 +198,6 @@ class TakingByLocationService
                 DB::raw('MAX(UNIT_MEAS) as uom')
             )
             ->get();
-        $lap('taking_query');
 
         foreach ($taking as $r) {
             $k = $key($r);
@@ -231,6 +207,7 @@ class TakingByLocationService
                 $lines[$k][$field] ??= $this->filled($r->{$field});
             }
         }
+        unset($taking);
 
         if ($invListNo !== null && $invListNo !== '') {
             $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
@@ -246,7 +223,6 @@ class TakingByLocationService
                     DB::raw('MAX(UNIT_MEAS) as uom')
                 )
                 ->get();
-            $lap('book_query');
 
             foreach ($book as $r) {
                 $k = $key($r);
@@ -256,6 +232,7 @@ class TakingByLocationService
                     $lines[$k][$field] ??= $this->filled($r->{$field});
                 }
             }
+            unset($book);
         }
 
         if (empty($lines)) {
@@ -267,34 +244,33 @@ class TakingByLocationService
         $sites  = $this->sites($db);
         $groups = $this->locationGroups($db);
         $parts  = $this->parts($db);
-        $lap('master_query');
 
+        // Isi baris mengikuti urutan fields()
         $rows = [];
         foreach ($lines as $k => $line) {
             $part = $parts[$line['part_no']] ?? null;
 
             $rows[] = [
-                'key'              => $k,
-                'site'             => $sites[$line['location_no']] ?? null,
-                'MONTH'            => $line['month'] ?? $period->MONTH,
-                'YEAR'             => $line['year'] ?? $period->YEAR,
-                'warehouse'        => $line['warehouse'],
-                'location_group'   => $groups[$line['location_no']] ?? null,
-                'location_no'      => $line['location_no'],
-                'product_family'   => $this->filled($part->prod_group ?? null),
-                'accounting_group' => $this->filled($part->accounting_group ?? null),
-                'part_no'          => $line['part_no'],
-                'part_name'        => $line['part_name'] ?? $this->filled($part->inventory_part_description ?? null),
-                'qty_book'         => $line['qty_book'],
-                'qty_taking'       => $line['qty_taking'],
-                'uom'              => $line['uom'],
+                $k,
+                $sites[$line['location_no']] ?? null,
+                $line['month'] ?? $period->MONTH,
+                $line['year'] ?? $period->YEAR,
+                $line['warehouse'],
+                $groups[$line['location_no']] ?? null,
+                $line['location_no'],
+                $this->filled($part->prod_group ?? null),
+                $this->filled($part->accounting_group ?? null),
+                $line['part_no'],
+                $line['part_name'] ?? $this->filled($part->inventory_part_description ?? null),
+                $line['qty_book'],
+                $line['qty_taking'],
+                $line['uom'],
                 // Tanpa book progress tidak bisa dihitung
-                'progress'         => $line['qty_book'] != 0.0 ? round($line['qty_taking'] / $line['qty_book'] * 100, 2) : null,
-                'LOT_BATCH_NO'     => $line['lot'] !== '' ? $line['lot'] : null,
+                $line['qty_book'] != 0.0 ? round($line['qty_taking'] / $line['qty_book'] * 100, 2) : null,
+                $line['lot'] !== '' ? $line['lot'] : null,
             ];
+            unset($lines[$k]);
         }
-
-        $lap('build_rows');
 
         return $rows;
     }
