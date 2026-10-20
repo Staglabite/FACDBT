@@ -15,31 +15,49 @@ class FACDBTD007DataTable extends DataTable
 {
     use DataTableTrait;
 
+    /** Jumlah seluruh baris sebelum filter (recordsTotal) */
+    private int $totalRows = 0;
+
     /**
      * Build the DataTable class.
+     * Filter, urutan dan paging dikerjakan sendiri (lihat query()), jadi hanya baris halaman yang sedang dibuka
+     * yang diproses DataTables; tanpa ini seluruh data periode diformat di setiap request dan melewati batas waktu PHP.
      *
      * @param  Collection<int, array>  $query  Results from query() method (nama parameter harus $query).
      */
     public function dataTable(Collection $query): CollectionDataTable
     {
-        return (new CollectionDataTable($query))
+        $start  = max(0, (int) request('start', 0));
+        $length = (int) request('length', 10);
+        $page   = $length > 0 ? $query->slice($start, $length)->values() : $query;
+
+        return (new CollectionDataTable($page))
+            ->setTotalRecords($this->totalRows)
+            ->setFilteredRecords($query->count())
+            ->skipPaging()
+            ->order(fn () => null)
+            ->filter(fn () => null)
+            ->blacklist(array_keys(TakingByLocationService::COLUMNS))
             ->addColumn('checkbox', function ($row) {
                 return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . e($row['key']) . '">';
             })
             ->editColumn('qty_book', fn ($row) => self::number($row['qty_book']))
             ->editColumn('qty_taking', fn ($row) => self::number($row['qty_taking']))
             ->editColumn('progress', fn ($row) => $row['progress'] === null ? '-' : self::number($row['progress']) . '%')
-            ->rawColumns(['checkbox'])
-            // Search & pencarian per kolom sudah diterapkan di query() (sama dengan export)
-            ->filter(fn () => null, true);
+            ->rawColumns(['checkbox']);
     }
 
     /**
-     * Get the query source of dataTable: data taking periode aktif (di-cache di service).
+     * Get the query source of dataTable: data taking periode aktif (di-cache di service),
+     * sudah difilter Search / pencarian per kolom dan diurutkan.
      */
     public function query(): Collection
     {
-        return app(TakingByLocationService::class)->filtered(request());
+        $service = app(TakingByLocationService::class);
+        $rows    = $service->rows();
+        $this->totalRows = count($rows);
+
+        return $service->sorted($service->filtered(request(), $rows), request());
     }
 
     /**

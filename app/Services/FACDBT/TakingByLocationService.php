@@ -72,6 +72,9 @@ class TakingByLocationService
         $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
 
+        // Perhitungan pertama (atau menunggu perhitungan request lain) bisa lebih dari 30 detik
+        set_time_limit(300);
+
         return $this->dashboardCache("FACDBTD007:rows:v2:{$takingDate}:{$closeDate}", function () use ($db, $period, $takingDate, $closeDate) {
             return $this->build($db, $period, $takingDate, $closeDate);
         });
@@ -81,9 +84,9 @@ class TakingByLocationService
      * Baris setelah filter Search (`keyword`) dan pencarian per kolom (`columns[i][data]` / `columns[i][search][value]`
      * seperti yang dikirim DataTables), diurutkan per lokasi, part, lot.
      */
-    public function filtered(Request $request): Collection
+    public function filtered(Request $request, ?array $rows = null): Collection
     {
-        $rows = collect($this->rows());
+        $rows = collect($rows ?? $this->rows());
 
         $keyword = mb_strtolower(trim((string) $request->input('keyword', '')));
         if ($keyword !== '') {
@@ -111,11 +114,44 @@ class TakingByLocationService
     }
 
     /**
-     * Diagnosa sementara: periode, INV_LIST_NO dan jumlah baris book / taking yang terbaca (tanpa cache).
+     * Urutkan baris sesuai `order[]` DataTables; tanpa urutan: per lokasi, part, lot (urutan bawaan).
+     */
+    public function sorted(Collection $rows, Request $request): Collection
+    {
+        $names = array_keys(self::COLUMNS);
+        $order = (array) $request->input('order', []);
+        $first = $order[0] ?? null;
+        $name  = $first ? ($request->input('columns.' . ($first['column'] ?? '') . '.data')) : null;
+
+        if (!is_string($name) || !in_array($name, $names, true)) {
+            return $rows;
+        }
+
+        $numeric = in_array($name, ['qty_book', 'qty_taking', 'progress', 'MONTH', 'YEAR'], true);
+        $desc    = strtolower((string) ($first['dir'] ?? 'asc')) === 'desc';
+
+        return $rows->sort(function ($a, $b) use ($name, $numeric) {
+            return $numeric
+                ? ((float) $a[$name]) <=> ((float) $b[$name])
+                : strnatcasecmp((string) $a[$name], (string) $b[$name]);
+        }, SORT_REGULAR)->pipe(fn ($c) => $desc ? $c->reverse() : $c)->values();
+    }
+
+    /**
+     * Diagnosa sementara: waktu tiap langkah dan jumlah baris yang terbaca (tanpa cache).
      */
     public function diagnose(): array
     {
-        $db = DB::connection(self::CONN);
+        set_time_limit(300);
+        $db    = DB::connection(self::CONN);
+        $start = microtime(true);
+        $lap   = function () use (&$start) {
+            $now = microtime(true);
+            $sec = round($now - $start, 2);
+            $start = $now;
+
+            return $sec;
+        };
 
         $period = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
             ->select('MONTH', 'YEAR', 'TAKING_DATE', 'CLOSE_DATE')
@@ -127,34 +163,39 @@ class TakingByLocationService
 
         $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
-        $invListNo  = $db->table('SIM_INV_TAKING_BOOK_TAB')
-            ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
-            ->orderByRaw('CAST(INV_LIST_NO AS UNSIGNED) DESC')
-            ->value('INV_LIST_NO');
+        $result = ['period' => $period, 'range' => [$takingDate, $closeDate], 'period_sec' => $lap()];
 
         try {
-            $rows = count($this->build($db, $period, $takingDate, $closeDate));
+            $result['built_rows'] = count($this->build($db, $period, $takingDate, $closeDate));
         } catch (\Throwable $e) {
-            $rows = 'ERROR: ' . $e->getMessage();
+            $result['built_rows'] = 'ERROR: ' . $e->getMessage();
         }
+        $result['build_sec'] = $lap();
+        $result['steps_sec'] = $this->timings;
 
-        return [
-            'period'       => $period,
-            'range'        => [$takingDate, $closeDate],
-            'inv_list_no'  => $invListNo,
-            'book_rows'    => $db->table('SIM_INV_TAKING_BOOK_TAB')->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])->where('INV_LIST_NO', $invListNo)->count(),
-            'taking_rows'  => $db->table('SIM_INV_TAKING_DATA_TAB')->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])->count(),
-            'built_rows'   => $rows,
-            'cached_rows'  => count($this->rows()),
-        ];
+        return $result;
     }
+
+    /** @var array<string, float> waktu tiap langkah build terakhir (detik), untuk diagnose */
+    private array $timings = [];
 
     private function build($db, object $period, string $takingDate, string $closeDate): array
     {
+        // Data satu periode bisa besar; perhitungan pertama boleh lebih dari batas default 30 detik
+        set_time_limit(300);
+        $this->timings = [];
+        $t = microtime(true);
+        $lap = function (string $step) use (&$t) {
+            $now = microtime(true);
+            $this->timings[$step] = round($now - $t, 2);
+            $t = $now;
+        };
+
         $invListNo = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
             ->orderByRaw('CAST(INV_LIST_NO AS UNSIGNED) DESC')
             ->value('INV_LIST_NO');
+        $lap('inv_list_no');
 
         // [lokasi|part|lot => data] dari book & taking, diagregasi di database tanpa join
         $lines = [];
@@ -186,6 +227,7 @@ class TakingByLocationService
                 DB::raw('MAX(UNIT_MEAS) as uom')
             )
             ->get();
+        $lap('taking_query');
 
         foreach ($taking as $r) {
             $k = $key($r);
@@ -210,6 +252,7 @@ class TakingByLocationService
                     DB::raw('MAX(UNIT_MEAS) as uom')
                 )
                 ->get();
+            $lap('book_query');
 
             foreach ($book as $r) {
                 $k = $key($r);
@@ -230,6 +273,7 @@ class TakingByLocationService
         $sites  = $this->sites($db);
         $groups = $this->locationGroups($db);
         $parts  = $this->parts($db);
+        $lap('master_query');
 
         $rows = [];
         foreach ($lines as $k => $line) {
@@ -255,6 +299,8 @@ class TakingByLocationService
                 'LOT_BATCH_NO'     => $line['lot'] !== '' ? $line['lot'] : null,
             ];
         }
+
+        $lap('build_rows');
 
         return $rows;
     }
