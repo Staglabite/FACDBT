@@ -12,6 +12,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD003;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD004;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD005;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD006;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\DashboardDataVersion;
 use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'ts', 'middleware' => 'auth'], function () {
@@ -95,6 +96,9 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
 });
 
 Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
+
+    // Versi data taking: dashboard memuat ulang chart hanya bila ada scan / book baru
+    Route::get('/data-version', DashboardDataVersion::class)->name('dashboard.data-version');
     
     Route::group(['prefix' => 'main-dashboard', 'controller' => FACDBTD001::class], function () {
         Route::get('/', 'index')->name('main-dashboard.index'); 
@@ -111,6 +115,8 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/groups', 'getGroups')->name('progress-dashboard.groups');
         Route::get('/time-range', 'getTimeRange')->name('progress-dashboard.time-range');
         Route::get('/data', 'getData')->name('progress-dashboard.data');
+        // Chart Nett / Absolute Variance by Area (sama dengan Variance Dashboard)
+        Route::get('/variance', [FACDBTD003::class, 'getData'])->name('progress-dashboard.variance');
     });
 
     // Dashboard Variance by Area (FACDBTD003)

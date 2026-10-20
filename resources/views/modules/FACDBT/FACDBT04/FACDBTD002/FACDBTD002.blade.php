@@ -16,6 +16,26 @@
         </ol>
     </nav>
 
+{{-- Variance by Area (sama dengan Variance Dashboard): ikut filter waktu, tidak ikut filter area --}}
+@include('modules.FACDBT.FACDBT04.partials._variance-by-area', [
+    'key' => 'amount',
+    'titles' => [
+        'nett' => 'Nett Variance by Area',
+        'absolute' => 'Absolute Var by Area',
+        'absoluteTotal' => 'Absolute Variance',
+    ],
+])
+
+{{-- Filter Waktu --}}
+<div class="d-flex align-items-center gap-3 mb-3">
+    <div class="flex-grow-1 border border-dark rounded-3 shadow-sm bg-white px-3 py-2">
+        {{-- Filter rentang waktu Dari - Sampai --}}
+        <div id="time-filter-container">
+            {{-- Diisi secara dinamis oleh JavaScript --}}
+        </div>
+    </div>
+</div>
+
 {{-- Filter Group Location (SIM_INV_GROUP_LOCATION.location_group) --}}
 <div class="d-flex align-items-center gap-1 px-1 py-2 mb-3 border border-dark rounded-3 shadow-sm"
     style="background-color: #E7D9A0;">
@@ -31,16 +51,6 @@
         aria-label="Next location groups">
         <i class="icon-base ti tabler-chevron-right"></i>
     </button>
-</div>
-
-{{-- Filter Waktu --}}
-<div class="d-flex align-items-center gap-3 mb-4">
-    <div class="flex-grow-1 border border-dark rounded-3 shadow-sm bg-white px-3 py-2">
-        {{-- Filter rentang waktu Dari - Sampai --}}
-        <div id="time-filter-container">
-            {{-- Diisi secara dinamis oleh JavaScript --}}
-        </div>
-    </div>
 </div>
 
 <div class="row g-4 mb-4">

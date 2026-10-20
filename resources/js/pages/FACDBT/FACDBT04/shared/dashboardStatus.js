@@ -1,7 +1,14 @@
+import axios from 'axios';
+
 // Status data dashboard FACDBT04: indikator loading, label "Terakhir diperbarui", dan auto refresh.
 
-// Interval auto refresh. Cache server segar 60 detik, jadi lebih cepat dari ini tidak menambah data baru.
+// Cek "ada scan baru?" (request sangat ringan). Server menyimpan versi data 15 detik.
+export const CHECK_INTERVAL = 10 * 1000;
+
+// Cadangan: muat ulang penuh berkala supaya perubahan master (unit cost, area, dll.) tetap terbaca
 export const REFRESH_INTERVAL = 2 * 60 * 1000;
+
+const VERSION_URL = '/FACDBT/ds/data-version';
 
 let pending = 0;
 let lastUpdated = null;
@@ -45,9 +52,8 @@ function render() {
         return;
     }
 
-    const minutes = REFRESH_INTERVAL / 60000;
     el.textContent = lastUpdated
-        ? `Terakhir diperbarui ${lastUpdated.toLocaleTimeString('id-ID')} · otomatis diperbarui tiap ${minutes} menit`
+        ? `Terakhir diperbarui ${lastUpdated.toLocaleTimeString('id-ID')} · otomatis diperbarui saat ada scan baru`
         : '';
 }
 
@@ -71,21 +77,45 @@ export function track(promise) {
 }
 
 /**
- * Jalankan callback setiap REFRESH_INTERVAL. Dilewati saat tab tidak terlihat atau masih memuat;
- * saat tab kembali terlihat dan data sudah lewat interval, langsung diperbarui.
+ * Muat ulang dashboard hampir real-time:
+ * - tiap CHECK_INTERVAL browser menanyakan versi data ke server; callback dijalankan hanya bila versinya
+ *   berubah (ada scan / book baru), jadi perhitungan berat tidak diulang tanpa perubahan data;
+ * - tiap REFRESH_INTERVAL callback tetap dijalankan sebagai cadangan.
+ * Dilewati saat tab tidak terlihat atau masih memuat; saat tab kembali terlihat langsung dicek.
  */
 export function autoRefresh(callback, interval = REFRESH_INTERVAL) {
+    let version = null;
+    let checking = false;
+
     const isStale = () => !lastUpdated || Date.now() - lastUpdated.getTime() >= interval;
 
-    setInterval(() => {
-        if (!document.hidden && pending === 0) {
-            callback();
-        }
-    }, interval);
+    const check = async () => {
+        if (document.hidden || pending > 0 || checking) return;
 
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && pending === 0 && isStale()) {
-            callback();
+        checking = true;
+        try {
+            const res = await axios.get(VERSION_URL, { timeout: 15000 });
+            const latest = res.data?.version ?? null;
+
+            if (version !== null && latest !== version) {
+                callback();
+            } else if (isStale()) {
+                callback();
+            }
+            version = latest;
+        } catch (e) {
+            // Gagal cek versi (mis. jaringan): pakai pembaruan berkala biasa
+            if (isStale()) callback();
+        } finally {
+            checking = false;
         }
+    };
+
+    // Versi awal (data yang baru dimuat saat halaman dibuka)
+    axios.get(VERSION_URL).then(res => { version = res.data?.version ?? null; }).catch(() => {});
+
+    setInterval(check, CHECK_INTERVAL);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) check();
     });
 }
