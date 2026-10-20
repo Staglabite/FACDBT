@@ -16,10 +16,12 @@ class MasterDataExport
 
     /**
      * @param  array<string, string>  $columns  [kolom database => judul kolom di CSV]
+     * @param  array<string, string>  $expressions  [nama kolom di $columns => ekspresi SQL] untuk kolom hitungan
      */
     public function __construct(
         private Builder $query,
         private array $columns,
+        private array $expressions = [],
     ) {}
 
     public function download(string $filename): StreamedResponse
@@ -32,7 +34,12 @@ class MasterDataExport
             fputcsv($out, array_values($this->columns));
 
             $columns = array_keys($this->columns);
-            foreach ($this->query->select($columns)->toBase()->lazy(self::CHUNK_SIZE) as $row) {
+            $query = $this->query->select(array_values(array_diff($columns, array_keys($this->expressions))));
+            foreach ($this->expressions as $alias => $expression) {
+                $query->selectRaw("{$expression} as {$alias}");
+            }
+
+            foreach ($query->toBase()->lazy(self::CHUNK_SIZE) as $row) {
                 fputcsv($out, array_map(fn ($column) => $row->{$column}, $columns));
             }
 

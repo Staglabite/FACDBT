@@ -32,6 +32,11 @@ class FACDBTD006DataTable extends DataTable
                 return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->IID . '">';
             })
             ->editColumn('time', fn ($row) => $row->time?->format('Y-m-d H:i:s'))
+            // Progress % = qty taking / qty book x 100; "-" bila qty book 0
+            ->addColumn('progress', fn ($row) => (float) $row->qty_book != 0.0
+                ? self::number(round((float) $row->qty_taking / (float) $row->qty_book * 100, 2), 2) . '%'
+                : '-')
+            ->orderColumn('progress', Export::PROGRESS_SQL . ' $1')
             ->rawColumns(['checkbox'])
             ->setRowId('IID')
             ->filter(function ($query) {
@@ -118,8 +123,10 @@ class FACDBTD006DataTable extends DataTable
         ];
 
         foreach (Export::COLUMNS as $column => $title) {
-            $col = Column::make($column)->title($title)->addClass('text-nowrap');
-            if (in_array($column, [...self::QTY_COLUMNS, ...self::AMOUNT_COLUMNS, 'item_book', 'item_taking'], true)) {
+            $col = $column === 'progress'
+                ? Column::computed('progress')->title($title)->orderable(true)->searchable(false)->addClass('text-nowrap')
+                : Column::make($column)->title($title)->addClass('text-nowrap');
+            if (in_array($column, [...self::QTY_COLUMNS, ...self::AMOUNT_COLUMNS, 'item_book', 'item_taking', 'progress'], true)) {
                 $col->addClass('text-end');
             }
             $columns[] = $col;
