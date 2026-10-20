@@ -60,10 +60,7 @@ class TakingByLocationService
     {
         $db = DB::connection(self::CONN);
 
-        $period = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('MONTH', 'YEAR', 'TAKING_DATE', 'CLOSE_DATE')
-            ->orderByDesc('TAKING_DATE')
-            ->first();
+        $period = RunningTakingPeriod::find($db);
 
         if (!$period) {
             return [];
@@ -153,10 +150,7 @@ class TakingByLocationService
             return $sec;
         };
 
-        $period = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('MONTH', 'YEAR', 'TAKING_DATE', 'CLOSE_DATE')
-            ->orderByDesc('TAKING_DATE')
-            ->first();
+        $period = RunningTakingPeriod::find($db);
         if (!$period) {
             return ['period' => null];
         }

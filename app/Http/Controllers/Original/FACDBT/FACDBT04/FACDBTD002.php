@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\Services\FACDBT\RunningTakingPeriod;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
@@ -203,10 +204,7 @@ class FACDBTD002 extends Controller
      */
     private function resolvePeriod($db): ?array
     {
-        $concluding = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('TAKING_DATE', 'CLOSE_DATE')
-            ->orderByDesc('TAKING_DATE')
-            ->first();
+        $concluding = RunningTakingPeriod::find($db);
 
         if (!$concluding) {
             return null;

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\Services\FACDBT\RunningTakingPeriod;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
@@ -187,10 +188,7 @@ class FACDBTD001 extends Controller
      */
     private function resolvePeriod($db, Request $request): ?array
     {
-        $concluding = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('TAKING_DATE', 'CLOSE_DATE')
-            ->orderByDesc('TAKING_DATE')
-            ->first();
+        $concluding = RunningTakingPeriod::find($db);
 
         if (!$concluding) {
             return null;
@@ -221,10 +219,7 @@ class FACDBTD001 extends Controller
         $empty = ['non_oil' => [], 'oil' => []];
         $db = DB::connection(self::CONN);
 
-        $concluding = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('TAKING_DATE', 'CLOSE_DATE')
-            ->orderByDesc('TAKING_DATE')
-            ->first();
+        $concluding = RunningTakingPeriod::find($db);
 
         if (!$concluding) {
             return response()->json($empty);
@@ -327,10 +322,7 @@ class FACDBTD001 extends Controller
      */
     public function getTimeRange()
     {
-        $concluding = DB::connection(self::CONN)->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('TAKING_DATE', 'CLOSE_DATE')
-            ->orderByDesc('TAKING_DATE')
-            ->first();
+        $concluding = RunningTakingPeriod::find(DB::connection(self::CONN));
 
         if (!$concluding) {
             return response()->json(['days' => []]);
@@ -640,10 +632,7 @@ class FACDBTD001 extends Controller
     {
         $db = DB::connection(self::CONN);
 
-        $concluding = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
-            ->select('TAKING_DATE', 'CLOSE_DATE')
-            ->orderByDesc('TAKING_DATE')
-            ->first();
+        $concluding = RunningTakingPeriod::find($db);
 
         if (!$concluding) {
             return response()->json([]);
