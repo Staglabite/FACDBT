@@ -3,6 +3,7 @@
 namespace App\Services\FACDBT;
 
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -68,10 +69,10 @@ class TakingByLocationService
             return [];
         }
 
-        $takingDate = date('Y-m-d 00:00:00', strtotime((string) $period->TAKING_DATE));
-        $closeDate  = date('Y-m-d 23:59:59', strtotime((string) $period->CLOSE_DATE));
+        $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
+        $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
 
-        return $this->dashboardCache("FACDBTD007:rows:v1:{$takingDate}:{$closeDate}", function () use ($db, $period, $takingDate, $closeDate) {
+        return $this->dashboardCache("FACDBTD007:rows:v2:{$takingDate}:{$closeDate}", function () use ($db, $period, $takingDate, $closeDate) {
             return $this->build($db, $period, $takingDate, $closeDate);
         });
     }
@@ -107,6 +108,45 @@ class TakingByLocationService
         }
 
         return $rows->values();
+    }
+
+    /**
+     * Diagnosa sementara: periode, INV_LIST_NO dan jumlah baris book / taking yang terbaca (tanpa cache).
+     */
+    public function diagnose(): array
+    {
+        $db = DB::connection(self::CONN);
+
+        $period = $db->table('SIM_INV_TAKING_CONCLUDING_TAB')
+            ->select('MONTH', 'YEAR', 'TAKING_DATE', 'CLOSE_DATE')
+            ->orderByDesc('TAKING_DATE')
+            ->first();
+        if (!$period) {
+            return ['period' => null];
+        }
+
+        $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
+        $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
+        $invListNo  = $db->table('SIM_INV_TAKING_BOOK_TAB')
+            ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+            ->orderByRaw('CAST(INV_LIST_NO AS UNSIGNED) DESC')
+            ->value('INV_LIST_NO');
+
+        try {
+            $rows = count($this->build($db, $period, $takingDate, $closeDate));
+        } catch (\Throwable $e) {
+            $rows = 'ERROR: ' . $e->getMessage();
+        }
+
+        return [
+            'period'       => $period,
+            'range'        => [$takingDate, $closeDate],
+            'inv_list_no'  => $invListNo,
+            'book_rows'    => $db->table('SIM_INV_TAKING_BOOK_TAB')->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])->where('INV_LIST_NO', $invListNo)->count(),
+            'taking_rows'  => $db->table('SIM_INV_TAKING_DATA_TAB')->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])->count(),
+            'built_rows'   => $rows,
+            'cached_rows'  => count($this->rows()),
+        ];
     }
 
     private function build($db, object $period, string $takingDate, string $closeDate): array

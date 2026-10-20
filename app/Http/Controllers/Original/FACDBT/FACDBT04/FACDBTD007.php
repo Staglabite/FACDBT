@@ -13,6 +13,11 @@ class FACDBTD007 extends Controller
 {
     public function index(FACDBTD007DataTable $dataTable, TakingByLocationService $service)
     {
+        // Diagnosa sementara bila tabel kosong
+        if (request()->boolean('diagnose')) {
+            return response()->json($service->diagnose());
+        }
+
         // "Centang semua": cukup kirim key baris yang lolos filter, bukan seluruh isi tabel
         if (request()->boolean('ids_only')) {
             return response()->json(['ids' => $service->filtered(request())->pluck('key')->all()]);
