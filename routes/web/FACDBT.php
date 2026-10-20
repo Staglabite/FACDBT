@@ -13,6 +13,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD004;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD005;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD006;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD007;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD008;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\DashboardDataVersion;
 use Illuminate\Support\Facades\Route;
 
@@ -160,5 +161,11 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     Route::group(['prefix' => 'taking-by-location', 'controller' => FACDBTD007::class], function () {
         Route::get('/', 'index')->name('taking-by-location.index');
         Route::post('/export', 'export')->name('taking-by-location.export');
+    });
+
+    // Taking Data Revision (FACDBTD008)
+    Route::group(['prefix' => 'taking-data-revision', 'controller' => FACDBTD008::class], function () {
+        Route::get('/', 'index')->name('taking-data-revision.index');
+        Route::get('/data', 'getData')->name('taking-data-revision.data');
     });
 });

@@ -2,6 +2,7 @@
 
 namespace App\Services\FACDBT;
 
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -9,8 +10,8 @@ use Illuminate\Support\Facades\DB;
  * "Versi" data taking periode aktif, dipakai dashboard FACDBT04 untuk tahu kapan ada data baru.
  *
  * Versi berubah bila ada scan baru, scan diubah/dihapus (jumlah & total qty berubah), periode baru,
- * atau book baru. Nilainya disimpan VERSION_TTL detik, sehingga dashboard paling cepat dihitung ulang
- * tiap VERSION_TTL detik walaupun scan masuk terus-menerus.
+ * book baru, atau revisi data taking baru. Nilainya disimpan VERSION_TTL detik, sehingga dashboard
+ * paling cepat dihitung ulang tiap VERSION_TTL detik walaupun scan masuk terus-menerus.
  */
 class TakingDataVersion
 {
@@ -35,9 +36,10 @@ class TakingDataVersion
             return 'none';
         }
 
+        // Sama dengan dashboard: CLOSE_DATE kosong (taking belum selesai) = sampai hari ini
         $range = [
-            date('Y-m-d 00:00:00', strtotime((string) $period->TAKING_DATE)),
-            date('Y-m-d 23:59:59', strtotime((string) $period->CLOSE_DATE)),
+            Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s'),
+            Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s'),
         ];
 
         $taking = $db->table('SIM_INV_TAKING_DATA_TAB')
@@ -50,10 +52,17 @@ class TakingDataVersion
             ->selectRaw('COUNT(*) as n, MAX(CAST(INV_LIST_NO AS UNSIGNED)) as inv_list_no')
             ->first();
 
+        // Revisi data taking (dashboard Taking Data Revision)
+        $revision = $db->table('SIM_INV_TAKING_DATA_REVISION_TAB')
+            ->whereBetween('CREATED_DATETIME', $range)
+            ->selectRaw('COUNT(*) as n, MAX(MODIFIED_DATETIME) as last_modified')
+            ->first();
+
         return substr(md5(implode('|', [
             $range[0], $range[1],
             $taking->n ?? 0, $taking->last_scan ?? '', $taking->qty ?? 0,
             $book->n ?? 0, $book->inv_list_no ?? '',
+            $revision->n ?? 0, $revision->last_modified ?? '',
         ])), 0, 12);
     }
 }
