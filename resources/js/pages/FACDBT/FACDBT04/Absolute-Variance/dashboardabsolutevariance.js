@@ -220,7 +220,7 @@ class DashboardAbsoluteVariance {
     }
 
     // Waterfall Nett Variance: Var (+) naik dari 0, Var (-) (bertanda minus) turun dari ujung Var (+),
-    // ditutup bar Nett (= Var (+) + Var (-))
+    // sehingga ujung bawah Var (-) = nett (tanpa bar total)
     renderNett(positive, negative) {
         const el = document.getElementById('av-chart-posneg');
         if (!el) return;
@@ -231,8 +231,7 @@ class DashboardAbsoluteVariance {
         const nett = positive + negative;
         const points = [
             { x: 'Var (+)', y: [Math.min(0, positive), Math.max(0, positive)], fillColor: THEME.increase, value: positive },
-            { x: 'Var (-)', y: [Math.min(positive, nett), Math.max(positive, nett)], fillColor: THEME.decrease, value: negative },
-            { x: 'Nett', y: [Math.min(0, nett), Math.max(0, nett)], fillColor: THEME.total, value: nett }
+            { x: 'Var (-)', y: [Math.min(positive, nett), Math.max(positive, nett)], fillColor: THEME.decrease, value: negative }
         ];
 
         this.charts.posneg = new ApexCharts(el, this.waterfallOptions(points, TOP_CHART_HEIGHT, {
