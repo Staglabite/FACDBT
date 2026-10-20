@@ -12,6 +12,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD003;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD004;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD005;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD006;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD007;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\DashboardDataVersion;
 use Illuminate\Support\Facades\Route;
 
@@ -153,5 +154,11 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/', 'index')->name('taking-history.index');
         Route::get('/filters', 'getFilters')->name('taking-history.filters');
         Route::post('/export', 'export')->name('taking-history.export');
+    });
+
+    // Overview Taking Data by Location (FACDBTD007)
+    Route::group(['prefix' => 'taking-by-location', 'controller' => FACDBTD007::class], function () {
+        Route::get('/', 'index')->name('taking-by-location.index');
+        Route::post('/export', 'export')->name('taking-by-location.export');
     });
 });
