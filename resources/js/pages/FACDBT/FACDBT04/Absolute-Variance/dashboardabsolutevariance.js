@@ -17,7 +17,6 @@ const TABLES = {
 const TOP_CHART_HEIGHT = 205;
 
 const THEME = {
-    absolute: '#0F1C6E',
     increase: '#6A7BFF',
     decrease: '#FF0000',
     total: '#2BE02B',
@@ -126,15 +125,15 @@ class DashboardAbsoluteVariance {
         const positive = data.positive || {};
         const negative = data.negative || {};
 
-        this.setText('av-absolute-qty', this.fmtNumber(data.absolute_qty));
-        this.setText('av-absolute-amount', this.fmtMillion(data.absolute_amount));
+        this.setText('av-nett-qty', this.fmtNumber(data.nett_qty));
+        this.setText('av-nett-amount', this.fmtMillion(data.nett_amount));
         this.setText('av-positive-qty', this.fmtThousand(positive.qty));
         this.setText('av-positive-amount', this.fmtMillion(positive.amount));
         this.setText('av-negative-qty', this.fmtThousand(negative.qty));
         this.setText('av-negative-amount', this.fmtMillion(negative.amount));
 
         this.renderPosNeg(Number(positive.amount || 0), Number(negative.amount || 0));
-        this.renderAreaWaterfall(data.by_area || [], Number(data.absolute_amount || 0));
+        this.renderAreaWaterfall(data.by_area || [], Number(data.nett_amount || 0));
         // Tabel dimuat setelah ringkasan selesai supaya memakai hasil perhitungan yang sudah di-cache
         this.reloadTables(!keepTablePage);
     }
@@ -220,7 +219,7 @@ class DashboardAbsoluteVariance {
         };
     }
 
-    // Var (+) naik dari 0, Var (-) (nilai absolut) menumpuk di atasnya
+    // Var (+) naik dari 0, Var (-) (bertanda minus) turun dari 0
     renderPosNeg(positive, negative) {
         const el = document.getElementById('av-chart-posneg');
         if (!el) return;
@@ -228,10 +227,9 @@ class DashboardAbsoluteVariance {
         this.destroyChart('posneg');
         el.innerHTML = '';
 
-        const total = positive + negative;
         const points = [
             { x: 'Var (+)', y: [0, positive], fillColor: THEME.increase, value: positive },
-            { x: 'Var (-)', y: [positive, total], fillColor: THEME.decrease, value: negative }
+            { x: 'Var (-)', y: [Math.min(0, negative), Math.max(0, negative)], fillColor: THEME.decrease, value: negative }
         ];
 
         this.charts.posneg = new ApexCharts(el, this.waterfallOptions(points, TOP_CHART_HEIGHT, {
@@ -247,7 +245,7 @@ class DashboardAbsoluteVariance {
         this.charts.posneg.render();
     }
 
-    // Waterfall absolute variance per area (urut dari terbesar) ditutup bar Total
+    // Waterfall nett variance per area (urut dari terbesar) ditutup bar Total
     renderAreaWaterfall(items, total) {
         const el = document.getElementById('av-chart-area');
         if (!el) return;
@@ -269,7 +267,7 @@ class DashboardAbsoluteVariance {
             return {
                 x: d.area,
                 y: [Math.min(start, running), Math.max(start, running)],
-                fillColor: THEME.absolute,
+                fillColor: value < 0 ? THEME.decrease : THEME.increase,
                 value
             };
         });
@@ -295,8 +293,8 @@ class DashboardAbsoluteVariance {
                 showForSingleSeries: true,
                 position: 'bottom',
                 fontSize: '11px',
-                customLegendItems: ['Absolute Variance', 'Total'],
-                markers: { size: 5, shape: 'circle', strokeWidth: 0, fillColors: [THEME.absolute, THEME.total] },
+                customLegendItems: ['Increase', 'Decrease', 'Total'],
+                markers: { size: 5, shape: 'circle', strokeWidth: 0, fillColors: [THEME.increase, THEME.decrease, THEME.total] },
                 itemMargin: { horizontal: 6, vertical: 0 }
             }
         }));

@@ -60,6 +60,7 @@ abstract class VarianceDetailDataTable extends DataTable
                     $instance->collection = $instance->collection->filter(
                         fn ($row) => str_contains(strtolower($row['name']), $keyword)
                             || str_contains(strtolower($row['part_no']), $keyword)
+                            || str_contains(strtolower($row['location_no'] ?? ''), $keyword)
                     );
                 }
             }, true);
