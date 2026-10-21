@@ -4,6 +4,7 @@ namespace App\Services\FACDBT;
 
 use Carbon\Carbon;
 use Illuminate\Database\Connection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -29,13 +30,13 @@ class TakingHistoryService
 
     /**
      * Periode yang sudah ditutup (ROWSTATE = Closed) tetapi belum ada di history.
+     * CLOSE_DATE boleh kosong (lihat closeDay()).
      */
     public function pendingPeriods(): array
     {
         return $this->db()->table('SIM_INV_TAKING_CONCLUDING_TAB as c')
             ->where('c.ROWSTATE', self::CLOSED_ROWSTATE)
             ->whereNotNull('c.TAKING_DATE')
-            ->whereNotNull('c.CLOSE_DATE')
             ->whereNotExists(fn ($q) => $q->select(DB::raw(1))
                 ->from(self::TABLE . ' as h')
                 ->whereRaw('h.TAKING_DATE = DATE(c.TAKING_DATE)'))
@@ -62,7 +63,9 @@ class TakingHistoryService
 
         $takingDay  = Carbon::parse($period->TAKING_DATE)->startOfDay();
         $takingDate = $takingDay->format('Y-m-d H:i:s');
-        $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
+        $closeDay   = $this->closeDay($period);
+        $closeDate  = $closeDay->copy()->endOfDay()->format('Y-m-d H:i:s');
+        $period->CLOSE_DATE = $closeDay->toDateString();
 
         $invListNo = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
@@ -80,6 +83,48 @@ class TakingHistoryService
         });
 
         return count($rows);
+    }
+
+    /**
+     * Hari terakhir periode. CLOSE_DATE kosong: sehari sebelum periode berikutnya dimulai, atau hari ini bila
+     * belum ada periode berikutnya (supaya data periode berikutnya tidak ikut masuk).
+     */
+    private function closeDay(object $period): Carbon
+    {
+        if (!empty($period->CLOSE_DATE)) {
+            return Carbon::parse($period->CLOSE_DATE)->startOfDay();
+        }
+
+        $next = $this->db()->table('SIM_INV_TAKING_CONCLUDING_TAB')
+            ->where('TAKING_DATE', '>', Carbon::parse($period->TAKING_DATE)->endOfDay()->format('Y-m-d H:i:s'))
+            ->min('TAKING_DATE');
+
+        return $next ? Carbon::parse($next)->subDay()->startOfDay() : now()->startOfDay();
+    }
+
+    /**
+     * Simpan semua periode tertutup yang belum ada di history. Dipanggil saat halaman History Taking dibuka
+     * (tidak perlu scheduler) dan oleh command facdbt:taking-history. Satu proses dalam satu waktu.
+     *
+     * @return int jumlah periode yang disimpan
+     */
+    public function snapshotPending(?string $createdBy = null): int
+    {
+        $periods = $this->pendingPeriods();
+        if (empty($periods)) {
+            return 0;
+        }
+
+        return Cache::lock('FACDBTD006:snapshot', 600)->get(function () use ($periods, $createdBy) {
+            set_time_limit(600);
+            ini_set('memory_limit', '1024M');
+
+            foreach ($periods as $period) {
+                $this->snapshot($period, $createdBy);
+            }
+
+            return count($periods);
+        }) ?: 0;
     }
 
     private function buildRows(object $period, string $takingDate, string $closeDate, $invListNo, ?string $createdBy): array

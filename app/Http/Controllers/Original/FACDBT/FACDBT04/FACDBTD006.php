@@ -6,14 +6,25 @@ use App\DataTables\Original\FACDBT04\FACDBTD006DataTable;
 use App\Exports\FACDBT\FACDBT04\FACDBTD006 as Export;
 use App\Http\Controllers\Controller;
 use App\Models\FACDBT04\FACDBT_SIMINVTAKINGDATAHISTORY as TakingHistory;
+use App\Services\FACDBT\TakingHistoryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 // History Taking: hasil taking periode yang sudah ditutup (SIM_INV_TAKING_DATA_HISTORY)
 class FACDBTD006 extends Controller
 {
-    public function index(FACDBTD006DataTable $dataTable)
+    public function index(FACDBTD006DataTable $dataTable, TakingHistoryService $history)
     {
+        // Periode yang baru ditutup langsung disimpan ke history saat halaman dibuka (tanpa menunggu scheduler)
+        if (!request()->ajax()) {
+            try {
+                $history->snapshotPending(auth()->user()->VUSERNAME ?? 'SYSTEM');
+            } catch (\Throwable $e) {
+                // Halaman tetap dibuka; snapshot dicoba lagi saat halaman dibuka berikutnya
+                report($e);
+            }
+        }
+
         // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
         if (request()->boolean('ids_only')) {
             return response()->json(['ids' => $dataTable->filteredKeys('IID')]);
