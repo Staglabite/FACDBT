@@ -16,15 +16,15 @@
         </ol>
     </nav>
 
-{{-- Variance by Area (sama dengan Variance Dashboard): ikut filter waktu, tidak ikut filter area --}}
-@include('modules.FACDBT.FACDBT04.partials._variance-by-area', [
-    'key' => 'amount',
-    'titles' => [
-        'nett' => 'Nett Variance by Area',
-        'absolute' => 'Absolute Var by Area',
-        'absoluteTotal' => 'Absolute Variance',
-    ],
-])
+{{-- Counting Progress (by Part), sama dengan Main Dashboard: ikut filter waktu, tidak ikut filter group --}}
+<div class="card shadow-sm border border-dark rounded-3 mb-3">
+    <div class="card-header pt-3 pb-0">
+        <h5 class="card-title mb-0 fw-semibold">Counting Progress (by Part)</h5>
+    </div>
+    <div class="card-body pt-0 pb-2">
+        <div id="chart-counting-progress"></div>
+    </div>
+</div>
 
 {{-- Filter Waktu --}}
 <div class="d-flex align-items-center gap-3 mb-3">

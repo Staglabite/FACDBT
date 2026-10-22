@@ -314,7 +314,31 @@ class FACDBTD001 extends Controller
             ];
         });
 
+        // Slot yang jamnya belum tiba dikosongkan (tidak meneruskan progress jam sebelumnya)
+        foreach ($payload as $category => $series) {
+            $payload[$category] = self::blankFutureSlots($series, ['item_taking', 'qty_taking', 'pct_qty', 'pct_item']);
+        }
+
         return response()->json($payload);
+    }
+
+    /**
+     * Kosongkan (null) nilai $fields pada slot yang jamnya belum tiba. Dilakukan setelah cache supaya
+     * slot terisi tepat saat jamnya tiba walaupun hasil hitungan masih dari cache.
+     */
+    public static function blankFutureSlots(array $series, array $fields, ?string $now = null): array
+    {
+        $now ??= now()->format('Y-m-d H:i:s');
+
+        foreach ($series as $i => $slot) {
+            if ($slot['time'] > $now) {
+                foreach ($fields as $field) {
+                    $series[$i][$field] = null;
+                }
+            }
+        }
+
+        return $series;
     }
 
     /**
@@ -712,6 +736,6 @@ class FACDBTD001 extends Controller
             return $series;
         });
 
-        return response()->json($series);
+        return response()->json(self::blankFutureSlots($series, ['abs_positive', 'abs_negative']));
     }
 }

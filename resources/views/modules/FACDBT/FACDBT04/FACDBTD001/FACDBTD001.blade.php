@@ -115,7 +115,7 @@
                             <div class="small fw-semibold text-dark">Nett Variance</div>
                         </div>
                         <div class="card-body px-2 pt-0 pb-0">
-                            <div id="chart-nett-variance" style="min-height: 130px;"></div>
+                            <div id="chart-nett-variance" style="min-height: 160px;"></div>
                         </div>
                     </div>
                     <div class="card shadow-none rounded-3 text-center text-white" style="background-color: #000;">

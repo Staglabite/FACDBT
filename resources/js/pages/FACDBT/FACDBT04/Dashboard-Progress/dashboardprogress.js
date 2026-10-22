@@ -2,7 +2,7 @@ import axios from 'axios';
 import ApexCharts from 'apexcharts';
 import { autoRefresh, track } from '../shared/dashboardStatus';
 import { TimeRangeFilter } from '../shared/timeRangeFilter';
-import { VarianceAreaCharts } from '../shared/varianceAreaCharts';
+import { renderProgressByAreaChart } from '../shared/progressByAreaChart';
 
 const ENDPOINT = 'FACDBT/ds/progress-dashboard';
 
@@ -20,13 +20,13 @@ const ROW_HEIGHT = 48;
 class DashboardProgress {
     constructor() {
         this.selectedGroup = '';
-        // Filter waktu berlaku untuk chart progress dan chart variance
+        // Filter waktu berlaku untuk semua chart
         this.timeFilter = new TimeRangeFilter(document.getElementById('time-filter-container'), () => {
             this.loadData();
-            this.loadVariance();
+            this.loadProgressByArea();
         });
-        this.varianceCharts = new VarianceAreaCharts();
-        this.varianceRequest = null;
+        this.progressByAreaChart = null;
+        this.progressByAreaRequest = null;
         this.charts = {};
         this.dataRequest = null;
     }
@@ -36,12 +36,12 @@ class DashboardProgress {
         this.loadGroups();
         this.loadTimeRange();
         this.loadData();
-        this.loadVariance();
+        this.loadProgressByArea();
 
         // Perbarui chart secara berkala dengan filter yang sedang dipilih
         autoRefresh(() => {
             this.loadData();
-            this.loadVariance();
+            this.loadProgressByArea();
         });
     }
 
@@ -109,24 +109,33 @@ class DashboardProgress {
     }
 
     // -------------------------------------------------------------
-    // Chart Variance by Area (ikut filter waktu, tidak ikut filter group/area)
+    // Chart Counting Progress (by Part), sama dengan Main Dashboard (ikut filter waktu, tidak ikut filter group)
     // -------------------------------------------------------------
-    loadVariance() {
-        if (this.varianceRequest) {
-            this.varianceRequest.abort();
+    loadProgressByArea() {
+        if (this.progressByAreaRequest) {
+            this.progressByAreaRequest.abort();
         }
         const controller = new AbortController();
-        this.varianceRequest = controller;
+        this.progressByAreaRequest = controller;
 
-        track(axios.get(`${ENDPOINT}/variance`, { params: this.timeFilter.params(), signal: controller.signal, timeout: 60000 }))
-            .then(res => this.varianceCharts.render(res.data || {}, ['amount']))
+        track(axios.get('FACDBT/ds/main-dashboard/progress-by-area', { params: this.timeFilter.params(), signal: controller.signal, timeout: 60000 }))
+            .then(res => {
+                const el = document.getElementById('chart-counting-progress');
+                if (!el) return;
+
+                if (this.progressByAreaChart) {
+                    this.progressByAreaChart.destroy();
+                    this.progressByAreaChart = null;
+                }
+                this.progressByAreaChart = renderProgressByAreaChart(el, res.data?.parts || [], { height: 420 });
+            })
             .catch(err => {
                 if (axios.isCancel(err)) return;
-                console.error('Error load variance by area:', err);
+                console.error('Error load counting progress by part:', err);
             })
             .finally(() => {
-                if (this.varianceRequest === controller) {
-                    this.varianceRequest = null;
+                if (this.progressByAreaRequest === controller) {
+                    this.progressByAreaRequest = null;
                 }
             });
     }

@@ -2,9 +2,9 @@ import axios from 'axios';
 import ApexCharts from 'apexcharts';
 import { autoRefresh, track } from '../shared/dashboardStatus';
 import { TimeRangeFilter } from '../shared/timeRangeFilter';
+import { renderProgressByAreaChart } from '../shared/progressByAreaChart';
 
 // Konfigurasi Chart Atas
-const MIN_QTY_LABEL = 10;
 const LABEL_HEIGHT  = 18;
 const LABEL_PAD_X   = 5;
 const ITEM_GAP      = 8;
@@ -38,17 +38,12 @@ const THEMES = {
         line: '#EAE095',
         itemBg: '#EAE095',
         itemColor: '#333333',
-        qtyBg: 'transparent',
+        // Kotak % Qty tetap terlihat walaupun bar pendek / kosong
+        qtyBg: '#333333',
         qtyColor: '#FFFFFF',
         columnMax: 115,
         lineMax: 115
     }
-};
-
-// Tema chart bawah & tombol slot waktu
-const PROGRESS_THEME = {
-    remaining: '#14229B',
-    progress: '#E63946'
 };
 
 const OIL_AREA_THEME = {
@@ -210,6 +205,9 @@ class Dashboard {
         };
 
         categories.forEach((_, i) => {
+            // Slot yang jamnya belum tiba (null) tidak diberi label
+            if (itemData[i] === null || qtyData[i] === null) return;
+
             const cx   = Number.isFinite(lineX[i]) ? lineX[i] : step * i + step / 2;
             const qty  = Number(qtyData[i]);
             const item = Number(itemData[i]);
@@ -217,9 +215,8 @@ class Dashboard {
             const pointY = Number.isFinite(lineY[i]) ? lineY[i] : g.gridHeight * (1 - item / theme.lineMax);
             addLabel(cx, pointY - ITEM_GAP, this.fmtPct(item), theme.itemBg, theme.itemColor);
 
-            if (qty >= MIN_QTY_LABEL) {
-                addLabel(cx, g.gridHeight - QTY_GAP, this.fmtPct(qty), theme.qtyBg, theme.qtyColor);
-            }
+            // % Qty selalu ditampilkan, termasuk saat nilainya kecil
+            addLabel(cx, g.gridHeight - QTY_GAP, this.fmtPct(qty), theme.qtyBg, theme.qtyColor);
         });
     }
 
@@ -282,7 +279,7 @@ class Dashboard {
             tooltip: {
                 shared: true,
                 intersect: false,
-                y: { formatter: val => this.fmtPct(val) }
+                y: { formatter: val => (val === null || val === undefined ? '-' : this.fmtPct(val)) }
             }
         };
     }
@@ -303,8 +300,10 @@ class Dashboard {
 
         el.innerHTML = '';
         const categories = data.map(d => this.formatTime(d.time));
-        const qtyData    = data.map(d => Number(d.pct_qty));
-        const itemData   = data.map(d => Number(d.pct_item));
+        // null = jam slot belum tiba (dibiarkan kosong)
+        const toValue    = v => (v === null || v === undefined ? null : Number(v));
+        const qtyData    = data.map(d => toValue(d.pct_qty));
+        const itemData   = data.map(d => toValue(d.pct_item));
 
         const options = this.getTopChartOptions(categories, qtyData, itemData, theme);
         this.charts[key] = new ApexCharts(el, options);
@@ -372,8 +371,9 @@ class Dashboard {
         el.innerHTML = '';
         const colors     = [VARIANCE_THEME.trendPositive, VARIANCE_THEME.trendNegative];
         const categories = items.map(d => this.formatTime(d.time));
-        const positive   = items.map(d => Number(d.abs_positive || 0));
-        const negative   = items.map(d => Number(d.abs_negative || 0));
+        // null = jam slot belum tiba (dibiarkan kosong)
+        const positive   = items.map(d => (d.abs_positive === null ? null : Number(d.abs_positive || 0)));
+        const negative   = items.map(d => (d.abs_negative === null ? null : Number(d.abs_negative || 0)));
 
         // Label lewat annotation supaya tiap series bisa punya posisi sendiri: label garis yang lebih
         // tinggi di atas titik, label garis yang lebih rendah di bawah titik, sehingga tidak bertumpuk
@@ -397,6 +397,8 @@ class Dashboard {
             }
         });
         const labels = categories.flatMap((x, i) => {
+            if (positive[i] === null || negative[i] === null) return [];
+
             const positiveOnTop = positive[i] >= negative[i];
 
             return [
@@ -451,7 +453,7 @@ class Dashboard {
             tooltip: {
                 shared: true,
                 intersect: false,
-                y: { formatter: v => this.fmtMillion(v) }
+                y: { formatter: v => (v === null || v === undefined ? '-' : this.fmtMillion(v)) }
             }
         };
 
@@ -522,7 +524,7 @@ class Dashboard {
             series: [{ name: 'Nett Variance', data: points }],
             chart: {
                 type: 'rangeBar',
-                height: 130,
+                height: 160,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -535,7 +537,7 @@ class Dashboard {
                 enabled: true,
                 formatter: (val, opts) => this.fmtMillion(points[opts.dataPointIndex].nett),
                 // Saat background aktif, style.colors dipakai sebagai warna kotak label
-                style: { fontSize: '12px', fontWeight: 600, colors: [VARIANCE_THEME.labelBg] },
+                style: { fontSize: '14px', fontWeight: 700, colors: [VARIANCE_THEME.labelBg] },
                 background: {
                     enabled: true,
                     foreColor: '#FFFFFF',
@@ -550,10 +552,21 @@ class Dashboard {
                 type: 'category',
                 axisBorder: { show: false },
                 axisTicks: { show: false },
-                labels: { style: { fontSize: '12px', colors: '#555555' } }
+                labels: { style: { fontSize: '14px', fontWeight: 600, colors: '#333333' } }
             },
             yaxis: { show: false },
-            legend: { show: false },
+            // Keterangan warna: hijau = Var [+], merah = Var [-]
+            legend: {
+                show: true,
+                showForSingleSeries: true,
+                position: 'top',
+                horizontalAlign: 'center',
+                fontSize: '12px',
+                customLegendItems: ['Var [+]', 'Var [-]'],
+                markers: { size: 6, shape: 'square', strokeWidth: 0, fillColors: [VARIANCE_THEME.positive, VARIANCE_THEME.negative] },
+                labels: { colors: '#333333' },
+                itemMargin: { horizontal: 8, vertical: 0 }
+            },
             grid: { show: false, padding: { left: 10, right: 10 } },
             tooltip: {
                 custom: ({ dataPointIndex }) => {
@@ -601,32 +614,35 @@ class Dashboard {
                 series: [{ name: 'Absolute Variance', data: [Number(g.absolute || 0)] }],
                 chart: {
                     type: 'bar',
-                    height: 55,
+                    height: 60,
                     fontFamily: 'inherit',
                     toolbar: { show: false },
                     zoom: { enabled: false },
                     animations: { enabled: true, speed: 500 }
                 },
+                // Label di ujung kanan bar dengan teks gelap supaya tetap terbaca walaupun bar pendek
                 plotOptions: {
-                    bar: { horizontal: true, barHeight: '70%', dataLabels: { position: 'center' } }
+                    bar: { horizontal: true, barHeight: '70%', dataLabels: { position: 'top' } }
                 },
                 colors: [VARIANCE_THEME.absolute],
                 dataLabels: {
                     enabled: true,
                     formatter: val => this.fmtMillion(val),
-                    style: { fontSize: '11px', fontWeight: 600, colors: ['#FFFFFF'] },
+                    offsetX: 40,
+                    style: { fontSize: '14px', fontWeight: 700, colors: ['#1F1F1F'] },
                     dropShadow: { enabled: false }
                 },
                 xaxis: {
                     categories: [g.group],
                     min: 0,
-                    max: maxAbs,
+                    // Ruang di kanan bar terpanjang untuk label
+                    max: maxAbs * 1.45,
                     labels: { show: false },
                     axisBorder: { show: false },
                     axisTicks: { show: false }
                 },
                 yaxis: {
-                    labels: { style: { fontSize: '12px', colors: '#555555' } }
+                    labels: { style: { fontSize: '14px', fontWeight: 600, colors: '#333333' } }
                 },
                 legend: { show: false },
                 grid: { show: false, padding: { top: -15, bottom: -15, right: 10 } },
@@ -656,95 +672,7 @@ class Dashboard {
             this.progressChart = null;
         }
 
-        if (items.length === 0) {
-            el.innerHTML = '<p class="text-center text-muted my-5">No Data Available for selected time</p>';
-            return;
-        }
-
-        el.innerHTML = '';
-        const categories    = items.map(d => d.area);
-        const progressData  = items.map(d => Number(d.pct_progress));
-        const remainingData = items.map(d => Number(d.pct_remaining));
-        const colors        = [PROGRESS_THEME.remaining, PROGRESS_THEME.progress];
-
-        const options = {
-            series: [
-                { name: '% Remaining', data: remainingData },
-                { name: '% Progress', data: progressData }
-            ],
-            chart: {
-                type: 'area',
-                height: this.progressChartHeight(),
-                fontFamily: 'inherit',
-                toolbar: { show: false },
-                zoom: { enabled: false },
-                animations: { enabled: animate, speed: 500 }
-            },
-            colors,
-            dataLabels: {
-                enabled: true,
-                offsetY: -8,
-                formatter: val => this.fmtPct2(val),
-                // Saat background aktif, style.colors dipakai sebagai warna kotak label
-                style: { fontSize: '11px', fontWeight: 600, colors },
-                background: {
-                    enabled: true,
-                    foreColor: '#FFFFFF',
-                    borderRadius: 4,
-                    borderWidth: 0,
-                    padding: 5,
-                    opacity: 1,
-                    dropShadow: { enabled: false }
-                }
-            },
-            stroke: { curve: 'smooth', width: 2 },
-            fill: {
-                type: 'solid',
-                opacity: [0.6, 0.55]
-            },
-            markers: {
-                size: 4,
-                strokeWidth: 0,
-                hover: { sizeOffset: 2 }
-            },
-            xaxis: {
-                categories,
-                axisBorder: { show: true, color: '#CCCCCC' },
-                axisTicks: { show: false },
-                tooltip: { enabled: false },
-                labels: {
-                    rotate: -45,
-                    rotateAlways: true,
-                    trim: false,
-                    maxHeight: 120,
-                    hideOverlappingLabels: false,
-                    style: { fontSize: '11px', colors: '#555555' }
-                }
-            },
-            yaxis: {
-                min: 0,
-                max: 115, // ruang di atas 100% untuk label
-                labels: { show: false }
-            },
-            legend: {
-                show: true,
-                position: 'top',
-                horizontalAlign: 'left',
-                fontSize: '13px',
-                labels: { colors: '#555555' },
-                markers: { size: 6, shape: 'circle', strokeWidth: 0 },
-                itemMargin: { horizontal: 8 }
-            },
-            grid: { show: false, padding: { left: 55, right: 30 } },
-            tooltip: {
-                shared: true,
-                intersect: false,
-                y: { formatter: v => this.fmtPct2(v) }
-            }
-        };
-
-        this.progressChart = new ApexCharts(el, options);
-        this.progressChart.render();
+        this.progressChart = renderProgressByAreaChart(el, items, { height: this.progressChartHeight(), animate });
     }
 
     renderOilAreaChart(items) {
@@ -793,7 +721,8 @@ class Dashboard {
             dataLabels: {
                 enabled: true,
                 formatter: val => (val > 0 ? this.fmtPct2(val) : ''),
-                style: { fontSize: items.length > 4 ? '12px' : '16px', fontWeight: 400, colors: ['#FFFFFF'] },
+                // Teks gelap di bar Progress (abu-abu muda), teks putih di bar Remaining (abu-abu tua)
+                style: { fontSize: items.length > 4 ? '13px' : '16px', fontWeight: 700, colors: ['#1F1F1F', '#FFFFFF'] },
                 dropShadow: { enabled: false }
             },
             stroke: { width: 0 },
@@ -806,7 +735,7 @@ class Dashboard {
             yaxis: {
                 labels: {
                     maxWidth: 110,
-                    style: { fontSize: '11px', fontWeight: 400, colors: '#555555' }
+                    style: { fontSize: '12px', fontWeight: 600, colors: '#333333' }
                 }
             },
             legend: { show: false },

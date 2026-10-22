@@ -118,7 +118,6 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/time-range', 'getTimeRange')->name('progress-dashboard.time-range');
         Route::get('/data', 'getData')->name('progress-dashboard.data');
         // Chart Nett / Absolute Variance by Area (sama dengan Variance Dashboard)
-        Route::get('/variance', [FACDBTD003::class, 'getData'])->name('progress-dashboard.variance');
     });
 
     // Dashboard Variance by Area (FACDBTD003)
