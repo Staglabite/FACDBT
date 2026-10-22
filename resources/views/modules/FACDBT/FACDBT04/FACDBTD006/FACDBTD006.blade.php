@@ -17,11 +17,14 @@
     </nav>
 
 <style>
+    /* Baris 1: chart Taking Data Revision + filter; baris 2: Reason Revision & Revision Performance */
     .tr-row { display: flex; gap: .75rem; align-items: stretch; }
-    .tr-row > .card { min-width: 0; height: 360px; }
-    .tr-chart-main { flex: 4 1 0; }
-    .tr-slicer { flex: 1.3 1 0; }
-    .tr-chart-side { flex: 1.7 1 0; }
+    .tr-row > .card { min-width: 0; }
+    .tr-row-main > .card { height: 500px; }
+    .tr-row-side > .card { height: 440px; }
+    .tr-chart-main { flex: 5 1 0; }
+    .tr-slicer { flex: 1 1 0; }
+    .tr-chart-side { flex: 1 1 0; }
     .tr-title { font-weight: 700; color: #333; }
     /* Slicer seperti Excel: tanpa pilihan semua tombol aktif; dengan pilihan hanya yang dipilih */
     /* Daftar mengisi sisa tinggi card dan bisa di-scroll; tombol tidak boleh menyusut (menumpuk) */
@@ -41,7 +44,7 @@
     }
 </style>
 
-<div class="tr-row mb-4">
+<div class="tr-row tr-row-main mb-3">
     {{-- Item_Book & % Area per area --}}
     <div class="card shadow-none border border-dark rounded-0 tr-chart-main">
         <div class="card-header text-center pt-2 pb-0">
@@ -66,7 +69,9 @@
             </div>
         </div>
     @endforeach
+</div>
 
+<div class="tr-row tr-row-side mb-4">
     <div class="card shadow-none border border-dark rounded-0 tr-chart-side">
         <div class="card-header text-center pt-2 pb-0">
             <h5 class="tr-title mb-0">Reason Revision</h5>
@@ -86,54 +91,8 @@
     </div>
 </div>
 
-{{-- Tabel semua revisi: seluruh periode taking (tidak hanya yang sedang berjalan), filter Year -> Month -> Event --}}
-<div class="card">
-    <div class="card-datatable">
-        <div class="d-flex justify-content-between align-items-center my-5 flex-column flex-xl-row gap-3 px-6">
-            <div class="d-flex align-items-center gap-2 justify-content-center flex-wrap">
-                <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3" id="export-excel">
-                    <i class="icon-base ti tabler-upload"></i> Export
-                </button>
-
-                {{-- Event hanya tampil bila 1 bulan punya >1 taking --}}
-                <select class="form-select form-select-sm" id="filter-year" style="width: 110px;" aria-label="Year">
-                    <option value="">All Year</option>
-                </select>
-                <select class="form-select form-select-sm" id="filter-month" style="width: 140px;" aria-label="Month" disabled>
-                    <option value="">All Month</option>
-                </select>
-                <select class="form-select form-select-sm d-none" id="filter-event" style="width: 190px;" aria-label="Event"></select>
-            </div>
-            <div class="d-flex gap-2 align-items-center flex-column flex-lg-row mt-2 mt-xxl-0">
-                <div class="d-flex align-items-center gap-1 justify-content-center">
-                    <select class="form-select form-select-sm mx-2" id="entries"
-                        style="width: 70px; max-width: 70px; font-size: 1rem; padding: 0.25rem 0.5rem;">
-                        <option value="10">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="500">500</option>
-                    </select>
-                </div>
-                <div class="input-group" style="width: 100%; min-width: 200px;">
-                    <span class="input-group-text border-end-0">
-                        <i class="icon-base ti tabler-search"></i>
-                    </span>
-                    <input type="text" class="form-control border-start-0" placeholder="Search"
-                        aria-label="Search Taking Data Revision" id="search-input">
-                </div>
-            </div>
-        </div>
-
-        {{ $dataTable->table(['class' => 'table'], true) }}
-    </div>
-</div>
 @endsection
 
 @section('page-script')
-    {{ $dataTable->scripts(attributes: ['type' => 'module']) }}
-    @vite([
-        'resources/js/pages/FACDBT/FACDBT04/Taking-Revision/takingrevision.js',
-        'resources/js/pages/FACDBT/FACDBT04/Taking-Revision/revisiontable.js',
-    ])
+    @vite(['resources/js/pages/FACDBT/FACDBT04/Taking-Revision/takingrevision.js'])
 @endsection

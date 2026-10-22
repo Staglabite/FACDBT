@@ -3,12 +3,9 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
 use App\Services\FACDBT\AreaName;
-use App\DataTables\Original\FACDBT04\FACDBTD006DataTable;
-use App\Exports\FACDBT\FACDBT04\FACDBTD006 as Export;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Services\FACDBT\RunningTakingPeriod;
-use App\Services\FACDBT\TakingRevisionTable;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +17,6 @@ use Illuminate\Support\Facades\DB;
  * - Reason Revision      : porsi revisi per REASON_REVISION
  * - Revision Performance : porsi revisi per MODIFIED_BY
  * Area = SIM_INV_GROUP_LOCATION.location_group dari LOCATION_NO. Filter Modified By & Area boleh lebih dari satu.
- * Di bawah chart: tabel semua revisi seluruh periode taking (filter Year -> Month -> Event) dengan export CSV.
  */
 class FACDBTD006 extends Controller
 {
@@ -31,53 +27,9 @@ class FACDBTD006 extends Controller
 
     private const UNKNOWN = 'UNKNOWN';
 
-    public function index(FACDBTD006DataTable $dataTable)
+    public function index()
     {
-        return view('modules.FACDBT.FACDBT04.FACDBTD006.FACDBTD006', ['dataTable' => $dataTable->html()]);
-    }
-
-    /**
-     * Ajax tabel revisi. Dengan `ids_only`: key semua baris yang lolos filter (untuk "centang semua").
-     */
-    public function table(FACDBTD006DataTable $dataTable)
-    {
-        if (request()->boolean('ids_only')) {
-            $ids = $dataTable->dataTable($dataTable->query())
-                ->skipPaging()
-                ->getFilteredQuery()
-                ->reorder()
-                ->select(DB::raw(TakingRevisionTable::ROW_KEY_SQL . ' as row_key'))
-                ->pluck('row_key')
-                ->all();
-
-            return response()->json(['ids' => $ids]);
-        }
-
-        return $dataTable->ajax();
-    }
-
-    /**
-     * Daftar periode untuk filter Year -> Month -> Event.
-     */
-    public function getPeriods(TakingRevisionTable $table)
-    {
-        return response()->json(['events' => $table->periods()]);
-    }
-
-    /**
-     * Export CSV: data yang dicentang saja, atau semua data pada filter periode & pencarian saat ini.
-     */
-    public function export(Request $request, TakingRevisionTable $table)
-    {
-        $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
-
-        $query = $table->query($request)
-            ->when(!empty($ids), fn ($q) => $q->whereIn(DB::raw(TakingRevisionTable::ROW_KEY_SQL), $ids))
-            ->orderByDesc('r.CREATED_DATETIME')
-            ->orderBy('r.ID_TAKING')
-            ->orderBy('r.REV_NO');
-
-        return Export::download($query);
+        return view('modules.FACDBT.FACDBT04.FACDBTD006.FACDBTD006');
     }
 
     /**

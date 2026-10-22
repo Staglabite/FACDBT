@@ -4,7 +4,9 @@ import { autoRefresh, track } from '../shared/dashboardStatus';
 
 const ENDPOINT = 'FACDBT/ds/taking-data-revision';
 
-const CHART_HEIGHT = 300;
+// Tinggi chart, disesuaikan dengan tinggi card di blade
+const AREA_CHART_HEIGHT = 440;
+const SHARE_CHART_HEIGHT = 380;
 
 const THEME = {
     itemBook: '#2E75B6',
@@ -146,7 +148,7 @@ class DashboardTakingRevision {
             ],
             chart: {
                 type: 'line',
-                height: CHART_HEIGHT,
+                height: AREA_CHART_HEIGHT,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -161,36 +163,41 @@ class DashboardTakingRevision {
                 enabledOnSeries: [0, 1],
                 formatter: (val, { seriesIndex }) => (seriesIndex === 1 ? fmtPercent(val) : Number(val).toLocaleString('en-US')),
                 offsetY: -6,
-                style: { fontSize: '10px', fontWeight: 600, colors: [THEME.label, THEME.label] },
-                background: { enabled: false }
+                // Label dalam kotak berwarna supaya tetap terbaca saat label kolom & garis berdekatan
+                // (saat background aktif, style.colors dipakai sebagai warna kotak)
+                style: { fontSize: '12px', fontWeight: 600, colors: [THEME.itemBook, '#B38F00'] },
+                background: { enabled: true, foreColor: '#FFFFFF', borderRadius: 3, borderWidth: 0, padding: 3, opacity: 1, dropShadow: { enabled: false } }
             },
             xaxis: {
                 categories: items.map(d => d.area),
+                // Kolom + garis: tanpa 'between' area hover bergeser setengah kolom
+                tickPlacement: 'between',
                 axisTicks: { show: false },
                 tooltip: { enabled: false },
                 labels: {
                     rotate: -45,
                     rotateAlways: true,
-                    trim: true,
-                    maxHeight: 70,
+                    // Nama area ditampilkan lengkap
+                    trim: false,
+                    maxHeight: 110,
                     hideOverlappingLabels: false,
-                    style: { fontSize: '10px', colors: '#555555' }
+                    style: { fontSize: '12px', colors: '#555555' }
                 }
             },
             yaxis: [
                 {
                     seriesName: 'Item_Book',
                     min: 0,
-                    labels: { formatter: v => Math.round(v).toLocaleString('en-US'), style: { fontSize: '10px' } }
+                    labels: { formatter: v => Math.round(v).toLocaleString('en-US'), style: { fontSize: '12px' } }
                 },
                 {
                     seriesName: '% Area',
                     opposite: true,
                     min: 0,
-                    labels: { formatter: v => `${Number(v).toFixed(1)}%`, style: { fontSize: '10px' } }
+                    labels: { formatter: v => `${Number(v).toFixed(1)}%`, style: { fontSize: '12px' } }
                 }
             ],
-            legend: { show: true, position: 'bottom', fontSize: '11px', markers: { size: 6, strokeWidth: 0 } },
+            legend: { show: true, position: 'bottom', fontSize: '13px', markers: { size: 7, strokeWidth: 0 } },
             grid: { borderColor: '#EEEEEE', padding: { left: 5, right: 5 } },
             tooltip: {
                 shared: true,
@@ -224,19 +231,19 @@ class DashboardTakingRevision {
             series: [{ name: 'Revisi', data: values }],
             chart: {
                 type: 'bar',
-                height: CHART_HEIGHT,
+                height: SHARE_CHART_HEIGHT,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
                 animations: { enabled: true, speed: 500 }
             },
             colors: [THEME.bar],
-            plotOptions: { bar: { horizontal: true, barHeight: '45%', dataLabels: { position: 'top' } } },
+            plotOptions: { bar: { horizontal: true, barHeight: '55%', dataLabels: { position: 'top' } } },
             dataLabels: {
                 enabled: true,
                 formatter: v => `${Number(v).toFixed(1)}%`,
-                offsetX: 22,
-                style: { fontSize: '10px', fontWeight: 600, colors: [THEME.label] }
+                offsetX: 30,
+                style: { fontSize: '13px', fontWeight: 600, colors: [THEME.label] }
             },
             xaxis: {
                 categories: items.map(d => d.label),
@@ -247,9 +254,9 @@ class DashboardTakingRevision {
                 axisTicks: { show: false }
             },
             yaxis: {
-                labels: { maxWidth: 110, style: { fontSize: '10px', colors: '#333333' } }
+                labels: { maxWidth: 200, style: { fontSize: '12px', colors: '#333333' } }
             },
-            grid: { show: false, padding: { left: 0, right: 5 } },
+            grid: { show: false, padding: { left: 15, right: 5 } },
             legend: { show: false },
             tooltip: {
                 y: {
