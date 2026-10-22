@@ -1,4 +1,5 @@
 import ApexCharts from 'apexcharts';
+import { dimCategories, clickedIndex } from './chartDim';
 
 // Chart Counting Progress (by Part): % Progress & % Remaining per area.
 // Dipakai Main Dashboard dan Progress Dashboard supaya tampilannya sama.
@@ -12,9 +13,10 @@ const fmtPct2 = v => `${Number(v || 0).toFixed(2)}%`;
 
 /**
  * Gambar chart di elemen el. items: [{ area, pct_progress, pct_remaining }, ...].
- * Mengembalikan instance ApexCharts, atau null bila tidak ada data.
+ * Opsional filter interaktif: onSelect(area) dipanggil saat area diklik, selected() = area yang dipilih
+ * (area lain dipudarkan). Mengembalikan instance ApexCharts, atau null bila tidak ada data.
  */
-export function renderProgressByAreaChart(el, items, { height = 400, animate = true, emptyText = 'No Data Available for selected time' } = {}) {
+export function renderProgressByAreaChart(el, items, { height = 400, animate = true, emptyText = 'No Data Available for selected time', onSelect = null, selected = null } = {}) {
     if (!items || items.length === 0) {
         el.innerHTML = `<p class="text-center text-muted my-5">${emptyText}</p>`;
         return null;
@@ -25,6 +27,11 @@ export function renderProgressByAreaChart(el, items, { height = 400, animate = t
     const progressData  = items.map(d => Number(d.pct_progress));
     const remainingData = items.map(d => Number(d.pct_remaining));
     const colors        = [THEME.remaining, THEME.progress];
+    const dim = ctx => dimCategories(ctx, items.length, selected ? items.findIndex(d => d.area === selected()) : -1);
+    const select = index => {
+        if (items[index]) onSelect(items[index].area);
+    };
+    if (onSelect) el.classList.add('fd-clickable');
 
     const options = {
         series: [
@@ -37,7 +44,13 @@ export function renderProgressByAreaChart(el, items, { height = 400, animate = t
             fontFamily: 'inherit',
             toolbar: { show: false },
             zoom: { enabled: false },
-            animations: { enabled: animate, speed: 500 }
+            animations: { enabled: animate, speed: 500 },
+            events: onSelect ? {
+                mounted: dim,
+                updated: dim,
+                click: (event, ctx, config) => select(clickedIndex(ctx, config)),
+                xAxisLabelClick: (event, ctx, config) => select(config.labelIndex)
+            } : {}
         },
         colors,
         dataLabels: {

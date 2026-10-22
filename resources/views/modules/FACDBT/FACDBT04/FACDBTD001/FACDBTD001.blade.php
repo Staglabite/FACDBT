@@ -16,6 +16,15 @@
         </ol>
     </nav>
 
+<style>
+    /* Filter interaktif: chart / card bisa diklik, yang tidak dipilih dipudarkan */
+    .fd-clickable { cursor: pointer; }
+    .card.fd-dim { opacity: .35; transition: opacity .2s ease; }
+</style>
+
+{{-- Filter aktif dari klik chart (jam, area, 4W/2W, RM/WIP/FG); disembunyikan bila tidak ada --}}
+<div class="d-none d-flex flex-wrap align-items-center gap-2 mb-2" id="chart-filter-bar"></div>
+
 {{--
     Layout 2 kolom:
     - Kiri  : Counting Progress -> tombol slot waktu -> Counting Progress (by Part)

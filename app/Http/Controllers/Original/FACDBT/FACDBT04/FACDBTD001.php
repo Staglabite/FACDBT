@@ -549,6 +549,88 @@ class FACDBTD001 extends Controller
     }
 
     /**
+     * Label area (seperti chart progress by area) untuk satu (lokasi, part): area non-oil / 'OIL <area>' / 'PPC-OIL'.
+     * Lokasi di beberapa group punya beberapa label.
+     *
+     * @return array<int, string>
+     */
+    private static function lineAreaLabels(string $location, bool $isOil, array $areaMap): array
+    {
+        $labels = [];
+        foreach ($areaMap[$location] ?? [null] as $area) {
+            $labels[self::areaLabel($location, $area, $isOil)] = true;
+        }
+
+        return array_keys($labels);
+    }
+
+    /**
+     * Filter interaktif chart variance dari request: area (label area chart progress), seg (4W / 2W),
+     * acc (RM / WIP / FG). Kosong = tanpa filter.
+     *
+     * @return array{area: ?string, seg: ?string, acc: ?string}
+     */
+    private static function varianceFilters(Request $request): array
+    {
+        $value = fn (string $key) => ($v = trim((string) $request->input($key, ''))) !== '' ? $v : null;
+
+        return ['area' => $value('area'), 'seg' => $value('seg'), 'acc' => $value('acc')];
+    }
+
+    /**
+     * Ringkasan variance dari baris dasar [[labels, seg, acc, nett, absolute], ...] dengan filter interaktif.
+     * Chart yang menjadi sumber filter tetap menampilkan semua kelompoknya (yang lain dipudarkan di browser):
+     * - by_part_group       : difilter area & acc (tidak difilter seg)
+     * - by_accounting_group : difilter area & seg (tidak difilter acc)
+     * - nett / absolute     : difilter area, seg & acc
+     */
+    public static function varianceSummary(array $rows, array $filters): array
+    {
+        $byPartGroup = [];
+        $byAccGroup  = [];
+        $nett = 0.0;
+        $absolute = 0.0;
+
+        foreach ($rows as [$labels, $seg, $acc, $rowNett, $rowAbs]) {
+            if ($filters['area'] !== null && !in_array($filters['area'], $labels, true)) {
+                continue;
+            }
+            $segMatch = $filters['seg'] === null || $filters['seg'] === $seg;
+            $accMatch = $filters['acc'] === null || $filters['acc'] === $acc;
+
+            if ($accMatch) {
+                $byPartGroup[$seg]['nett'] = ($byPartGroup[$seg]['nett'] ?? 0.0) + $rowNett;
+                $byPartGroup[$seg]['absolute'] = ($byPartGroup[$seg]['absolute'] ?? 0.0) + $rowAbs;
+            }
+            if ($segMatch) {
+                $byAccGroup[$acc]['nett'] = ($byAccGroup[$acc]['nett'] ?? 0.0) + $rowNett;
+                $byAccGroup[$acc]['absolute'] = ($byAccGroup[$acc]['absolute'] ?? 0.0) + $rowAbs;
+            }
+            if ($segMatch && $accMatch) {
+                $nett     += $rowNett;
+                $absolute += $rowAbs;
+            }
+        }
+
+        $summarize = fn (array $groups) => array_map(
+            fn ($group, $sum) => [
+                'group'    => (string) $group,
+                'nett'     => round($sum['nett'], 2),
+                'absolute' => round($sum['absolute'], 2),
+            ],
+            array_keys($groups),
+            $groups
+        );
+
+        return [
+            'nett'                => round($nett, 2),
+            'absolute'            => round($absolute, 2),
+            'by_part_group'       => $summarize($byPartGroup),
+            'by_accounting_group' => $summarize($byAccGroup),
+        ];
+    }
+
+    /**
      * Endpoint untuk Chart Variance (Nett & Absolute Variance).
      * Variance dihitung per (lokasi, part): amount = (qty taking - qty book) x unit cost,
      * unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh); UNIT_COST di book tidak dipakai.
@@ -556,28 +638,23 @@ class FACDBTD001 extends Controller
      * - Absolute variance : jumlah ABS(amount)
      * Dikelompokkan per seg (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
      * Taking hanya yang di-scan di rentang filter waktu (sama seperti chart progress by area).
+     * Filter interaktif: `area`, `seg`, `acc` (lihat varianceSummary()).
      */
     public function getVariance(Request $request)
     {
-        $empty = [
-            'nett'              => 0,
-            'absolute'          => 0,
-            'by_part_group'     => [],
-            'by_accounting_group' => [],
-        ];
-
         $db = DB::connection(self::CONN);
 
         $period = $this->resolvePeriod($db, $request);
         if ($period === null) {
-            return response()->json($empty);
+            return response()->json(self::varianceSummary([], self::varianceFilters($request)));
         }
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:variance:v7:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:variance:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
-        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo, $empty) {
+        // Baris dasar per (label area, seg, acc) supaya filter interaktif cukup dihitung di PHP
+        $rows = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo) {
             // [lokasi|part => [qty book, qty taking]]
             $lines = [];
             foreach ($this->varianceBookQty($db, $takingDate, $closeDate, $latestInvListNo) as $key => $qty) {
@@ -595,50 +672,28 @@ class FACDBTD001 extends Controller
                 $lines[$key][1] += (float) $r->qty;
             }
 
-            if (empty($lines)) {
-                return $empty;
-            }
-
             $unitCosts  = $this->varianceUnitCosts($db);
             $partGroups = $this->variancePartGroups($db);
+            $oilParts   = $this->oilPartsSub($db)->pluck('is_oil', 'part_no')->all();
+            $areaMap    = $this->locationAreaMap($db);
 
-            $byPartGroup = [];
-            $byAccGroup  = [];
-            $nett = 0.0;
-            $absolute = 0.0;
+            $rows = [];
             foreach ($lines as $key => [$qtyBook, $qtyTaking]) {
-                $part     = explode('|', $key, 2)[1];
+                [$location, $part] = explode('|', $key, 2);
                 $variance = ($qtyTaking - $qtyBook) * ($unitCosts[$part] ?? 0.0);
-                [$partGroup, $accGroup] = $partGroups[$part] ?? ['OTHERS', 'OTHERS'];
+                [$seg, $acc] = $partGroups[$part] ?? ['OTHERS', 'OTHERS'];
+                $labels = self::lineAreaLabels($location, (int) ($oilParts[$part] ?? 0) === 1, $areaMap);
 
-                $nett     += $variance;
-                $absolute += abs($variance);
-
-                $byPartGroup[$partGroup]['nett'] = ($byPartGroup[$partGroup]['nett'] ?? 0.0) + $variance;
-                $byPartGroup[$partGroup]['absolute'] = ($byPartGroup[$partGroup]['absolute'] ?? 0.0) + abs($variance);
-                $byAccGroup[$accGroup]['nett'] = ($byAccGroup[$accGroup]['nett'] ?? 0.0) + $variance;
-                $byAccGroup[$accGroup]['absolute'] = ($byAccGroup[$accGroup]['absolute'] ?? 0.0) + abs($variance);
+                $group = implode("\0", $labels) . "\1{$seg}\1{$acc}";
+                $rows[$group] ??= [$labels, $seg, $acc, 0.0, 0.0];
+                $rows[$group][3] += $variance;
+                $rows[$group][4] += abs($variance);
             }
 
-            $summarize = fn (array $groups) => array_map(
-                fn ($group, $sum) => [
-                    'group'    => (string) $group,
-                    'nett'     => round($sum['nett'], 2),
-                    'absolute' => round($sum['absolute'], 2),
-                ],
-                array_keys($groups),
-                $groups
-            );
-
-            return [
-                'nett'                => round($nett, 2),
-                'absolute'            => round($absolute, 2),
-                'by_part_group'       => $summarize($byPartGroup),
-                'by_accounting_group' => $summarize($byAccGroup),
-            ];
+            return array_values($rows);
         });
 
-        return response()->json($result);
+        return response()->json(self::varianceSummary($rows, self::varianceFilters($request)));
     }
 
     /**
@@ -646,7 +701,7 @@ class FACDBTD001 extends Controller
      * Slot waktu sama dengan chart atas (Counting Progress keseluruhan), tidak terpengaruh filter tombol waktu.
      * - Abs Var [+] : jumlah variance amount per (lokasi, part) yang positif (taking > book)
      * - Abs Var [-] : jumlah ABS variance amount per (lokasi, part) yang negatif (taking < book)
-     * Taking dihitung kumulatif s/d jam slot.
+     * Taking dihitung kumulatif s/d jam slot. Filter interaktif `area`, `seg`, `acc` berlaku.
      */
     public function getVarianceTrend(Request $request)
     {
@@ -668,15 +723,17 @@ class FACDBTD001 extends Controller
             return response()->json([]);
         }
 
-        $cacheKey = "FACDBTD001:variance-trend:v4:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+        $slotTimes = [];
+        foreach (self::NON_OIL_SLOTS as $i) {
+            [$dayOffset, $hm] = self::SLOTS[$i];
+            [$h, $m] = explode(':', $hm);
+            $slotTimes[$i] = $baseDay->copy()->addDays($dayOffset)->setTime((int) $h, (int) $m, 0)->format('Y-m-d H:i:s');
+        }
 
-        $series = $this->dashboardCache($cacheKey, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
-            $slotTimes = [];
-            foreach (self::NON_OIL_SLOTS as $i) {
-                [$dayOffset, $hm] = self::SLOTS[$i];
-                [$h, $m] = explode(':', $hm);
-                $slotTimes[$i] = $baseDay->copy()->addDays($dayOffset)->setTime((int) $h, (int) $m, 0)->format('Y-m-d H:i:s');
-            }
+        $cacheKey = "FACDBTD001:variance-trend:v5:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+
+        // Baris dasar per (label area, seg, acc): [labels, seg, acc, [slot => Var (+)], [slot => |Var (-)|]]
+        $rows = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $latestInvListNo, $slotTimes) {
             $lastSlot = max($slotTimes);
 
             // Qty taking kumulatif per (lokasi, part) untuk setiap slot dalam satu query
@@ -701,36 +758,60 @@ class FACDBTD001 extends Controller
                 }
             }
 
-            $unitCosts = $this->varianceUnitCosts($db);
+            $unitCosts  = $this->varianceUnitCosts($db);
+            $partGroups = $this->variancePartGroups($db);
+            $oilParts   = $this->oilPartsSub($db)->pluck('is_oil', 'part_no')->all();
+            $areaMap    = $this->locationAreaMap($db);
+            $zero       = array_fill_keys(array_keys($slotTimes), 0.0);
 
-            $positive = array_fill_keys(array_keys($slotTimes), 0.0);
-            $negative = $positive;
+            $rows = [];
             foreach ($lines as $key => [$qtyBook, $qtyTaking]) {
-                $unitCost = $unitCosts[explode('|', $key, 2)[1]] ?? 0.0;
+                [$location, $part] = explode('|', $key, 2);
+                $unitCost = $unitCosts[$part] ?? 0.0;
                 if ($unitCost == 0.0) {
                     continue;
                 }
+                [$seg, $acc] = $partGroups[$part] ?? ['OTHERS', 'OTHERS'];
+                $labels = self::lineAreaLabels($location, (int) ($oilParts[$part] ?? 0) === 1, $areaMap);
+
+                $group = implode("\0", $labels) . "\1{$seg}\1{$acc}";
+                $rows[$group] ??= [$labels, $seg, $acc, $zero, $zero];
                 foreach (array_keys($slotTimes) as $i) {
                     $variance = (($qtyTaking[$i] ?? 0.0) - $qtyBook) * $unitCost;
                     if ($variance > 0) {
-                        $positive[$i] += $variance;
+                        $rows[$group][3][$i] += $variance;
                     } else {
-                        $negative[$i] -= $variance;
+                        $rows[$group][4][$i] -= $variance;
                     }
                 }
             }
 
-            $series = [];
-            foreach ($slotTimes as $i => $time) {
-                $series[] = [
-                    'time'         => $time,
-                    'abs_positive' => round($positive[$i], 2),
-                    'abs_negative' => round($negative[$i], 2),
-                ];
-            }
-
-            return $series;
+            return array_values($rows);
         });
+
+        $filters  = self::varianceFilters($request);
+        $positive = array_fill_keys(array_keys($slotTimes), 0.0);
+        $negative = $positive;
+        foreach ($rows as [$labels, $seg, $acc, $pos, $neg]) {
+            if (($filters['area'] !== null && !in_array($filters['area'], $labels, true))
+                || ($filters['seg'] !== null && $filters['seg'] !== $seg)
+                || ($filters['acc'] !== null && $filters['acc'] !== $acc)) {
+                continue;
+            }
+            foreach (array_keys($slotTimes) as $i) {
+                $positive[$i] += $pos[$i];
+                $negative[$i] += $neg[$i];
+            }
+        }
+
+        $series = [];
+        foreach ($slotTimes as $i => $time) {
+            $series[] = [
+                'time'         => $time,
+                'abs_positive' => round($positive[$i], 2),
+                'abs_negative' => round($negative[$i], 2),
+            ];
+        }
 
         return response()->json(self::blankFutureSlots($series, ['abs_positive', 'abs_negative']));
     }
