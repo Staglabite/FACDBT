@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\Services\FACDBT\AreaName;
 use App\Services\FACDBT\RunningTakingPeriod;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
@@ -94,11 +95,11 @@ class FACDBTD001 extends Controller
      */
     private function locationAreaMap($db): array
     {
-        return $this->dashboardCache('FACDBTD001:location-area-map:v3', function () use ($db) {
+        return $this->dashboardCache('FACDBTD001:location-area-map:v4', function () use ($db) {
             $map = [];
             foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->get() as $r) {
                 $loc   = trim((string) $r->LOCATION_NO);
-                $group = trim((string) $r->location_group);
+                $group = AreaName::of($r->location_group);
                 $map[$loc][$group === '' ? '' : $group] = $group === '' ? null : $group;
             }
 
@@ -373,7 +374,7 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:area:v11:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:area:v12:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
         $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo) {
             // 1 baris per (area, part). Part oil (inventory_uom = ml) dipisah per part ke area
@@ -418,12 +419,7 @@ class FACDBTD001 extends Controller
             // Daftar area diambil dari MASTER (SIM_INV_GROUP_LOCATION.location_group), bukan hanya dari
             // data book, supaya semua area tetap tampil (0% bila belum ada data book).
             $grouped      = $bookRows->groupBy('area_label');
-            $allAreaNames = $db->table('SIM_INV_GROUP_LOCATION')
-                ->selectRaw('TRIM(location_group) as area_name')
-                ->whereRaw("TRIM(location_group) <> ''")
-                ->distinct()
-                ->pluck('area_name')
-                ->all();
+            $allAreaNames = AreaName::list($db->table('SIM_INV_GROUP_LOCATION')->distinct()->pluck('location_group'));
             $areaNames = array_values(array_unique(array_merge($allAreaNames, $grouped->keys()->all())));
 
             foreach ($areaNames as $areaName) {

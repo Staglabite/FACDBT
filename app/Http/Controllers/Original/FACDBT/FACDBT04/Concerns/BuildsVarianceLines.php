@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns;
 
+use App\Services\FACDBT\AreaName;
 use App\Services\FACDBT\RunningTakingPeriod;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -106,11 +107,11 @@ trait BuildsVarianceLines
      */
     private function locationAreas($db): array
     {
-        return $this->dashboardCache('FACDBT04:location-areas:v3', function () use ($db) {
+        return $this->dashboardCache('FACDBT04:location-areas:v4', function () use ($db) {
             $map = [];
             foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->orderBy('IID')->get() as $r) {
                 $loc   = trim((string) $r->LOCATION_NO);
-                $group = trim((string) $r->location_group);
+                $group = AreaName::of($r->location_group);
                 if ($group !== '' && !isset($map[$loc])) {
                     $map[$loc] = $group;
                 }

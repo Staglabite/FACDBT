@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\Services\FACDBT\AreaName;
 use App\DataTables\Original\FACDBT04\FACDBTD004NegativeDataTable;
 use App\DataTables\Original\FACDBT04\FACDBTD004PositiveDataTable;
 use App\Http\Controllers\Controller;
@@ -34,12 +35,7 @@ class FACDBTD004 extends Controller
         $db = DB::connection(self::CONN);
         $period = $this->resolvePeriod($db);
 
-        $areas = $db->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(location_group) as area')
-            ->whereRaw("TRIM(location_group) <> ''")
-            ->distinct()
-            ->orderBy('area')
-            ->pluck('area');
+        $areas = AreaName::list($db->table('SIM_INV_GROUP_LOCATION')->distinct()->pluck('location_group'));
 
         return response()->json([
             'time_range' => $period ? $this->timeRangePayload($period['takingDate'], $period['closeDate']) : ['days' => []],

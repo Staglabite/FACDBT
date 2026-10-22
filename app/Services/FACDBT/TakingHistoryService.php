@@ -302,7 +302,7 @@ class TakingHistoryService
         $map = [];
         foreach ($this->db()->table('SIM_INV_GROUP_LOCATION')->orderBy('IID')->get(['LOCATION_NO', 'location_group']) as $r) {
             $loc   = trim((string) $r->LOCATION_NO);
-            $group = trim((string) $r->location_group);
+            $group = AreaName::of($r->location_group);
             if ($group !== '' && !isset($map[$loc])) {
                 $map[$loc] = $group;
             }

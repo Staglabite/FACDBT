@@ -83,7 +83,7 @@ class TakingRevisionTable
                 ->selectRaw('MIN(IID)')
                 ->whereRaw("TRIM(location_group) <> ''")
                 ->groupBy('LOCATION_NO'))
-            ->select('gl.LOCATION_NO', DB::raw('TRIM(gl.location_group) as location_group'));
+            ->select('gl.LOCATION_NO', DB::raw(AreaName::sql('gl.location_group') . ' as location_group'));
 
         $select = [DB::raw(self::ROW_KEY_SQL . ' as row_key')];
         foreach (array_keys(self::COLUMNS) as $column) {

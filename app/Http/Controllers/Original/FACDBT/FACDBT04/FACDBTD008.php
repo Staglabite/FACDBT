@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\Services\FACDBT\AreaName;
 use App\DataTables\Original\FACDBT04\FACDBTD008DataTable;
 use App\Exports\FACDBT\FACDBT04\FACDBTD008 as Export;
 use App\Http\Controllers\Controller;
@@ -155,7 +156,7 @@ class FACDBTD008 extends Controller
         $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
 
-        return $this->dashboardCache("FACDBTD008:source:v2:{$takingDate}:{$closeDate}", function () use ($db, $takingDate, $closeDate, $empty) {
+        return $this->dashboardCache("FACDBTD008:source:v3:{$takingDate}:{$closeDate}", function () use ($db, $takingDate, $closeDate, $empty) {
             $areaOf = $this->locationAreas($db);
             $area   = fn ($loc) => $areaOf[trim((string) $loc)] ?? self::UNKNOWN;
 
@@ -214,14 +215,7 @@ class FACDBTD008 extends Controller
      */
     private function areaList(): array
     {
-        return DB::connection(self::CONN)
-            ->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(location_group) as area')
-            ->whereRaw("TRIM(location_group) <> ''")
-            ->distinct()
-            ->orderBy('area')
-            ->pluck('area')
-            ->all();
+        return AreaName::list(DB::connection(self::CONN)->table('SIM_INV_GROUP_LOCATION')->distinct()->pluck('location_group'));
     }
 
     /**
@@ -232,7 +226,7 @@ class FACDBTD008 extends Controller
         $map = [];
         foreach ($db->table('SIM_INV_GROUP_LOCATION')->orderBy('IID')->get(['LOCATION_NO', 'location_group']) as $r) {
             $loc   = trim((string) $r->LOCATION_NO);
-            $group = trim((string) $r->location_group);
+            $group = AreaName::of($r->location_group);
             if ($group !== '' && !isset($map[$loc])) {
                 $map[$loc] = $group;
             }

@@ -52,7 +52,7 @@ class FACDBTD003 extends Controller
         }
 
         [$takingFrom, $takingTo] = $this->takingRange($request, $period['takingDate'], $period['closeDate']);
-        $result = $this->dashboardCache('FACDBTD003:data:v3:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingFrom, $takingTo])), function () use ($db, $period, $takingFrom, $takingTo) {
+        $result = $this->dashboardCache('FACDBTD003:data:v4:' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingFrom, $takingTo])), function () use ($db, $period, $takingFrom, $takingTo) {
             $areas   = $this->locationAreas($db);
             $perArea = [];
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\Services\FACDBT\AreaName;
 use App\Services\FACDBT\RunningTakingPeriod;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
@@ -29,13 +30,10 @@ class FACDBTD002 extends Controller
      */
     public function getGroups()
     {
-        $groups = DB::connection(self::CONN)
+        $groups = AreaName::list(DB::connection(self::CONN)
             ->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(location_group) as area')
-            ->whereRaw("TRIM(location_group) <> ''")
             ->distinct()
-            ->orderBy('area')
-            ->pluck('area');
+            ->pluck('location_group'));
 
         return response()->json($groups);
     }
@@ -144,7 +142,8 @@ class FACDBTD002 extends Controller
         });
 
         $locations = $db->table('SIM_INV_GROUP_LOCATION')
-            ->when($group !== '', fn ($q) => $q->whereRaw('TRIM(location_group) = ?', [$group]))
+            // Area gabungan (mis. QA) mencakup semua location_group-nya
+            ->when($group !== '', fn ($q) => $q->whereIn(DB::raw('UPPER(TRIM(location_group))'), array_map('strtoupper', AreaName::groupsOf($group))))
             ->distinct()
             ->pluck('LOCATION_NO');
 

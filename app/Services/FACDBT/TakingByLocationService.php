@@ -78,7 +78,7 @@ class TakingByLocationService
         set_time_limit(300);
         ini_set('memory_limit', '512M');
 
-        return $this->dashboardCache("FACDBTD007:rows:v3:{$takingDate}:{$closeDate}", function () use ($db, $period, $takingDate, $closeDate) {
+        return $this->dashboardCache("FACDBTD007:rows:v4:{$takingDate}:{$closeDate}", function () use ($db, $period, $takingDate, $closeDate) {
             return $this->build($db, $period, $takingDate, $closeDate);
         });
     }
@@ -303,7 +303,7 @@ class TakingByLocationService
         $map = [];
         foreach ($db->table('SIM_INV_GROUP_LOCATION')->orderBy('IID')->get(['LOCATION_NO', 'location_group']) as $r) {
             $loc   = trim((string) $r->LOCATION_NO);
-            $group = trim((string) $r->location_group);
+            $group = AreaName::of($r->location_group);
             if ($group !== '' && !isset($map[$loc])) {
                 $map[$loc] = $group;
             }
