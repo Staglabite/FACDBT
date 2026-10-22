@@ -414,6 +414,8 @@ class Dashboard {
             xaxis: {
                 type: 'category',
                 categories,
+                // Kolom + garis: tanpa 'between' area hover bergeser setengah kolom (tooltip menunjuk jam sebelumnya)
+                tickPlacement: 'between',
                 axisBorder: { show: false },
                 axisTicks: { show: false },
                 tooltip: { enabled: false },
