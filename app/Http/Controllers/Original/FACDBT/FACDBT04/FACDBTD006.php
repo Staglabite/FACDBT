@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  * - Taking Data Revision : per area, Item_Book (jumlah baris book) dan % Area (jumlah revisi / Item_Book x 100)
  * - Reason Revision      : porsi revisi per REASON_REVISION
  * - Revision Performance : porsi revisi per MODIFIED_BY
- * Area = SIM_INV_GROUP_LOCATION.location_group dari LOCATION_NO. Filter Modified By & Area boleh lebih dari satu.
+ * Area = SIM_INV_GROUP_LOCATION.location_group dari LOCATION_NO. Filter dengan klik chart (lihat getData()).
  */
 class FACDBTD006 extends Controller
 {
@@ -33,46 +33,48 @@ class FACDBTD006 extends Controller
     }
 
     /**
-     * Data semua chart + daftar pilihan filter, untuk filter request `modifiers[]` dan `areas[]`
-     * (tanpa pilihan: semua). Filter Area berlaku untuk semua chart; filter Modified By untuk jumlah revisi.
+     * Data semua chart dengan filter interaktif `area` (klik chart Taking Data Revision) dan `modifier`
+     * (klik chart Revision Performance); kosong = semua. Chart yang menjadi sumber filter tetap menampilkan
+     * semua kategorinya (yang lain dipudarkan di browser):
+     * - Taking Data Revision : semua area, jumlah revisi difilter modifier
+     * - Revision Performance : semua modifier, difilter area
+     * - Reason Revision      : difilter area & modifier
      */
     public function getData(Request $request)
     {
         $source = $this->source();
 
-        $modifiers = $this->selected($request, 'modifiers');
-        $areas     = $this->selected($request, 'areas');
-
-        $inArea     = fn (string $area) => !$areas || isset($areas[$area]);
-        $byModifier = fn (string $modifier) => !$modifiers || isset($modifiers[$modifier]);
-
-        $itemBook = [];
-        foreach ($source['book'] as $area => $count) {
-            if ($inArea($area)) {
-                $itemBook[$area] = $count;
-            }
-        }
+        $area     = trim((string) $request->input('area', ''));
+        $modifier = trim((string) $request->input('modifier', ''));
 
         $revisionsPerArea = [];
         $perReason        = [];
         $perModifier      = [];
-        $total            = 0;
-        foreach ($source['revisions'] as [$area, $modifier, $reason, $count]) {
-            if (!$inArea($area) || !$byModifier($modifier)) {
-                continue;
+        $reasonTotal      = 0;
+        $modifierTotal    = 0;
+        foreach ($source['revisions'] as [$rowArea, $rowModifier, $reason, $count]) {
+            $areaMatch     = $area === '' || $area === $rowArea;
+            $modifierMatch = $modifier === '' || $modifier === $rowModifier;
+
+            if ($modifierMatch) {
+                $revisionsPerArea[$rowArea] = ($revisionsPerArea[$rowArea] ?? 0) + $count;
             }
-            $revisionsPerArea[$area] = ($revisionsPerArea[$area] ?? 0) + $count;
-            $perReason[$reason]      = ($perReason[$reason] ?? 0) + $count;
-            $perModifier[$modifier]  = ($perModifier[$modifier] ?? 0) + $count;
-            $total += $count;
+            if ($areaMatch) {
+                $perModifier[$rowModifier] = ($perModifier[$rowModifier] ?? 0) + $count;
+                $modifierTotal += $count;
+            }
+            if ($areaMatch && $modifierMatch) {
+                $perReason[$reason] = ($perReason[$reason] ?? 0) + $count;
+                $reasonTotal += $count;
+            }
         }
 
         $byArea = [];
-        foreach (array_keys($itemBook + $revisionsPerArea) as $area) {
-            $book      = $itemBook[$area] ?? 0;
-            $revisions = $revisionsPerArea[$area] ?? 0;
+        foreach (array_keys($source['book'] + $revisionsPerArea) as $rowArea) {
+            $book      = $source['book'][$rowArea] ?? 0;
+            $revisions = $revisionsPerArea[$rowArea] ?? 0;
             $byArea[]  = [
-                'area'      => (string) $area,
+                'area'      => (string) $rowArea,
                 'item_book' => $book,
                 'revisions' => $revisions,
                 // Tanpa book persentase tidak bisa dihitung
@@ -82,22 +84,19 @@ class FACDBTD006 extends Controller
         usort($byArea, fn ($a, $b) => [$b['percent'] ?? -1, $b['item_book']] <=> [$a['percent'] ?? -1, $a['item_book']]);
 
         return response()->json([
-            'modifiers'            => $source['modifiers'],
-            'areas'                => $source['areas'],
-            'total'                => $total,
             'by_area'              => $byArea,
-            'reason_revision'      => $this->shares($perReason, $total),
-            'revision_performance' => $this->shares($perModifier, $total),
+            'reason_revision'      => $this->shares($perReason, $reasonTotal),
+            'revision_performance' => $this->shares($perModifier, $modifierTotal),
         ]);
     }
 
     /**
      * Data dasar periode berjalan (di-cache; dihitung ulang bila ada scan / revisi / book baru):
-     * jumlah baris book per area, jumlah revisi per (area, modified by, reason), dan daftar pilihan filter.
+     * jumlah baris book per area dan jumlah revisi per (area, modified by, reason).
      */
     private function source(): array
     {
-        $empty = ['book' => [], 'revisions' => [], 'modifiers' => [], 'areas' => $this->areaList()];
+        $empty = ['book' => [], 'revisions' => []];
 
         $db     = DB::connection(self::CONN);
         $period = RunningTakingPeriod::find($db);
@@ -108,7 +107,7 @@ class FACDBTD006 extends Controller
         $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
 
-        return $this->dashboardCache("FACDBTD006:source:v3:{$takingDate}:{$closeDate}", function () use ($db, $takingDate, $closeDate, $empty) {
+        return $this->dashboardCache("FACDBTD006:source:v4:{$takingDate}:{$closeDate}", function () use ($db, $takingDate, $closeDate) {
             $areaOf = $this->locationAreas($db);
             $area   = fn ($loc) => $areaOf[trim((string) $loc)] ?? self::UNKNOWN;
 
@@ -132,7 +131,6 @@ class FACDBTD006 extends Controller
 
             // [[area, modified by, reason, jumlah revisi], ...]
             $revisions = [];
-            $modifiers = [];
             // Satu revisi = REV_NO bertambah 1, jadi baris REV_NO 0 (data awal) tidak dihitung
             $rows = $db->table('SIM_INV_TAKING_DATA_REVISION_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
@@ -147,27 +145,13 @@ class FACDBTD006 extends Controller
 
                 $revisions[$key] ??= [$area($r->LOCATION_NO), $modifier, $reason, 0];
                 $revisions[$key][3] += (int) $r->n;
-                $modifiers[$modifier] = true;
             }
-
-            $modifiers = array_keys($modifiers);
-            sort($modifiers, SORT_NATURAL | SORT_FLAG_CASE);
 
             return [
                 'book'      => $book,
                 'revisions' => array_values($revisions),
-                'modifiers' => $modifiers,
-                'areas'     => $empty['areas'],
             ];
         });
-    }
-
-    /**
-     * Daftar area untuk filter (location_group dari SIM_INV_GROUP_LOCATION).
-     */
-    private function areaList(): array
-    {
-        return AreaName::list(DB::connection(self::CONN)->table('SIM_INV_GROUP_LOCATION')->distinct()->pluck('location_group'));
     }
 
     /**
@@ -185,16 +169,6 @@ class FACDBTD006 extends Controller
         }
 
         return $map;
-    }
-
-    /**
-     * @return array<string, true> nilai filter yang dipilih (kosong = semua)
-     */
-    private function selected(Request $request, string $key): array
-    {
-        $values = array_map(fn ($v) => trim((string) $v), (array) $request->input($key, []));
-
-        return array_fill_keys(array_filter($values, fn ($v) => $v !== ''), true);
     }
 
     /**
