@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF003DataTable;
-use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF003 as Template;
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
@@ -20,6 +19,18 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 class FACDBTF003 extends Controller
 {
     use SavesImportRows;
+
+    // Kolom export CSV [kolom tabel => judul]; judul yang sama dipakai template import
+    private const EXPORT_COLUMNS = [
+        'part_no' => 'Part No',
+        'inventory_part_description' => 'Description',
+        'inventory_uom' => 'UOM',
+        'accounting_group' => 'Accounting Group',
+        'on_hand_qty' => 'On Hand Qty',
+        'mat_cost' => 'Material Cost',
+        'lab_cost' => 'Labor Cost',
+        'foh_cost' => 'FOH Cost',
+    ];
 
     public function index(FACDBTF003DataTable $dataTable)
     {
@@ -125,21 +136,13 @@ class FACDBTF003 extends Controller
             ->when(!empty($ids), fn ($q) => $q->whereIn('part_no', $ids))
             ->orderBy('part_no')->orderBy('id');
 
-        return (new MasterDataExport($query, [
-            'part_no' => 'Part No',
-            'inventory_part_description' => 'Description',
-            'inventory_uom' => 'UOM',
-            'accounting_group' => 'Accounting Group',
-            'on_hand_qty' => 'On Hand Qty',
-            'mat_cost' => 'Material Cost',
-            'lab_cost' => 'Labor Cost',
-            'foh_cost' => 'FOH Cost',
-        ]))->download('Master_Unit_Cost-' . date('YmdHis') . '.csv');
+        return (new MasterDataExport($query, self::EXPORT_COLUMNS))->download('Master_Unit_Cost-' . date('YmdHis') . '.csv');
     }
 
     public function downloadTemplate()
     {
-        return FacadesExcel::download(new Template, 'Master_UnitCost_Template.xlsx');
+        // Template CSV (judul kolom sama dengan export); template yang diisi / file export bisa langsung di-import
+        return MasterDataExport::template(array_values(self::EXPORT_COLUMNS), 'Master_Unit_Cost_Template.csv');
     }
 
     public function import(UnitCostImportRequest $request)

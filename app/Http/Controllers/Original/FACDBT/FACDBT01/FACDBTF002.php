@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF002DataTable;
-use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF002 as Template;
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
@@ -20,6 +19,16 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 class FACDBTF002 extends Controller
 {
     use SavesImportRows;
+
+    // Kolom export CSV [kolom tabel => judul]; judul yang sama dipakai template import
+    private const EXPORT_COLUMNS = [
+        'part_no' => 'Part No',
+        'inventory_part_description' => 'Description',
+        'accounting_group' => 'Accounting Group',
+        'seg' => 'Seg',
+        'prod_group' => 'Prod',
+        'part_group' => 'Part Group',
+    ];
 
     public function index(FACDBTF002DataTable $dataTable)
     {
@@ -149,19 +158,13 @@ class FACDBTF002 extends Controller
             ->when(!empty($ids), fn ($q) => $q->whereIn('part_no', $ids))
             ->orderBy('part_no');
 
-        return (new MasterDataExport($query, [
-            'part_no' => 'Part No',
-            'inventory_part_description' => 'Description',
-            'accounting_group' => 'Accounting Group',
-            'seg' => 'Seg',
-            'prod_group' => 'Prod',
-            'part_group' => 'Part Group',
-        ]))->download('Master_Part-' . date('YmdHis') . '.csv');
+        return (new MasterDataExport($query, self::EXPORT_COLUMNS))->download('Master_Part-' . date('YmdHis') . '.csv');
     }
 
     public function downloadTemplate()
     {
-        return FacadesExcel::download(new Template, 'Master_Part_Template.xlsx');
+        // Template CSV (judul kolom sama dengan export); template yang diisi / file export bisa langsung di-import
+        return MasterDataExport::template(array_values(self::EXPORT_COLUMNS), 'Master_Part_Template.csv');
     }
 
     public function import(PartImportRequest $request)

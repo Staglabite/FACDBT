@@ -11,7 +11,7 @@
             <div class="modal-body">
                 <form id="group-location-import" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="group-location-import-file" class="form-label">Select Excel File</label>
+                        <label for="group-location-import-file" class="form-label">Select File (CSV / Excel)</label>
                         <input type="file" class="form-control" id="group-location-import-file" name="file"
                             accept=".xlsx, .xls, .csv" required>
                         <i class="invalid-feedback"></i>

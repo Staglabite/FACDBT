@@ -32,11 +32,6 @@ class TakingBook {
 
     #events() {
         const self = this;
-        $(document).on('click', '#btn-create-takingbook', function (e) {
-            e.preventDefault();
-            self.form.openModal();
-        });
-
         $(document).on('click', '.edit-takingbook', function () {
             self.form.openModal($(this).data('id'));
         });

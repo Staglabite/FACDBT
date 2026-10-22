@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF005DataTable;
-use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF005 as Template;
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
@@ -20,6 +19,14 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 class FACDBTF005 extends Controller
 {
     use SavesImportRows;
+
+    // Kolom export CSV [kolom tabel => judul]; judul yang sama dipakai template import
+    private const EXPORT_COLUMNS = [
+        'LOCATION_NO' => 'Location No',
+        'ID_LOC' => 'ID Loc',
+        'location_group' => 'Location Group',
+        'stream' => 'Stream',
+    ];
 
     public function index(FACDBTF005DataTable $dataTable)
     {
@@ -115,17 +122,13 @@ class FACDBTF005 extends Controller
             ->when(!empty($ids), fn ($q) => $q->whereIn('IID', $ids))
             ->orderBy('location_group')->orderBy('LOCATION_NO')->orderBy('IID');
 
-        return (new MasterDataExport($query, [
-            'LOCATION_NO' => 'Location No',
-            'ID_LOC' => 'ID Loc',
-            'location_group' => 'Location Group',
-            'stream' => 'Stream',
-        ]))->download('Master_Group_Location-' . date('YmdHis') . '.csv');
+        return (new MasterDataExport($query, self::EXPORT_COLUMNS))->download('Master_Group_Location-' . date('YmdHis') . '.csv');
     }
 
     public function downloadTemplate()
     {
-        return FacadesExcel::download(new Template, 'Master_GroupLocation_Template.xlsx');
+        // Template CSV (judul kolom sama dengan export); template yang diisi / file export bisa langsung di-import
+        return MasterDataExport::template(array_values(self::EXPORT_COLUMNS), 'Master_Group_Location_Template.csv');
     }
 
     public function import(GroupLocationImportRequest $request)
