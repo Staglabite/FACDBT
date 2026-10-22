@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
-use App\Services\FACDBT\AreaName;
 use App\DataTables\Original\FACDBT04\FACDBTD005NegativeDataTable;
 use App\DataTables\Original\FACDBT04\FACDBTD005PositiveDataTable;
 use App\Http\Controllers\Controller;
@@ -28,18 +27,15 @@ class FACDBTD005 extends Controller
     }
 
     /**
-     * Pilihan filter: hari untuk rentang waktu dan area (location_group dari SIM_INV_GROUP_LOCATION).
+     * Pilihan filter: hari untuk rentang waktu (area dipilih dengan klik chart Nett Variance by Area).
      */
     public function getFilters()
     {
         $db = DB::connection(self::CONN);
         $period = $this->resolvePeriod($db);
 
-        $areas = AreaName::list($db->table('SIM_INV_GROUP_LOCATION')->distinct()->pluck('location_group'));
-
         return response()->json([
             'time_range' => $period ? $this->timeRangePayload($period['takingDate'], $period['closeDate']) : ['days' => []],
-            'areas' => $areas,
         ]);
     }
 

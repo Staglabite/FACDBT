@@ -17,11 +17,8 @@
     </nav>
 
 <style>
-    /* Kolom filter TIME / AREA: lebar tetap, nama panjang dipotong dengan "..." */
+    /* Kolom filter TIME: lebar tetap */
     .nv-filter-col { width: 140px; flex: 0 0 140px; min-width: 0; }
-    .nv-filter-item { cursor: pointer; user-select: none; min-width: 0; }
-    .nv-filter-item .nv-box { width: 12px; height: 12px; border: 1px solid #555; display: inline-block; flex-shrink: 0; }
-    .nv-filter-item.active .nv-box { background-color: #252423; border-color: #252423; }
     /* Baris atas: tinggi chart & card mengikuti tinggi kotak TIME */
     .nv-top { height: 300px; }
     .nv-card-cols { width: 170px; flex: 0 0 170px; }
@@ -54,8 +51,12 @@
     </div>
 
     <div class="card shadow-sm border border-dark rounded-3" style="flex: 7 1 0; min-width: 0;">
-        <div class="card-header text-center pt-2 pb-0">
+        <div class="card-header pt-2 pb-0 d-flex justify-content-center align-items-center gap-2">
             <div class="fw-semibold text-dark">Nett Variance by Area</div>
+            {{-- Klik area di chart = filter area; tombol ini menghapus filter --}}
+            <button type="button" class="btn btn-sm btn-dark py-0 px-2 d-none" id="nv-selected-area" title="Hapus filter area">
+                <span></span> <i class="icon-base ti tabler-x"></i>
+            </button>
         </div>
         <div class="card-body px-2 pt-0 pb-1">
             <div id="nv-chart-area"></div>
@@ -78,22 +79,14 @@
     </div>
 </div>
 
-{{-- ===================== Baris bawah: AREA + tabel detail part ===================== --}}
+{{-- ===================== Baris bawah: tabel detail part ===================== --}}
 <div class="d-flex flex-column flex-xl-row gap-3 mb-4">
-    <div class="card shadow-none border border-dark rounded-0 nv-filter-col align-self-xl-start">
-        <div class="card-body p-2">
-            <div class="text-center fw-semibold text-dark mb-1">AREA</div>
-            {{-- Bisa pilih lebih dari satu area; tanpa pilihan = semua area --}}
-            <div class="d-flex flex-column gap-1 overflow-auto" style="max-height: 640px;" id="nv-area-filter"></div>
-        </div>
-    </div>
-
     <div class="row g-3 flex-grow-1" style="min-width: 0;">
         @foreach (['positive' => 'Positive', 'negative' => 'Negative'] as $key => $label)
             @php($table = $key === 'positive' ? $positiveTable : $negativeTable)
             <div class="col-12 col-lg-6">
                 {{-- Ringkasan --}}
-                <div class="d-flex justify-content-center gap-5 mb-2 text-center">
+                <div class="d-flex flex-wrap justify-content-center column-gap-5 row-gap-1 mb-2 text-center">
                     <div>
                         <div class="fs-3 {{ $key === 'negative' ? 'text-danger' : 'text-dark' }}" id="nv-{{ $key }}-qty">-</div>
                         <div class="small text-muted">{{ $label }} Var Qty</div>
