@@ -14,7 +14,7 @@ const TABLES = {
 };
 
 // Tinggi chart di baris atas (kotak TIME, chart, dan card Nett Var memakai tinggi yang sama)
-const TOP_CHART_HEIGHT = 205;
+const TOP_CHART_HEIGHT = 255;
 
 const THEME = {
     increase: '#6A7BFF',
@@ -125,12 +125,13 @@ class DashboardNettVariance {
         const positive = data.positive || {};
         const negative = data.negative || {};
 
-        this.setText('nv-nett-qty', this.fmtNumber(data.nett_qty));
-        this.setText('nv-nett-amount', this.fmtMillion(data.nett_amount));
-        this.setText('nv-positive-qty', this.fmtThousand(positive.qty));
-        this.setText('nv-positive-amount', this.fmtMillion(positive.amount));
-        this.setText('nv-negative-qty', this.fmtThousand(negative.qty));
-        this.setText('nv-negative-amount', this.fmtMillion(negative.amount));
+        // Angka besar di card hitam dikecilkan supaya tetap satu baris
+        this.setText('nv-nett-qty', this.fmtNumber(data.nett_qty), true);
+        this.setText('nv-nett-amount', this.fmtMillion(data.nett_amount), true);
+        this.setText('nv-positive-qty', this.fmtDecimal(positive.qty));
+        this.setText('nv-positive-amount', this.fmtMillionDecimal(positive.amount));
+        this.setText('nv-negative-qty', this.fmtDecimal(negative.qty));
+        this.setText('nv-negative-amount', this.fmtMillionDecimal(negative.amount));
 
         this.renderPosNeg(Number(positive.amount || 0), Number(negative.amount || 0));
         this.renderAreaWaterfall(data.by_area || [], Number(data.nett_amount || 0));
@@ -138,9 +139,23 @@ class DashboardNettVariance {
         this.reloadTables(!keepTablePage);
     }
 
-    setText(id, text) {
+    setText(id, text, fit = false) {
         const el = document.getElementById(id);
-        if (el) el.textContent = text;
+        if (!el) return;
+
+        el.textContent = text;
+        if (fit) this.fitText(el);
+    }
+
+    // Satu baris: ukuran huruf diperkecil bertahap sampai angka muat di lebar card
+    fitText(el) {
+        el.style.whiteSpace = 'nowrap';
+        el.style.fontSize = '';
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        while (el.scrollWidth > el.clientWidth && size > 12) {
+            size -= 1;
+            el.style.fontSize = `${size}px`;
+        }
     }
 
     // Contoh: -57123456 -> "-57M" ("+ 0" supaya nilai kecil negatif tidak tampil "-0M")
@@ -148,10 +163,15 @@ class DashboardNettVariance {
         return `${(Math.round(Number(v || 0) / 1e6) + 0).toLocaleString('en-US')}M`;
     }
 
-    // Contoh: 12280 -> "12.28K"
-    fmtThousand(v) {
-        const k = Math.round(Number(v || 0) / 10) / 100 + 0;
-        return `${k.toFixed(2)}K`;
+    // Contoh: -57123456 -> "-57.12M"
+    fmtMillionDecimal(v) {
+        const m = Math.round(Number(v || 0) / 1e4) / 100 + 0;
+        return `${m.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
+    }
+
+    // Contoh: 12280.5 -> "12,280.50"
+    fmtDecimal(v) {
+        return (Number(v || 0) + 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     // Contoh: -8170 -> "-8,170"
@@ -283,8 +303,9 @@ class DashboardNettVariance {
                 labels: {
                     rotate: -45,
                     rotateAlways: true,
-                    trim: true,
-                    maxHeight: 60,
+                    // Nama area ditampilkan lengkap (tidak dipotong)
+                    trim: false,
+                    maxHeight: 120,
                     hideOverlappingLabels: false,
                     style: { fontSize: '10px', colors: '#555555' }
                 }

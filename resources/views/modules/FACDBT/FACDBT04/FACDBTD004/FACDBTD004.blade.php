@@ -23,7 +23,7 @@
     .nv-filter-item .nv-box { width: 12px; height: 12px; border: 1px solid #555; display: inline-block; flex-shrink: 0; }
     .nv-filter-item.active .nv-box { background-color: #252423; border-color: #252423; }
     /* Baris atas: tinggi chart & card mengikuti tinggi kotak TIME */
-    .nv-top { height: 250px; }
+    .nv-top { height: 300px; }
     .nv-card-cols { width: 170px; flex: 0 0 170px; }
     /* Warna baris berselang: biru untuk tabel tidak minus, merah untuk tabel minus */
     #facdbtd004-positive-table tbody tr:nth-child(odd) td { background-color: #A9D2F5; }
@@ -114,6 +114,7 @@
                                 <option value="25">25</option>
                                 <option value="50">50</option>
                                 <option value="100">100</option>
+                                <option value="-1">All</option>
                             </select>
                             <div class="input-group input-group-sm" style="max-width: 240px;">
                                 <span class="input-group-text border-end-0">

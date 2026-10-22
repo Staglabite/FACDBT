@@ -23,7 +23,7 @@
     .av-filter-item .av-box { width: 12px; height: 12px; border: 1px solid #555; display: inline-block; flex-shrink: 0; }
     .av-filter-item.active .av-box { background-color: #252423; border-color: #252423; }
     /* Baris atas: tinggi chart & card mengikuti tinggi kotak TIME */
-    .av-top { height: 250px; }
+    .av-top { height: 300px; }
     .av-card-cols { width: 170px; flex: 0 0 170px; }
     /* Tabel detail: Part No & Part Name abu-abu (dikelompokkan per part), Location No berselang
        biru (variance lebih) / merah (variance kurang) */
@@ -117,6 +117,7 @@
                                 <option value="25">25</option>
                                 <option value="50">50</option>
                                 <option value="100">100</option>
+                                <option value="-1">All</option>
                             </select>
                             <div class="input-group input-group-sm" style="max-width: 240px;">
                                 <span class="input-group-text border-end-0">
