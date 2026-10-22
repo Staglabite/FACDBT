@@ -4,6 +4,7 @@ namespace App\DataTables\Original\FACDBT04;
 
 use App\Services\FACDBT\NettVarianceService;
 use App\Services\FACDBT\VarianceDashboardService;
+use Yajra\DataTables\Html\Builder as HtmlBuilder;
 
 // Detail part Nett Variance Dashboard; turunannya menentukan tabel positif / negatif
 abstract class FACDBTD004DataTable extends VarianceDetailDataTable
@@ -27,5 +28,14 @@ abstract class FACDBTD004DataTable extends VarianceDetailDataTable
     protected function orderDirection(): string
     {
         return $this->type === 'positive' ? 'desc' : 'asc';
+    }
+
+    // Urutan hanya dari Var Amount (sudah diurutkan service); klik judul kolom tidak mengurutkan ulang
+    public function html(): HtmlBuilder
+    {
+        return parent::html()->parameters([
+            'ordering' => false,
+            'order' => [],
+        ]);
     }
 }
