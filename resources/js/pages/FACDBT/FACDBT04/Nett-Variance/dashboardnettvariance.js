@@ -13,7 +13,7 @@ const TABLES = {
     negative: { id: 'facdbtd003-negative-table', url: `/${ENDPOINT}/negative-table` }
 };
 
-// Tinggi chart di baris atas (kotak TIME, chart, dan card Nett Var memakai tinggi yang sama)
+// Tinggi chart di baris atas (chart dan card Nett Var memakai tinggi yang sama)
 const TOP_CHART_HEIGHT = 255;
 
 const THEME = {
@@ -25,7 +25,7 @@ const THEME = {
 
 class DashboardNettVariance {
     constructor() {
-        this.timeFilter = new TimeRangeFilter(document.getElementById('nv-time-filter'), () => this.loadData(), { vertical: true });
+        this.timeFilter = new TimeRangeFilter(document.getElementById('nv-time-filter'), () => this.loadData());
         this.selectedAreas = new Set();
         this.charts = {};
         this.dataRequest = null;

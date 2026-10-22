@@ -17,9 +17,7 @@
     </nav>
 
 <style>
-    /* Kolom filter TIME: lebar tetap */
-    .av-filter-col { width: 140px; flex: 0 0 140px; min-width: 0; }
-    /* Baris atas: tinggi chart & card mengikuti tinggi kotak TIME */
+    /* Baris chart & card: tinggi tetap */
     .av-top { height: 300px; }
     .av-card-cols { width: 170px; flex: 0 0 170px; }
     /* Tabel detail: Part No & Part Name abu-abu (dikelompokkan per part), Location No berselang
@@ -30,19 +28,18 @@
     #facdbtd004-negative-table tbody tr:nth-child(odd) td.av-location-cell { background-color: #F4C2AE; }
     @media (max-width: 1199.98px) {
         .av-top { height: auto; }
-        .av-filter-col, .av-card-cols { width: 100%; flex: 1 1 auto; }
+        .av-card-cols { width: 100%; flex: 1 1 auto; }
     }
 </style>
 
-{{-- ===================== Baris atas: TIME + chart + card ===================== --}}
+{{-- ===================== Filter TIME (paling atas, horizontal) ===================== --}}
+<div class="border border-dark rounded-3 shadow-sm bg-white px-3 py-2 mb-3">
+    {{-- Rentang waktu Dari - Sampai; Reset = seluruh periode taking --}}
+    <div id="av-time-filter"></div>
+</div>
+
+{{-- ===================== Baris chart + card ===================== --}}
 <div class="d-flex flex-column flex-xl-row gap-3 mb-3 av-top">
-    <div class="card shadow-none border border-dark rounded-0 av-filter-col">
-        <div class="card-body p-2 d-flex flex-column" style="min-height: 0;">
-            <div class="text-center fw-semibold text-dark mb-1">TIME</div>
-            {{-- Rentang waktu Dari - Sampai; Reset = seluruh periode taking --}}
-            <div class="d-flex flex-column gap-1 overflow-auto flex-grow-1" style="min-height: 0;" id="av-time-filter"></div>
-        </div>
-    </div>
 
     <div class="card shadow-sm border border-dark rounded-3" style="flex: 3 1 0; min-width: 0;">
         <div class="card-header text-center pt-2 pb-0">
