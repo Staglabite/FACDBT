@@ -3,22 +3,21 @@ import ApexCharts from 'apexcharts';
 import { autoRefresh, track } from '../shared/dashboardStatus';
 import { TimeRangeFilter } from '../shared/timeRangeFilter';
 import { renderProgressByAreaChart } from '../shared/progressByAreaChart';
+import { dimCategories } from '../shared/chartDim';
 
 const ENDPOINT = 'FACDBT/ds/progress-dashboard';
 
 const THEME = {
     bar: '#118DFF',
     labelBg: '#1F4E79',
-    guide: '#BBBBBB',
-    groupBg: '#E9E9E9',
-    groupBorder: '#8C8C8C',
-    activeBg: '#333333'
+    guide: '#BBBBBB'
 };
 
 const ROW_HEIGHT = 48;
 
 class DashboardProgress {
     constructor() {
+        // Area yang dipilih dengan klik chart Counting Progress (by Part); '' = semua area
         this.selectedGroup = '';
         // Filter waktu berlaku untuk semua chart
         this.timeFilter = new TimeRangeFilter(document.getElementById('time-filter-container'), () => {
@@ -26,14 +25,14 @@ class DashboardProgress {
             this.loadProgressByArea();
         });
         this.progressByAreaChart = null;
+        this.progressByAreaItems = [];
         this.progressByAreaRequest = null;
         this.charts = {};
         this.dataRequest = null;
     }
 
     init() {
-        this.bindScrollers();
-        this.loadGroups();
+        document.getElementById('selected-area')?.addEventListener('click', () => this.selectArea(this.selectedGroup));
         this.loadTimeRange();
         this.loadData();
         this.loadProgressByArea();
@@ -46,57 +45,25 @@ class DashboardProgress {
     }
 
     // -------------------------------------------------------------
-    // Filter Group Location
+    // Filter area: klik area di chart Counting Progress (by Part), klik lagi untuk batal
     // -------------------------------------------------------------
-    loadGroups() {
-        axios.get(`${ENDPOINT}/groups`)
-            .then(res => {
-                const container = document.getElementById('group-filter-container');
-                if (!container) return;
+    selectArea(area) {
+        this.selectedGroup = this.selectedGroup === area ? '' : area;
 
-                container.innerHTML = '';
-                const buttons = [];
-
-                (res.data || []).forEach(group => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.innerText = group;
-                    this.styleGroupButton(btn, false);
-
-                    // Klik group yang sama sekali lagi untuk menghapus filter
-                    btn.addEventListener('click', () => {
-                        this.selectedGroup = this.selectedGroup === group ? '' : group;
-                        buttons.forEach(b => this.styleGroupButton(b, b.innerText === this.selectedGroup));
-                        this.loadData();
-                    });
-
-                    buttons.push(btn);
-                    container.appendChild(btn);
-                });
-            })
-            .catch(err => console.error('Error load location groups:', err));
+        const items = this.progressByAreaItems;
+        if (this.progressByAreaChart) {
+            dimCategories(this.progressByAreaChart, items.length, items.findIndex(d => d.area === this.selectedGroup));
+        }
+        this.renderSelectedArea();
+        this.loadData();
     }
 
-    styleGroupButton(btn, isActive) {
-        btn.className = 'btn btn-sm rounded-0 px-3 py-2';
-        btn.style.minWidth = '140px';
-        btn.style.flexShrink = '0';
-        btn.style.whiteSpace = 'nowrap';
-        btn.style.border = `1px solid ${THEME.groupBorder}`;
-        btn.style.backgroundColor = isActive ? THEME.activeBg : THEME.groupBg;
-        btn.style.color = isActive ? '#FFFFFF' : '#333333';
-    }
+    renderSelectedArea() {
+        const label = document.getElementById('selected-area');
+        if (!label) return;
 
-    bindScrollers() {
-        document.querySelectorAll('.group-scroller').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const container = document.getElementById('group-filter-container');
-                if (!container) return;
-
-                const step = container.clientWidth * 0.6 * Number(btn.dataset.direction || 1);
-                container.scrollBy({ left: step, behavior: 'smooth' });
-            });
-        });
+        label.classList.toggle('d-none', !this.selectedGroup);
+        label.querySelector('span').textContent = this.selectedGroup ? `Area ${this.selectedGroup}` : '';
     }
 
     // -------------------------------------------------------------
@@ -109,7 +76,7 @@ class DashboardProgress {
     }
 
     // -------------------------------------------------------------
-    // Chart Counting Progress (by Part), sama dengan Main Dashboard (ikut filter waktu, tidak ikut filter group)
+    // Chart Counting Progress (by Part), sama dengan Main Dashboard (ikut filter waktu); klik area = filter area
     // -------------------------------------------------------------
     loadProgressByArea() {
         if (this.progressByAreaRequest) {
@@ -127,7 +94,12 @@ class DashboardProgress {
                     this.progressByAreaChart.destroy();
                     this.progressByAreaChart = null;
                 }
-                this.progressByAreaChart = renderProgressByAreaChart(el, res.data?.parts || [], { height: 420 });
+                this.progressByAreaItems = res.data?.parts || [];
+                this.progressByAreaChart = renderProgressByAreaChart(el, this.progressByAreaItems, {
+                    height: 420,
+                    selected: () => this.selectedGroup,
+                    onSelect: area => this.selectArea(area)
+                });
             })
             .catch(err => {
                 if (axios.isCancel(err)) return;

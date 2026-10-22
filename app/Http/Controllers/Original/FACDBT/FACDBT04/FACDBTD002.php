@@ -26,19 +26,6 @@ class FACDBTD002 extends Controller
     }
 
     /**
-     * Daftar tombol filter area (location_group dari SIM_INV_GROUP_LOCATION).
-     */
-    public function getGroups()
-    {
-        $groups = AreaName::list(DB::connection(self::CONN)
-            ->table('SIM_INV_GROUP_LOCATION')
-            ->distinct()
-            ->pluck('location_group'));
-
-        return response()->json($groups);
-    }
-
-    /**
      * Pilihan hari untuk filter rentang waktu (Dari - Sampai).
      */
     public function getTimeRange()

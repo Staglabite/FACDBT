@@ -114,7 +114,6 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     // Dashboard Progress by Group Location & Detail Location (FACDBTD002)
     Route::group(['prefix' => 'progress-dashboard', 'controller' => FACDBTD002::class], function () {
         Route::get('/', 'index')->name('progress-dashboard.index');
-        Route::get('/groups', 'getGroups')->name('progress-dashboard.groups');
         Route::get('/time-range', 'getTimeRange')->name('progress-dashboard.time-range');
         Route::get('/data', 'getData')->name('progress-dashboard.data');
         // Chart Nett / Absolute Variance by Area (sama dengan Variance Dashboard)

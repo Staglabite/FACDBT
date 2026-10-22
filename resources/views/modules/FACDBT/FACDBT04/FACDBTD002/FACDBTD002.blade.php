@@ -16,17 +16,7 @@
         </ol>
     </nav>
 
-{{-- Counting Progress (by Part), sama dengan Main Dashboard: ikut filter waktu, tidak ikut filter group --}}
-<div class="card shadow-sm border border-dark rounded-3 mb-3">
-    <div class="card-header pt-3 pb-0">
-        <h5 class="card-title mb-0 fw-semibold">Counting Progress (by Part)</h5>
-    </div>
-    <div class="card-body pt-0 pb-2">
-        <div id="chart-counting-progress"></div>
-    </div>
-</div>
-
-{{-- Filter Waktu --}}
+{{-- Filter Waktu: berlaku untuk semua chart --}}
 <div class="d-flex align-items-center gap-3 mb-3">
     <div class="flex-grow-1 border border-dark rounded-3 shadow-sm bg-white px-3 py-2">
         {{-- Filter rentang waktu Dari - Sampai --}}
@@ -36,21 +26,18 @@
     </div>
 </div>
 
-{{-- Filter Group Location (SIM_INV_GROUP_LOCATION.location_group) --}}
-<div class="d-flex align-items-center gap-1 px-1 py-2 mb-3 border border-dark rounded-3 shadow-sm"
-    style="background-color: #E7D9A0;">
-    <button type="button" class="btn btn-sm btn-link text-dark px-1 group-scroller" data-direction="-1"
-        aria-label="Previous location groups">
-        <i class="icon-base ti tabler-chevron-left"></i>
-    </button>
-    <div class="d-flex align-items-center gap-2 overflow-auto flex-grow-1" id="group-filter-container"
-        style="scrollbar-width: none;">
-        {{-- Diisi secara dinamis oleh JavaScript --}}
+{{-- Counting Progress (by Part), sama dengan Main Dashboard. Klik area = filter area chart Progress by Loc --}}
+<div class="card shadow-sm border border-dark rounded-3 mb-3">
+    <div class="card-header pt-3 pb-0 d-flex align-items-center justify-content-between gap-2">
+        <h5 class="card-title mb-0 fw-semibold">Counting Progress (by Part)</h5>
+        <button type="button" class="btn btn-sm btn-dark py-0 px-2 d-none align-items-center gap-1" id="selected-area" title="Hapus filter area">
+            <span></span><i class="icon-base ti tabler-x"></i>
+        </button>
     </div>
-    <button type="button" class="btn btn-sm btn-link text-dark px-1 group-scroller" data-direction="1"
-        aria-label="Next location groups">
-        <i class="icon-base ti tabler-chevron-right"></i>
-    </button>
+    <div class="card-body pt-0 pb-2">
+        <div class="small text-muted">Klik area pada chart untuk memfilter Progress by Loc.</div>
+        <div id="chart-counting-progress"></div>
+    </div>
 </div>
 
 <div class="row g-4 mb-4">
