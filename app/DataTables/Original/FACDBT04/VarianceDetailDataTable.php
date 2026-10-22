@@ -16,6 +16,9 @@ abstract class VarianceDetailDataTable extends DataTable
 {
     use DataTableTrait;
 
+    // Format angka di browser: 1310275083 -> "1,310,275,083"
+    protected const NUMBER_RENDER = "$.fn.dataTable.render.number(',', '.', 0)";
+
     /** 'positive' atau 'negative' */
     protected string $type;
 
@@ -49,10 +52,10 @@ abstract class VarianceDetailDataTable extends DataTable
      */
     public function dataTable(Collection $query): CollectionDataTable
     {
+        // Var Qty / Var Amount dikirim sebagai angka (diformat di browser, lihat getColumns()) supaya
+        // pengurutan per kolom numerik; bila diformat di server "1,310,275,083" terurut di bawah "261,868,010"
         return (new CollectionDataTable($query))
             ->addIndexColumn()
-            ->editColumn('qty', fn ($row) => number_format($row['qty'], 0))
-            ->editColumn('amount', fn ($row) => number_format($row['amount'], 0))
             ->filter(function ($instance) {
                 $keyword = strtolower(trim((string) request('keyword')));
 
@@ -111,8 +114,8 @@ abstract class VarianceDetailDataTable extends DataTable
             Column::make('DT_RowIndex')->title('No')->orderable(false)->searchable(false)->width(30)->addClass('text-center'),
             Column::make('name')->title('Part Name'),
             Column::make('part_no')->title('Part No'),
-            Column::make('qty')->title('Var Qty')->addClass('text-end'),
-            Column::make('amount')->title('Var Amount')->addClass('text-end'),
+            Column::make('qty')->title('Var Qty')->addClass('text-end')->render(self::NUMBER_RENDER),
+            Column::make('amount')->title('Var Amount')->addClass('text-end')->render(self::NUMBER_RENDER),
         ];
     }
 
