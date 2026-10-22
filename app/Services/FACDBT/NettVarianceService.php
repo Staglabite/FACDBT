@@ -3,7 +3,7 @@
 namespace App\Services\FACDBT;
 
 /**
- * Perhitungan Nett Variance Dashboard (FACDBTD004), dipakai controller (ringkasan & chart)
+ * Perhitungan Nett Variance Dashboard (FACDBTD003), dipakai controller (ringkasan & chart)
  * dan DataTable (detail part positif / negatif).
  *
  * Variance qty = qty taking - qty book (dicocokkan per lokasi lalu dijumlah per part),
@@ -14,7 +14,7 @@ class NettVarianceService extends VarianceDashboardService
 {
     protected function cachePrefix(): string
     {
-        return 'FACDBTD004:data:v7';
+        return 'FACDBTD003:data:v8';
     }
 
     protected function emptyResult(): array

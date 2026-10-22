@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Tabel detail Taking Data Revision (FACDBTD008): semua kolom SIM_INV_TAKING_DATA_REVISION_TAB + Area
+ * Tabel detail Taking Data Revision (FACDBTD006): semua kolom SIM_INV_TAKING_DATA_REVISION_TAB + Area
  * (SIM_INV_GROUP_LOCATION.location_group), untuk seluruh periode taking dengan filter Year -> Month -> Event.
  * Dipakai DataTable dan export supaya isi tabel dan file selalu sama.
  */

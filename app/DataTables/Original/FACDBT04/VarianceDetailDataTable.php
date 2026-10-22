@@ -28,7 +28,7 @@ abstract class VarianceDetailDataTable extends DataTable
     abstract protected function service(): VarianceDashboardService;
 
     /**
-     * Prefix id tabel, contoh "facdbtd004" -> "facdbtd004-positive-table".
+     * Prefix id tabel, contoh "facdbtd003" -> "facdbtd003-positive-table".
      */
     abstract protected function tablePrefix(): string;
 

@@ -8,7 +8,7 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 
 // Tabel revisi di bawah chart: seluruh periode taking, filter Year -> Month -> Event, export CSV
 class TakingRevisionTable {
-  #table = $('#facdbtd008-table');
+  #table = $('#facdbtd006-table');
   #selectedIds = new Set();
   #selectAllPromise = null;
   #events = [];

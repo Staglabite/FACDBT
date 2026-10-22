@@ -6,7 +6,7 @@ use App\Services\FACDBT\TakingHistoryService;
 use Illuminate\Console\Command;
 
 /**
- * Simpan hasil taking periode yang sudah ditutup ke SIM_INV_TAKING_DATA_HISTORY (FACDBTD006).
+ * Simpan hasil taking periode yang sudah ditutup ke SIM_INV_TAKING_DATA_HISTORY (FACDBTD005).
  *
  *   php artisan facdbt:taking-history                          -> semua periode tertutup yang belum ada di history
  *   php artisan facdbt:taking-history --taking-date=2026-03-06 -> periode tertentu (history-nya dibuat ulang)

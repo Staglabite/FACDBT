@@ -2,70 +2,93 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
-use App\DataTables\Original\FACDBT04\FACDBTD005NegativeDataTable;
-use App\DataTables\Original\FACDBT04\FACDBTD005PositiveDataTable;
+use App\DataTables\Original\FACDBT04\FACDBTD005DataTable;
+use App\Exports\FACDBT\FACDBT04\FACDBTD005 as Export;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\BuildsVarianceLines;
-use App\Services\FACDBT\AbsoluteVarianceService;
+use App\Models\FACDBT04\FACDBT_SIMINVTAKINGDATAHISTORY as TakingHistory;
+use App\Services\FACDBT\TakingHistoryService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
-// Variance Taking by Part No per Location No / Absolute Variance Dashboard (ringkasan + detail part per lokasi lebih / kurang)
+// History Taking: hasil taking periode yang sudah ditutup (SIM_INV_TAKING_DATA_HISTORY)
 class FACDBTD005 extends Controller
 {
-    use BuildsVarianceLines;
-
-    private const CONN = 'INV_TAKING';
-    private const CACHE_TTL = 60;
-
-    public function index(FACDBTD005PositiveDataTable $positive, FACDBTD005NegativeDataTable $negative)
+    public function index(FACDBTD005DataTable $dataTable, TakingHistoryService $history)
     {
-        return view('modules.FACDBT.FACDBT04.FACDBTD005.FACDBTD005', [
-            'positiveTable' => $positive->html(),
-            'negativeTable' => $negative->html(),
-        ]);
+        // Periode yang baru ditutup langsung disimpan ke history saat halaman dibuka (tanpa menunggu scheduler)
+        if (!request()->ajax()) {
+            try {
+                $history->snapshotPending(auth()->user()->VUSERNAME ?? 'SYSTEM');
+            } catch (\Throwable $e) {
+                // Halaman tetap dibuka; snapshot dicoba lagi saat halaman dibuka berikutnya
+                report($e);
+            }
+        }
+
+        // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
+        if (request()->boolean('ids_only')) {
+            return response()->json(['ids' => $dataTable->filteredKeys('IID')]);
+        }
+
+        return $dataTable->render('modules.FACDBT.FACDBT04.FACDBTD005.FACDBTD005');
     }
 
     /**
-     * Pilihan filter: hari untuk rentang waktu (area dipilih dengan klik chart Nett Variance by Area).
+     * Daftar periode di history untuk filter Year -> Month -> Event.
+     * Event = satu periode taking (TAKING_DATE); satu bulan bisa punya lebih dari satu event.
      */
     public function getFilters()
     {
-        $db = DB::connection(self::CONN);
-        $period = $this->resolvePeriod($db);
+        $periods = TakingHistory::query()
+            ->select('YEAR', 'MONTH', 'TAKING_DATE', 'CLOSE_DATE')
+            ->distinct()
+            ->orderByDesc('YEAR')
+            ->orderByDesc('MONTH')
+            ->orderBy('TAKING_DATE')
+            ->toBase()
+            ->get();
 
-        return response()->json([
-            'time_range' => $period ? $this->timeRangePayload($period['takingDate'], $period['closeDate']) : ['days' => []],
-        ]);
-    }
+        $events = [];
+        foreach ($periods->groupBy(fn ($p) => $p->YEAR . '-' . $p->MONTH) as $items) {
+            foreach ($items->values() as $i => $p) {
+                $taking = Carbon::parse($p->TAKING_DATE);
+                $close  = Carbon::parse($p->CLOSE_DATE);
+                $range  = $taking->isSameDay($close)
+                    ? $taking->format('j M')
+                    : $taking->format('j') . '–' . $close->format('j M');
 
-    /**
-     * Ringkasan & chart (tanpa baris detail; detail part dimuat lewat DataTable).
-     */
-    public function getData(Request $request, AbsoluteVarianceService $service)
-    {
-        $data = $service->compute($request);
-
-        foreach (['positive', 'negative'] as $key) {
-            unset($data[$key]['rows']);
+                $events[] = [
+                    'year'        => (int) $p->YEAR,
+                    'month'       => (int) $p->MONTH,
+                    'taking_date' => $taking->toDateString(),
+                    'label'       => 'Taking ' . ($i + 1) . ' · ' . $range,
+                ];
+            }
         }
 
-        return response()->json($data);
+        return response()->json(['events' => $events]);
     }
 
     /**
-     * Tabel biru: variance lebih (taking > book), nilai absolut.
+     * Export CSV: data yang dicentang saja, atau semua data pada filter periode & pencarian saat ini.
      */
-    public function positiveTable(FACDBTD005PositiveDataTable $dataTable)
+    public function export(Request $request)
     {
-        return $dataTable->ajax();
-    }
+        $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
+        $keyword = trim((string) $request->input('keyword', ''));
 
-    /**
-     * Tabel merah: variance kurang (taking < book), nilai absolut.
-     */
-    public function negativeTable(FACDBTD005NegativeDataTable $dataTable)
-    {
-        return $dataTable->ajax();
+        $query = TakingHistory::query()
+            ->when(!empty($ids), fn ($q) => $q->whereIn('IID', $ids))
+            ->when(empty($ids), fn ($q) => $q
+                ->forPeriod($request->input('year'), $request->input('month'), $request->input('taking_date'))
+                ->when($keyword !== '', fn ($q) => $q->whereAny([
+                    'location_no', 'location_group', 'area', 'warehouse', 'part_no', 'part_name', 'LOT_BATCH_NO',
+                ], 'LIKE', "%{$keyword}%")))
+            ->orderByDesc('TAKING_DATE')
+            ->orderBy('location_no')
+            ->orderBy('part_no')
+            ->orderBy('IID');
+
+        return Export::download($query);
     }
 }

@@ -7,7 +7,7 @@ const ENDPOINT = '/FACDBT/ds/taking-history';
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 class TakingHistory {
-  #table = $('#facdbtd006-table');
+  #table = $('#facdbtd005-table');
   #selectedIds = new Set();
   #selectAllPromise = null;
   #events = [];

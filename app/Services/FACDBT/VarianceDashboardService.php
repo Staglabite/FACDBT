@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Dasar perhitungan dashboard variance dengan filter TIME & AREA serta tabel detail part
- * (Nett Variance FACDBTD004, Absolute Variance FACDBTD005).
+ * (Nett Variance FACDBTD003, Absolute Variance FACDBTD004).
  */
 abstract class VarianceDashboardService
 {

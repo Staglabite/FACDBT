@@ -115,7 +115,7 @@ class TakingHistoryService
             return 0;
         }
 
-        return Cache::lock('FACDBTD006:snapshot', 600)->get(function () use ($periods, $createdBy) {
+        return Cache::lock('FACDBTD005:snapshot', 600)->get(function () use ($periods, $createdBy) {
             set_time_limit(600);
             ini_set('memory_limit', '1024M');
 
