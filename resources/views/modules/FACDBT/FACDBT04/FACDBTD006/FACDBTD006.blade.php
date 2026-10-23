@@ -29,6 +29,11 @@
     }
 </style>
 
+{{-- Tampil bila halaman dibuka dengan ?demo=1 --}}
+<div class="alert alert-warning py-2 mb-3 d-none" id="tr-demo-badge">
+    <strong>DATA DEMO</strong> &mdash; angka contoh untuk presentasi, bukan data taking asli.
+</div>
+
 <div class="tr-row tr-row-main mb-3">
     {{-- Item_Book & % Area per area. Klik area = filter area chart lain --}}
     <div class="card shadow-none border border-dark rounded-0">

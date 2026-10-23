@@ -40,10 +40,11 @@ class FACDBTD006 extends Controller
      * - Taking Data Revision : semua area, jumlah revisi difilter modifier
      * - Revision Performance : semua modifier, difilter area
      * - Reason Revision      : difilter area & modifier
+     * Dengan `demo=1` dipakai data contoh (tidak dari database) untuk presentasi, lihat demoSource().
      */
     public function getData(Request $request)
     {
-        $source = $this->source();
+        $source = $request->boolean('demo') ? $this->demoSource() : $this->source();
 
         $area     = trim((string) $request->input('area', ''));
         $modifier = trim((string) $request->input('modifier', ''));
@@ -152,6 +153,56 @@ class FACDBTD006 extends Controller
                 'revisions' => array_values($revisions),
             ];
         });
+    }
+
+    /**
+     * Data contoh untuk presentasi (halaman dibuka dengan ?demo=1): bentuknya sama dengan source(), tidak
+     * membaca / menulis data taking. Area dari master SIM_INV_GROUP_LOCATION; angka acak tetapi selalu sama.
+     */
+    private function demoSource(): array
+    {
+        $areas = AreaName::list(DB::connection(self::CONN)->table('SIM_INV_GROUP_LOCATION')->distinct()->pluck('location_group'))
+            ?: ['PPC OIL', 'PPC-D', 'PPC-E', 'PPC-F', 'PROD-1A', 'PROD-1B', 'PROD-2A', 'PROD-2B', 'QA', 'SUPPLIER'];
+        $modifiers = [
+            'ARIF SUDARMAJI' => 30, 'ALFI IBRAHIM YAHYA' => 10, 'YOHANES ENDI ROSARI' => 7, 'DEMITRIS' => 6,
+            'TRI WINARNO' => 4, 'SUDIBYO' => 3, 'SUSANTO WIBISONO K.' => 2, 'IRSYAD' => 1, 'PULUNG PUJIONO' => 1,
+        ];
+        $reasons = [
+            'Revisi Qty' => 50, 'Revisi Part' => 37, 'Double Entry' => 10, 'Revisi Location' => 9,
+            'Tools Error' => 1, 'Human Error' => 1,
+        ];
+
+        mt_srand(20260306);
+        $book      = [];
+        $revisions = [];
+        foreach ($areas as $area) {
+            $book[$area] = mt_rand(50, 1600);
+            // Rata-rata 2% - 12% item direvisi per area
+            $areaRevisions = (int) round($book[$area] * mt_rand(20, 120) / 1000);
+
+            for ($i = 0; $i < $areaRevisions; $i++) {
+                $revisions[] = [$area, self::weighted($modifiers), self::weighted($reasons), 1];
+            }
+        }
+        mt_srand();
+
+        return ['book' => $book, 'revisions' => $revisions];
+    }
+
+    /**
+     * Pilih satu kunci secara acak sesuai bobotnya.
+     */
+    private static function weighted(array $weights): string
+    {
+        $pick = mt_rand(1, array_sum($weights));
+        foreach ($weights as $key => $weight) {
+            $pick -= $weight;
+            if ($pick <= 0) {
+                return (string) $key;
+            }
+        }
+
+        return (string) array_key_first($weights);
     }
 
     /**

@@ -5,6 +5,9 @@ import { dimCategories, clickedIndex } from '../shared/chartDim';
 
 const ENDPOINT = 'FACDBT/ds/taking-data-revision';
 
+// Halaman dibuka dengan ?demo=1: data contoh untuk presentasi (bukan data asli)
+const DEMO = new URLSearchParams(window.location.search).get('demo') === '1';
+
 // Tinggi chart, disesuaikan dengan tinggi card di blade
 const AREA_CHART_HEIGHT = 440;
 const SHARE_CHART_HEIGHT = 380;
@@ -28,6 +31,7 @@ class DashboardTakingRevision {
     }
 
     init() {
+        document.getElementById('tr-demo-badge')?.classList.toggle('d-none', !DEMO);
         ['area', 'modifier'].forEach(key => {
             document.getElementById(`tr-${key}-selected`)?.addEventListener('click', () => this.toggleFilter(key, this.filters[key]));
         });
@@ -66,7 +70,7 @@ class DashboardTakingRevision {
     // Data
     // -------------------------------------------------------------
     loadData() {
-        const params = {};
+        const params = DEMO ? { demo: 1 } : {};
         if (this.filters.area) params.area = this.filters.area;
         if (this.filters.modifier) params.modifier = this.filters.modifier;
 
