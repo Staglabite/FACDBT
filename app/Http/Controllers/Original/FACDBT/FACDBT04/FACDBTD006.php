@@ -13,9 +13,10 @@ use Illuminate\Support\Facades\DB;
 /**
  * Dashboard Taking Data Revision: revisi data taking (SIM_INV_TAKING_DATA_REVISION_TAB) periode yang sedang berjalan.
  *
- * - Taking Data Revision : per area, Item_Book (jumlah baris book) dan % Area (jumlah revisi / Item_Book x 100)
+ * Revisi = baris dengan REV_NO > 1.
+ * - Taking Data Revision : per area, Item Book (jumlah baris book) dan % Area (jumlah revisi di area / Item Book area x 100)
  * - Reason Revision      : porsi revisi per REASON_REVISION
- * - Revision Performance : porsi revisi per MODIFIED_BY
+ * - Revision Performance : % Revision per MODIFIED_BY (jumlah revisi / Item Book x 100; Item Book area terpilih bila difilter)
  * Area = SIM_INV_GROUP_LOCATION.location_group dari LOCATION_NO. Filter dengan klik chart (lihat getData()).
  */
 class FACDBTD006 extends Controller
@@ -51,7 +52,6 @@ class FACDBTD006 extends Controller
         $perReason        = [];
         $perModifier      = [];
         $reasonTotal      = 0;
-        $modifierTotal    = 0;
         foreach ($source['revisions'] as [$rowArea, $rowModifier, $reason, $count]) {
             $areaMatch     = $area === '' || $area === $rowArea;
             $modifierMatch = $modifier === '' || $modifier === $rowModifier;
@@ -61,7 +61,6 @@ class FACDBTD006 extends Controller
             }
             if ($areaMatch) {
                 $perModifier[$rowModifier] = ($perModifier[$rowModifier] ?? 0) + $count;
-                $modifierTotal += $count;
             }
             if ($areaMatch && $modifierMatch) {
                 $perReason[$reason] = ($perReason[$reason] ?? 0) + $count;
@@ -86,7 +85,8 @@ class FACDBTD006 extends Controller
         return response()->json([
             'by_area'              => $byArea,
             'reason_revision'      => $this->shares($perReason, $reasonTotal),
-            'revision_performance' => $this->shares($perModifier, $modifierTotal),
+            // % Revision terhadap Item Book (semua area, atau area yang dipilih)
+            'revision_performance' => $this->shares($perModifier, (int) ($area === '' ? array_sum($source['book']) : ($source['book'][$area] ?? 0))),
         ]);
     }
 
@@ -107,7 +107,7 @@ class FACDBTD006 extends Controller
         $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
 
-        return $this->dashboardCache("FACDBTD006:source:v4:{$takingDate}:{$closeDate}", function () use ($db, $takingDate, $closeDate) {
+        return $this->dashboardCache("FACDBTD006:source:v5:{$takingDate}:{$closeDate}", function () use ($db, $takingDate, $closeDate) {
             $areaOf = $this->locationAreas($db);
             $area   = fn ($loc) => $areaOf[trim((string) $loc)] ?? self::UNKNOWN;
 
@@ -131,10 +131,10 @@ class FACDBTD006 extends Controller
 
             // [[area, modified by, reason, jumlah revisi], ...]
             $revisions = [];
-            // Satu revisi = REV_NO bertambah 1, jadi baris REV_NO 0 (data awal) tidak dihitung
+            // Revisi = REV_NO > 1 (REV_NO bertambah 1 tiap revisi; baris REV_NO 1 = data awal)
             $rows = $db->table('SIM_INV_TAKING_DATA_REVISION_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
-                ->where('REV_NO', '>', 0)
+                ->where('REV_NO', '>', 1)
                 ->groupBy('LOCATION_NO', 'MODIFIED_BY', 'REASON_REVISION')
                 ->select('LOCATION_NO', 'MODIFIED_BY', 'REASON_REVISION', DB::raw('COUNT(*) as n'))
                 ->get();
@@ -172,7 +172,7 @@ class FACDBTD006 extends Controller
     }
 
     /**
-     * Porsi tiap nilai terhadap total revisi, diurutkan dari terbesar.
+     * Persentase tiap nilai terhadap $total (total revisi, atau Item Book untuk % Revision), diurutkan dari terbesar.
      */
     private function shares(array $counts, int $total): array
     {

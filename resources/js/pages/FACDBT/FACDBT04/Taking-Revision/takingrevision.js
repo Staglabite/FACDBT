@@ -107,7 +107,7 @@ class DashboardTakingRevision {
         el.innerHTML = '<p class="text-center text-muted my-5">No Data Available</p>';
     }
 
-    // Kolom Item_Book (sumbu kiri) + garis % Area (sumbu kanan), urut dari % Area terbesar
+    // Kolom Item Book (sumbu kiri) + garis % Area (sumbu kanan), urut dari % Area terbesar
     renderAreaChart(items) {
         const el = document.getElementById('tr-chart-area');
         if (!el) return;
@@ -129,7 +129,7 @@ class DashboardTakingRevision {
 
         this.charts.area = new ApexCharts(el, {
             series: [
-                { name: 'Item_Book', type: 'column', data: items.map(d => Number(d.item_book || 0)) },
+                { name: 'Item Book', type: 'column', data: items.map(d => Number(d.item_book || 0)) },
                 { name: '% Area', type: 'line', data: items.map(d => (d.percent === null ? null : Number(d.percent))) }
             ],
             chart: {
@@ -179,7 +179,7 @@ class DashboardTakingRevision {
             },
             yaxis: [
                 {
-                    seriesName: 'Item_Book',
+                    seriesName: 'Item Book',
                     min: 0,
                     labels: { formatter: v => Math.round(v).toLocaleString('en-US'), style: { fontSize: '12px' } }
                 },
