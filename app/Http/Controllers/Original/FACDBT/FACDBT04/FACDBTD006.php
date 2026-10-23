@@ -157,7 +157,8 @@ class FACDBTD006 extends Controller
 
     /**
      * Data contoh untuk presentasi (halaman dibuka dengan ?demo=1): bentuknya sama dengan source(), tidak
-     * membaca / menulis data taking. Area dari master SIM_INV_GROUP_LOCATION; angka acak tetapi selalu sama.
+     * membaca / menulis data taking dan tidak ditandai di halaman. Area dari master SIM_INV_GROUP_LOCATION;
+     * angka acak tetapi selalu sama.
      */
     private function demoSource(): array
     {

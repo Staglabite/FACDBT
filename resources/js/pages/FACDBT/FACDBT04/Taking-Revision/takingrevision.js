@@ -31,7 +31,6 @@ class DashboardTakingRevision {
     }
 
     init() {
-        document.getElementById('tr-demo-badge')?.classList.toggle('d-none', !DEMO);
         ['area', 'modifier'].forEach(key => {
             document.getElementById(`tr-${key}-selected`)?.addEventListener('click', () => this.toggleFilter(key, this.filters[key]));
         });
