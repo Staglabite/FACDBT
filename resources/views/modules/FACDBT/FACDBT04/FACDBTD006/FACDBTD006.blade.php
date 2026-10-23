@@ -29,6 +29,11 @@
     }
 </style>
 
+{{-- Filter TIME (paling atas, horizontal): revisi yang dibuat di rentang ini; Reset = seluruh periode taking --}}
+<div class="border border-dark rounded-3 shadow-sm bg-white px-3 py-2 mb-3">
+    <div id="tr-time-filter"></div>
+</div>
+
 <div class="tr-row tr-row-main mb-3">
     {{-- Item_Book & % Area per area. Klik area = filter area chart lain --}}
     <div class="card shadow-none border border-dark rounded-0">

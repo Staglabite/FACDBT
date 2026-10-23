@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 use App\Services\FACDBT\AreaName;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
 use App\Services\FACDBT\RunningTakingPeriod;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 class FACDBTD006 extends Controller
 {
     use CachesDashboard;
+    use FiltersTakingRange;
 
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
@@ -31,6 +33,22 @@ class FACDBTD006 extends Controller
     public function index()
     {
         return view('modules.FACDBT.FACDBT04.FACDBTD006.FACDBTD006');
+    }
+
+    /**
+     * Pilihan hari untuk filter rentang waktu (Dari - Sampai).
+     */
+    public function getTimeRange()
+    {
+        $period = RunningTakingPeriod::find(DB::connection(self::CONN));
+        if (!$period) {
+            return response()->json(['days' => []]);
+        }
+
+        return response()->json($this->timeRangePayload(
+            Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s'),
+            Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s')
+        ));
     }
 
     /**
@@ -44,7 +62,7 @@ class FACDBTD006 extends Controller
      */
     public function getData(Request $request)
     {
-        $source = $request->boolean('demo') ? $this->demoSource() : $this->source();
+        $source = $request->boolean('demo') ? $this->demoSource() : $this->source($request);
 
         $area     = trim((string) $request->input('area', ''));
         $modifier = trim((string) $request->input('modifier', ''));
@@ -93,9 +111,10 @@ class FACDBTD006 extends Controller
 
     /**
      * Data dasar periode berjalan (di-cache; dihitung ulang bila ada scan / revisi / book baru):
-     * jumlah baris book per area dan jumlah revisi per (area, modified by, reason).
+     * jumlah baris book per area (seluruh periode) dan jumlah revisi per (area, modified by, reason) yang
+     * dibuat (CREATED_DATETIME) di rentang filter waktu `from` / `to`; tanpa filter: seluruh periode.
      */
-    private function source(): array
+    private function source(Request $request): array
     {
         $empty = ['book' => [], 'revisions' => []];
 
@@ -107,8 +126,9 @@ class FACDBTD006 extends Controller
 
         $takingDate = Carbon::parse($period->TAKING_DATE)->startOfDay()->format('Y-m-d H:i:s');
         $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
+        [$takingFrom, $takingTo] = $this->takingRange($request, $takingDate, $closeDate);
 
-        return $this->dashboardCache("FACDBTD006:source:v5:{$takingDate}:{$closeDate}", function () use ($db, $takingDate, $closeDate) {
+        return $this->dashboardCache("FACDBTD006:source:v6:{$takingDate}:{$closeDate}:{$takingFrom}:{$takingTo}", function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo) {
             $areaOf = $this->locationAreas($db);
             $area   = fn ($loc) => $areaOf[trim((string) $loc)] ?? self::UNKNOWN;
 
@@ -134,7 +154,7 @@ class FACDBTD006 extends Controller
             $revisions = [];
             // Revisi = REV_NO > 1 (REV_NO bertambah 1 tiap revisi; baris REV_NO 1 = data awal)
             $rows = $db->table('SIM_INV_TAKING_DATA_REVISION_TAB')
-                ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+                ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
                 ->where('REV_NO', '>', 1)
                 ->groupBy('LOCATION_NO', 'MODIFIED_BY', 'REASON_REVISION')
                 ->select('LOCATION_NO', 'MODIFIED_BY', 'REASON_REVISION', DB::raw('COUNT(*) as n'))

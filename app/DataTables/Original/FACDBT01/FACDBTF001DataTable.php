@@ -3,6 +3,7 @@
 // Namespace disesuaikan persis dengan struktur folder (menggunakan Original)
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_MSHLOCATION as Location;
 use App\Traits\DataTableTrait;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
@@ -15,6 +16,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF001DataTable extends DataTable
 {
     use DataTableTrait;
+    use MasterServiceName;
 
     /**
      * Build the DataTable class.
@@ -150,14 +152,14 @@ class FACDBTF001DataTable extends DataTable
         $buttons = [
             [
                 'action' => 'edit',
-                'service' => 'FACDBT001-Update',
+                'service' => $this->masterService('001', 'Update'),
                 'icon' => 'pencil',
                 'class' => 'edit-location',
                 'id' => $data->location_no, // <-- Tambahkan baris ini
             ],
             [
                 'action' => 'delete',
-                'service' => 'FACDBT001-Delete',
+                'service' => $this->masterService('001', 'Delete'),
                 'icon' => 'trash',
                 'class' => 'delete-location',
                 'title' => 'Delete location',

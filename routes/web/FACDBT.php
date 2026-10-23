@@ -149,5 +149,6 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     Route::group(['prefix' => 'taking-data-revision', 'controller' => FACDBTD006::class], function () {
         Route::get('/', 'index')->name('taking-data-revision.index');
         Route::get('/data', 'getData')->name('taking-data-revision.data');
+        Route::get('/time-range', 'getTimeRange')->name('taking-data-revision.time-range');
     });
 });

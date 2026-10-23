@@ -3,6 +3,7 @@
 // Namespace disesuaikan persis dengan struktur folder (menggunakan Original)
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_SIMINVGROUPLOCATION as GroupLocation;
 use App\Traits\DataTableTrait;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
@@ -15,6 +16,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF005DataTable extends DataTable
 {
     use DataTableTrait;
+    use MasterServiceName;
 
     /**
      * Build the DataTable class.
@@ -146,14 +148,14 @@ class FACDBTF005DataTable extends DataTable
         $buttons = [
             [
                 'action' => 'edit',
-                'service' => 'FACDBT005-Update',
+                'service' => $this->masterService('005', 'Update'),
                 'icon' => 'pencil',
                 'class' => 'edit-group-location',
                 'id' => $data->IID,
             ],
             [
                 'action' => 'delete',
-                'service' => 'FACDBT005-Delete',
+                'service' => $this->masterService('005', 'Delete'),
                 'icon' => 'trash',
                 'class' => 'delete-group-location',
                 'title' => 'Delete group location',

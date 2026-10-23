@@ -108,10 +108,10 @@ class DashboardNettVariance {
         // Angka besar di card hitam dikecilkan supaya tetap satu baris
         this.setText('nv-nett-qty', this.fmtNumber(data.nett_qty), true);
         this.setText('nv-nett-amount', this.fmtMillion(data.nett_amount), true);
-        this.setText('nv-positive-qty', this.fmtDecimal(positive.qty));
-        this.setText('nv-positive-amount', this.fmtDecimal(positive.amount));
-        this.setText('nv-negative-qty', this.fmtDecimal(negative.qty));
-        this.setText('nv-negative-amount', this.fmtDecimal(negative.amount));
+        this.setText('nv-positive-qty', this.fmtNumber(positive.qty));
+        this.setText('nv-positive-amount', this.fmtShort(positive.amount));
+        this.setText('nv-negative-qty', this.fmtNumber(negative.qty));
+        this.setText('nv-negative-amount', this.fmtShort(negative.amount));
 
         this.renderPosNeg(Number(positive.amount || 0), Number(negative.amount || 0));
         this.renderAreaWaterfall(data.by_area || []);
@@ -143,9 +143,12 @@ class DashboardNettVariance {
         return `${(Math.round(Number(v || 0) / 1e6) + 0).toLocaleString('en-US')}M`;
     }
 
-    // Contoh: 12280.5 -> "12,280.50"
-    fmtDecimal(v) {
-        return (Number(v || 0) + 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // Disingkat tanpa desimal: -143331250123 -> "-143,331M", 523400 -> "523K", 870 -> "870"
+    fmtShort(v) {
+        const n = Number(v || 0);
+        const abs = Math.abs(n);
+        const [value, unit] = abs >= 1e6 ? [n / 1e6, 'M'] : abs >= 1e3 ? [n / 1e3, 'K'] : [n, ''];
+        return `${(Math.round(value) + 0).toLocaleString('en-US')}${unit}`;
     }
 
     // Contoh: -8170 -> "-8,170"

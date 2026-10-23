@@ -1,6 +1,7 @@
 import axios from 'axios';
 import ApexCharts from 'apexcharts';
 import { autoRefresh, track } from '../shared/dashboardStatus';
+import { TimeRangeFilter } from '../shared/timeRangeFilter';
 import { dimCategories, clickedIndex } from '../shared/chartDim';
 
 const ENDPOINT = 'FACDBT/ds/taking-data-revision';
@@ -28,12 +29,17 @@ class DashboardTakingRevision {
         this.performanceItems = [];
         this.charts = {};
         this.dataRequest = null;
+        this.timeFilter = new TimeRangeFilter(document.getElementById('tr-time-filter'), () => this.loadData());
     }
 
     init() {
         ['area', 'modifier'].forEach(key => {
             document.getElementById(`tr-${key}-selected`)?.addEventListener('click', () => this.toggleFilter(key, this.filters[key]));
         });
+
+        axios.get(`${ENDPOINT}/time-range`)
+            .then(res => this.timeFilter.setDays(res.data?.days))
+            .catch(err => console.error('Error load time range:', err));
 
         this.loadData();
         autoRefresh(() => this.loadData());
@@ -69,7 +75,7 @@ class DashboardTakingRevision {
     // Data
     // -------------------------------------------------------------
     loadData() {
-        const params = DEMO ? { demo: 1 } : {};
+        const params = { ...this.timeFilter.params(), ...(DEMO ? { demo: 1 } : {}) };
         if (this.filters.area) params.area = this.filters.area;
         if (this.filters.modifier) params.modifier = this.filters.modifier;
 

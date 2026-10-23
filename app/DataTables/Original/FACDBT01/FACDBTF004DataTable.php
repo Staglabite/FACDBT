@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_SIMINVTAKINGBOOKTAB as TakingBook; // Mengambil model Taking Book
 use App\Traits\DataTableTrait;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF004DataTable extends DataTable
 {
     use DataTableTrait;
+    use MasterServiceName;
 
     /**
      * Build the DataTable class.
@@ -196,14 +198,14 @@ class FACDBTF004DataTable extends DataTable
         $buttons = [
             [
                 'action' => 'edit',
-                'service' => 'FACDBT004-Update', // Disesuaikan untuk Taking Book
+                'service' => $this->masterService('004', 'Update'), // Disesuaikan untuk Taking Book
                 'icon' => 'pencil',
                 'class' => 'edit-takingbook', // Class tombol edit
                 'id' => $data->INV_LIST_NO, 
             ],
             [
                 'action' => 'delete',
-                'service' => 'FACDBT004-Delete',
+                'service' => $this->masterService('004', 'Delete'),
                 'icon' => 'trash',
                 'class' => 'delete-takingbook', // Class tombol delete
                 'title' => 'Delete taking book',
