@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\Services\FACDBT\AreaName;
 use App\Services\FACDBT\RunningTakingPeriod;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\UsesTakingEvent;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +17,7 @@ class FACDBTD002 extends Controller
 {
     use CachesDashboard;
     use FiltersTakingRange;
+    use UsesTakingEvent;
 
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
@@ -22,22 +25,6 @@ class FACDBTD002 extends Controller
     public function index()
     {
         return view('modules.FACDBT.FACDBT04.FACDBTD002.FACDBTD002');
-    }
-
-    /**
-     * Daftar tombol filter area (location_group dari SIM_INV_GROUP_LOCATION).
-     */
-    public function getGroups()
-    {
-        $groups = DB::connection(self::CONN)
-            ->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(location_group) as area')
-            ->whereRaw("TRIM(location_group) <> ''")
-            ->distinct()
-            ->orderBy('area')
-            ->pluck('area');
-
-        return response()->json($groups);
     }
 
     /**
@@ -144,7 +131,8 @@ class FACDBTD002 extends Controller
         });
 
         $locations = $db->table('SIM_INV_GROUP_LOCATION')
-            ->when($group !== '', fn ($q) => $q->whereRaw('TRIM(location_group) = ?', [$group]))
+            // Area gabungan (mis. QA) mencakup semua location_group-nya
+            ->when($group !== '', fn ($q) => $q->whereIn(DB::raw('UPPER(TRIM(location_group))'), array_map('strtoupper', AreaName::groupsOf($group))))
             ->distinct()
             ->pluck('LOCATION_NO');
 
@@ -164,7 +152,7 @@ class FACDBTD002 extends Controller
      */
     private function perLocationPart($query, string $qtyColumn): array
     {
-        return $query
+        return $this->eventScope($query, DB::connection(self::CONN))
             ->groupBy('LOCATION_NO', 'PART_NO')
             ->select('LOCATION_NO', 'PART_NO', DB::raw("SUM({$qtyColumn}) as qty"))
             ->get()

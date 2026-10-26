@@ -6,14 +6,13 @@ use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF002;
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF003; 
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF004; 
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF005;
+use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF006;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD001;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD002;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD003;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD004;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD005;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD006;
-use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD007;
-use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD008;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\DashboardDataVersion;
 use Illuminate\Support\Facades\Route;
 
@@ -95,6 +94,22 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::delete('/{grouplocation}', 'destroy')->name('facdbtf005.destroy');
     });
 
+    // Route untuk Master Event (FACDBT006)
+    Route::group(['prefix' => 'master-event', 'controller' => FACDBTF006::class], function () {
+        Route::get('/', 'index')->name('facdbtf006.index');
+        Route::post('/', 'store')->name('facdbtf006.store');
+
+        Route::get('/periods', 'periods')->name('facdbtf006.periods');
+        Route::get('/download-template', 'downloadTemplate')->name('facdbtf006.download-template');
+        Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf006.delete-multiple');
+
+        Route::get('/{id}', 'show')->name('facdbtf006.show');
+        Route::put('/{event}', 'update')->name('facdbtf006.update');
+        Route::delete('/{event}', 'destroy')->name('facdbtf006.destroy');
+        Route::post('/{event}/parts', 'importParts')->name('facdbtf006.import-parts');
+        Route::get('/{event}/parts/export', 'exportParts')->name('facdbtf006.export-parts');
+    });
+
 });
 
 Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
@@ -114,22 +129,12 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     // Dashboard Progress by Group Location & Detail Location (FACDBTD002)
     Route::group(['prefix' => 'progress-dashboard', 'controller' => FACDBTD002::class], function () {
         Route::get('/', 'index')->name('progress-dashboard.index');
-        Route::get('/groups', 'getGroups')->name('progress-dashboard.groups');
         Route::get('/time-range', 'getTimeRange')->name('progress-dashboard.time-range');
         Route::get('/data', 'getData')->name('progress-dashboard.data');
-        // Chart Nett / Absolute Variance by Area (sama dengan Variance Dashboard)
-        Route::get('/variance', [FACDBTD003::class, 'getData'])->name('progress-dashboard.variance');
     });
 
-    // Dashboard Variance by Area (FACDBTD003)
-    Route::group(['prefix' => 'variance-dashboard', 'controller' => FACDBTD003::class], function () {
-        Route::get('/', 'index')->name('variance-dashboard.index');
-        Route::get('/time-range', 'getTimeRange')->name('variance-dashboard.time-range');
-        Route::get('/data', 'getData')->name('variance-dashboard.data');
-    });
-
-    // Variance Taking by Qty & Amount (FACDBTD004)
-    Route::group(['prefix' => 'taking-qty-amount', 'controller' => FACDBTD004::class], function () {
+    // Variance Taking by Qty & Amount (FACDBTD003)
+    Route::group(['prefix' => 'taking-qty-amount', 'controller' => FACDBTD003::class], function () {
         Route::get('/', 'index')->name('taking-qty-amount.index');
         Route::get('/filters', 'getFilters')->name('taking-qty-amount.filters');
         Route::get('/data', 'getData')->name('taking-qty-amount.data');
@@ -137,8 +142,8 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
         Route::get('/negative-table', 'negativeTable')->name('taking-qty-amount.negative-table');
     });
 
-    // Variance Taking by Part No per Location No (FACDBTD005)
-    Route::group(['prefix' => 'variance-part-location', 'controller' => FACDBTD005::class], function () {
+    // Variance Taking by Part No per Location No (FACDBTD004)
+    Route::group(['prefix' => 'variance-part-location', 'controller' => FACDBTD004::class], function () {
         Route::get('/', 'index')->name('variance-part-location.index');
         Route::get('/filters', 'getFilters')->name('variance-part-location.filters');
         Route::get('/data', 'getData')->name('variance-part-location.data');
@@ -150,25 +155,17 @@ Route::group(['prefix' => 'ds', 'middleware' => 'auth'], function () {
     Route::redirect('/nett-variance-dashboard', '/FACDBT/ds/taking-qty-amount');
     Route::redirect('/absolute-variance-dashboard', '/FACDBT/ds/variance-part-location');
 
-    // History Taking (FACDBTD006)
-    Route::group(['prefix' => 'taking-history', 'controller' => FACDBTD006::class], function () {
+    // History Taking (FACDBTD005)
+    Route::group(['prefix' => 'taking-history', 'controller' => FACDBTD005::class], function () {
         Route::get('/', 'index')->name('taking-history.index');
         Route::get('/filters', 'getFilters')->name('taking-history.filters');
         Route::post('/export', 'export')->name('taking-history.export');
     });
 
-    // Overview Taking Data by Location (FACDBTD007)
-    Route::group(['prefix' => 'taking-by-location', 'controller' => FACDBTD007::class], function () {
-        Route::get('/', 'index')->name('taking-by-location.index');
-        Route::post('/export', 'export')->name('taking-by-location.export');
-    });
-
-    // Taking Data Revision (FACDBTD008)
-    Route::group(['prefix' => 'taking-data-revision', 'controller' => FACDBTD008::class], function () {
+    // Taking Data Revision (FACDBTD006)
+    Route::group(['prefix' => 'taking-data-revision', 'controller' => FACDBTD006::class], function () {
         Route::get('/', 'index')->name('taking-data-revision.index');
         Route::get('/data', 'getData')->name('taking-data-revision.data');
-        Route::get('/table', 'table')->name('taking-data-revision.table');
-        Route::get('/periods', 'getPeriods')->name('taking-data-revision.periods');
-        Route::post('/export', 'export')->name('taking-data-revision.export');
+        Route::get('/time-range', 'getTimeRange')->name('taking-data-revision.time-range');
     });
 });

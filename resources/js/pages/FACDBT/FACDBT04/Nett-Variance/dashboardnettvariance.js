@@ -9,12 +9,12 @@ const ENDPOINT = 'FACDBT/ds/taking-qty-amount';
 // URL harus diawali "/" karena DataTables memakai jQuery ajax (tidak ikut baseURL axios),
 // sehingga URL relatif akan ditempel ke URL halaman (FACDBT/ds/FACDBT/ds/...).
 const TABLES = {
-    positive: { id: 'facdbtd004-positive-table', url: `/${ENDPOINT}/positive-table` },
-    negative: { id: 'facdbtd004-negative-table', url: `/${ENDPOINT}/negative-table` }
+    positive: { id: 'facdbtd003-positive-table', url: `/${ENDPOINT}/positive-table` },
+    negative: { id: 'facdbtd003-negative-table', url: `/${ENDPOINT}/negative-table` }
 };
 
-// Tinggi chart di baris atas (kotak TIME, chart, dan card Nett Var memakai tinggi yang sama)
-const TOP_CHART_HEIGHT = 205;
+// Tinggi chart di baris atas (chart dan card Nett Var memakai tinggi yang sama)
+const TOP_CHART_HEIGHT = 255;
 
 const THEME = {
     increase: '#6A7BFF',
@@ -25,13 +25,17 @@ const THEME = {
 
 class DashboardNettVariance {
     constructor() {
-        this.timeFilter = new TimeRangeFilter(document.getElementById('nv-time-filter'), () => this.loadData(), { vertical: true });
+        this.timeFilter = new TimeRangeFilter(document.getElementById('nv-time-filter'), () => this.loadData());
         this.selectedAreas = new Set();
         this.charts = {};
         this.dataRequest = null;
     }
 
     init() {
+        document.getElementById('nv-selected-area')?.addEventListener('click', () => {
+            const [area] = this.selectedAreas;
+            if (area) this.selectArea(area);
+        });
         this.bindTableControls();
         this.loadFilters();
         this.loadData();
@@ -41,7 +45,7 @@ class DashboardNettVariance {
     }
 
     // -------------------------------------------------------------
-    // Filter TIME (rentang Dari - Sampai) & AREA (boleh lebih dari satu)
+    // Filter TIME (rentang Dari - Sampai); AREA dipilih dengan klik chart Nett Variance by Area
     // -------------------------------------------------------------
     loadFilters() {
         axios.get(`${ENDPOINT}/filters`)
@@ -49,53 +53,29 @@ class DashboardNettVariance {
                 const data = res.data || {};
 
                 this.timeFilter.setDays(data.time_range?.days);
-
-                this.renderFilterList('nv-area-filter', (data.areas || []).map(a => ({ value: a, label: a })), value => {
-                    if (this.selectedAreas.has(value)) {
-                        this.selectedAreas.delete(value);
-                    } else {
-                        this.selectedAreas.add(value);
-                    }
-                    return this.selectedAreas;
-                });
             })
             .catch(err => console.error('Error load filters:', err));
     }
 
-    // onToggle mengembalikan Set nilai yang aktif setelah item diklik
-    renderFilterList(containerId, items, onToggle) {
-        const container = document.getElementById(containerId);
-        if (!container) return;
+    // Klik area di chart Nett Variance by Area: filter area (klik lagi untuk batal)
+    selectArea(area) {
+        const same = this.selectedAreas.has(area);
+        this.selectedAreas.clear();
+        if (!same) this.selectedAreas.add(area);
 
-        container.innerHTML = '';
-        const elements = items.map(item => {
-            const el = document.createElement('div');
-            el.className = 'nv-filter-item d-flex align-items-center gap-2 small text-dark';
-            el.dataset.value = item.value;
-            el.title = item.label;
-
-            const box = document.createElement('span');
-            box.className = 'nv-box';
-            const text = document.createElement('span');
-            text.className = 'text-truncate';
-            text.textContent = item.label;
-            el.append(box, text);
-
-            el.addEventListener('click', () => {
-                const active = onToggle(item.value);
-                elements.forEach(e => e.classList.toggle('active', active.has(e.dataset.value)));
-                this.loadData();
-            });
-
-            container.appendChild(el);
-            return el;
-        });
+        const chip = document.getElementById('nv-selected-area');
+        if (chip) {
+            chip.classList.toggle('d-none', this.selectedAreas.size === 0);
+            chip.querySelector('span').textContent = same ? '' : `Area ${area}`;
+        }
+        // Ganti area: tabel kembali ke urutan awal (Var Amount paling positif / paling minus)
+        this.loadData({ resetOrder: true });
     }
 
     // -------------------------------------------------------------
     // Data
     // -------------------------------------------------------------
-    loadData({ keepTablePage = false } = {}) {
+    loadData({ keepTablePage = false, resetOrder = false } = {}) {
         const params = this.timeFilter.params();
         if (this.selectedAreas.size > 0) {
             params.areas = Array.from(this.selectedAreas);
@@ -109,7 +89,7 @@ class DashboardNettVariance {
         this.dataRequest = controller;
 
         track(axios.get(`${ENDPOINT}/data`, { params, signal: controller.signal, timeout: 60000 }))
-            .then(res => this.render(res.data || {}, keepTablePage))
+            .then(res => this.render(res.data || {}, keepTablePage, resetOrder))
             .catch(err => {
                 if (axios.isCancel(err)) return;
                 console.error('Error load nett variance:', err);
@@ -121,26 +101,41 @@ class DashboardNettVariance {
             });
     }
 
-    render(data, keepTablePage = false) {
+    render(data, keepTablePage = false, resetOrder = false) {
         const positive = data.positive || {};
         const negative = data.negative || {};
 
-        this.setText('nv-nett-qty', this.fmtNumber(data.nett_qty));
-        this.setText('nv-nett-amount', this.fmtMillion(data.nett_amount));
-        this.setText('nv-positive-qty', this.fmtThousand(positive.qty));
-        this.setText('nv-positive-amount', this.fmtMillion(positive.amount));
-        this.setText('nv-negative-qty', this.fmtThousand(negative.qty));
-        this.setText('nv-negative-amount', this.fmtMillion(negative.amount));
+        // Angka besar di card hitam dikecilkan supaya tetap satu baris
+        this.setText('nv-nett-qty', this.fmtNumber(data.nett_qty), true);
+        this.setText('nv-nett-amount', this.fmtMillion(data.nett_amount), true);
+        this.setText('nv-positive-qty', this.fmtNumber(positive.qty));
+        this.setText('nv-positive-amount', this.fmtShort(positive.amount));
+        this.setText('nv-negative-qty', this.fmtNumber(negative.qty));
+        this.setText('nv-negative-amount', this.fmtShort(negative.amount));
 
         this.renderPosNeg(Number(positive.amount || 0), Number(negative.amount || 0));
-        this.renderAreaWaterfall(data.by_area || [], Number(data.nett_amount || 0));
+        this.renderAreaWaterfall(data.by_area || []);
         // Tabel dimuat setelah ringkasan selesai supaya memakai hasil perhitungan yang sudah di-cache
-        this.reloadTables(!keepTablePage);
+        this.reloadTables(!keepTablePage, resetOrder);
     }
 
-    setText(id, text) {
+    setText(id, text, fit = false) {
         const el = document.getElementById(id);
-        if (el) el.textContent = text;
+        if (!el) return;
+
+        el.textContent = text;
+        if (fit) this.fitText(el);
+    }
+
+    // Satu baris: ukuran huruf diperkecil bertahap sampai angka muat di lebar card
+    fitText(el) {
+        el.style.whiteSpace = 'nowrap';
+        el.style.fontSize = '';
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        while (el.scrollWidth > el.clientWidth && size > 12) {
+            size -= 1;
+            el.style.fontSize = `${size}px`;
+        }
     }
 
     // Contoh: -57123456 -> "-57M" ("+ 0" supaya nilai kecil negatif tidak tampil "-0M")
@@ -148,10 +143,12 @@ class DashboardNettVariance {
         return `${(Math.round(Number(v || 0) / 1e6) + 0).toLocaleString('en-US')}M`;
     }
 
-    // Contoh: 12280 -> "12.28K"
-    fmtThousand(v) {
-        const k = Math.round(Number(v || 0) / 10) / 100 + 0;
-        return `${k.toFixed(2)}K`;
+    // Disingkat tanpa desimal: -143331250123 -> "-143,331M", 523400 -> "523K", 870 -> "870"
+    fmtShort(v) {
+        const n = Number(v || 0);
+        const abs = Math.abs(n);
+        const [value, unit] = abs >= 1e6 ? [n / 1e6, 'M'] : abs >= 1e3 ? [n / 1e3, 'K'] : [n, ''];
+        return `${(Math.round(value) + 0).toLocaleString('en-US')}${unit}`;
     }
 
     // Contoh: -8170 -> "-8,170"
@@ -178,7 +175,8 @@ class DashboardNettVariance {
         return { show: false, min: min - pad, max: max + pad };
     }
 
-    waterfallOptions(points, height, extra = {}) {
+    // extra.events = event ApexCharts (mis. klik), sisanya menimpa opsi chart
+    waterfallOptions(points, height, { events = {}, ...extra } = {}) {
         return {
             series: [{ name: 'Variance', data: points }],
             chart: {
@@ -187,7 +185,8 @@ class DashboardNettVariance {
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
-                animations: { enabled: true, speed: 500 }
+                animations: { enabled: true, speed: 500 },
+                events
             },
             plotOptions: {
                 bar: { horizontal: false, columnWidth: '65%', borderRadius: 0 }
@@ -246,8 +245,9 @@ class DashboardNettVariance {
         this.charts.posneg.render();
     }
 
-    // Waterfall per area (urut dari variance terbesar) ditutup bar Total
-    renderAreaWaterfall(items, total) {
+    // Waterfall per area (urut dari variance terbesar) ditutup bar Total. Selalu memuat semua area;
+    // klik area = filter area, area lain dipudarkan.
+    renderAreaWaterfall(items) {
         const el = document.getElementById('nv-chart-area');
         if (!el) return;
 
@@ -259,22 +259,33 @@ class DashboardNettVariance {
         }
 
         el.innerHTML = '';
+        el.style.cursor = 'pointer';
         let running = 0;
         const points = items.map(d => {
             const value = Number(d.value || 0);
             const start = running;
             running += value;
+            const color = value < 0 ? THEME.decrease : THEME.increase;
+            const dimmed = this.selectedAreas.size > 0 && !this.selectedAreas.has(d.area);
 
             return {
                 x: d.area,
                 y: [Math.min(start, running), Math.max(start, running)],
-                fillColor: value < 0 ? THEME.decrease : THEME.increase,
+                fillColor: dimmed ? `${color}40` : color,
                 value
             };
         });
+        const total = running;
+        const select = index => {
+            if (items[index]) this.selectArea(items[index].area);
+        };
         points.push({ x: 'Total', y: [Math.min(0, total), Math.max(0, total)], fillColor: THEME.total, value: total });
 
         this.charts.area = new ApexCharts(el, this.waterfallOptions(points, TOP_CHART_HEIGHT, {
+            events: {
+                click: (event, ctx, config) => select(config.dataPointIndex),
+                xAxisLabelClick: (event, ctx, config) => select(config.labelIndex)
+            },
             xaxis: {
                 type: 'category',
                 axisBorder: { show: false },
@@ -283,8 +294,9 @@ class DashboardNettVariance {
                 labels: {
                     rotate: -45,
                     rotateAlways: true,
-                    trim: true,
-                    maxHeight: 60,
+                    // Nama area ditampilkan lengkap (tidak dipotong)
+                    trim: false,
+                    maxHeight: 120,
                     hideOverlappingLabels: false,
                     style: { fontSize: '10px', colors: '#555555' }
                 }
@@ -320,15 +332,21 @@ class DashboardNettVariance {
         return params;
     }
 
-    reloadTable({ id, url }, resetPaging = true) {
+    // resetOrder: kembali ke urutan awal tabel; selain itu urutan yang dipilih lewat judul kolom dipertahankan
+    reloadTable({ id, url }, resetPaging = true, resetOrder = false) {
         if (!$.fn.dataTable.isDataTable(`#${id}`)) return;
 
+        const table = $(`#${id}`).DataTable();
+        if (resetOrder) {
+            table.order(table.init().order || []);
+        }
+
         const query = this.tableParams(id).toString();
-        $(`#${id}`).DataTable().ajax.url(query ? `${url}?${query}` : url).load(null, resetPaging);
+        table.ajax.url(query ? `${url}?${query}` : url).load(null, resetPaging);
     }
 
-    reloadTables(resetPaging = true) {
-        Object.values(TABLES).forEach(table => this.reloadTable(table, resetPaging));
+    reloadTables(resetPaging = true, resetOrder = false) {
+        Object.values(TABLES).forEach(table => this.reloadTable(table, resetPaging, resetOrder));
     }
 
     bindTableControls() {

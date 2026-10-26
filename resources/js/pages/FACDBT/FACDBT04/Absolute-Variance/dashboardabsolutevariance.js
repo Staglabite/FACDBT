@@ -9,12 +9,12 @@ const ENDPOINT = 'FACDBT/ds/variance-part-location';
 // URL harus diawali "/" karena DataTables memakai jQuery ajax (tidak ikut baseURL axios),
 // sehingga URL relatif akan ditempel ke URL halaman (FACDBT/ds/FACDBT/ds/...).
 const TABLES = {
-    positive: { id: 'facdbtd005-positive-table', url: `/${ENDPOINT}/positive-table` },
-    negative: { id: 'facdbtd005-negative-table', url: `/${ENDPOINT}/negative-table` }
+    positive: { id: 'facdbtd004-positive-table', url: `/${ENDPOINT}/positive-table` },
+    negative: { id: 'facdbtd004-negative-table', url: `/${ENDPOINT}/negative-table` }
 };
 
-// Tinggi chart di baris atas (kotak TIME, chart, dan card Nett Var memakai tinggi yang sama)
-const TOP_CHART_HEIGHT = 205;
+// Tinggi chart di baris atas (chart dan card Nett Var memakai tinggi yang sama)
+const TOP_CHART_HEIGHT = 255;
 
 const THEME = {
     increase: '#6A7BFF',
@@ -25,13 +25,17 @@ const THEME = {
 
 class DashboardAbsoluteVariance {
     constructor() {
-        this.timeFilter = new TimeRangeFilter(document.getElementById('av-time-filter'), () => this.loadData(), { vertical: true });
+        this.timeFilter = new TimeRangeFilter(document.getElementById('av-time-filter'), () => this.loadData());
         this.selectedAreas = new Set();
         this.charts = {};
         this.dataRequest = null;
     }
 
     init() {
+        document.getElementById('av-selected-area')?.addEventListener('click', () => {
+            const [area] = this.selectedAreas;
+            if (area) this.selectArea(area);
+        });
         this.bindTableControls();
         this.loadFilters();
         this.loadData();
@@ -41,7 +45,7 @@ class DashboardAbsoluteVariance {
     }
 
     // -------------------------------------------------------------
-    // Filter TIME (rentang Dari - Sampai) & AREA (boleh lebih dari satu)
+    // Filter TIME (rentang Dari - Sampai); AREA dipilih dengan klik chart Nett Variance by Area
     // -------------------------------------------------------------
     loadFilters() {
         axios.get(`${ENDPOINT}/filters`)
@@ -49,47 +53,22 @@ class DashboardAbsoluteVariance {
                 const data = res.data || {};
 
                 this.timeFilter.setDays(data.time_range?.days);
-
-                this.renderFilterList('av-area-filter', (data.areas || []).map(a => ({ value: a, label: a })), value => {
-                    if (this.selectedAreas.has(value)) {
-                        this.selectedAreas.delete(value);
-                    } else {
-                        this.selectedAreas.add(value);
-                    }
-                    return this.selectedAreas;
-                });
             })
             .catch(err => console.error('Error load filters:', err));
     }
 
-    // onToggle mengembalikan Set nilai yang aktif setelah item diklik
-    renderFilterList(containerId, items, onToggle) {
-        const container = document.getElementById(containerId);
-        if (!container) return;
+    // Klik area di chart Nett Variance by Area: filter area (klik lagi untuk batal)
+    selectArea(area) {
+        const same = this.selectedAreas.has(area);
+        this.selectedAreas.clear();
+        if (!same) this.selectedAreas.add(area);
 
-        container.innerHTML = '';
-        const elements = items.map(item => {
-            const el = document.createElement('div');
-            el.className = 'av-filter-item d-flex align-items-center gap-2 small text-dark';
-            el.dataset.value = item.value;
-            el.title = item.label;
-
-            const box = document.createElement('span');
-            box.className = 'av-box';
-            const text = document.createElement('span');
-            text.className = 'text-truncate';
-            text.textContent = item.label;
-            el.append(box, text);
-
-            el.addEventListener('click', () => {
-                const active = onToggle(item.value);
-                elements.forEach(e => e.classList.toggle('active', active.has(e.dataset.value)));
-                this.loadData();
-            });
-
-            container.appendChild(el);
-            return el;
-        });
+        const chip = document.getElementById('av-selected-area');
+        if (chip) {
+            chip.classList.toggle('d-none', this.selectedAreas.size === 0);
+            chip.querySelector('span').textContent = same ? '' : `Area ${area}`;
+        }
+        this.loadData();
     }
 
     // -------------------------------------------------------------
@@ -125,22 +104,37 @@ class DashboardAbsoluteVariance {
         const positive = data.positive || {};
         const negative = data.negative || {};
 
-        this.setText('av-nett-qty', this.fmtNumber(data.nett_qty));
-        this.setText('av-nett-amount', this.fmtMillion(data.nett_amount));
-        this.setText('av-positive-qty', this.fmtThousand(positive.qty));
-        this.setText('av-positive-amount', this.fmtMillion(positive.amount));
-        this.setText('av-negative-qty', this.fmtThousand(negative.qty));
-        this.setText('av-negative-amount', this.fmtMillion(negative.amount));
+        // Angka besar di card hitam dikecilkan supaya tetap satu baris
+        this.setText('av-nett-qty', this.fmtNumber(data.nett_qty), true);
+        this.setText('av-nett-amount', this.fmtMillion(data.nett_amount), true);
+        this.setText('av-positive-qty', this.fmtNumber(positive.qty));
+        this.setText('av-positive-amount', this.fmtShort(positive.amount));
+        this.setText('av-negative-qty', this.fmtNumber(negative.qty));
+        this.setText('av-negative-amount', this.fmtShort(negative.amount));
 
         this.renderNett(Number(positive.amount || 0), Number(negative.amount || 0));
-        this.renderAreaWaterfall(data.by_area || [], Number(data.nett_amount || 0));
+        this.renderAreaWaterfall(data.by_area || []);
         // Tabel dimuat setelah ringkasan selesai supaya memakai hasil perhitungan yang sudah di-cache
         this.reloadTables(!keepTablePage);
     }
 
-    setText(id, text) {
+    setText(id, text, fit = false) {
         const el = document.getElementById(id);
-        if (el) el.textContent = text;
+        if (!el) return;
+
+        el.textContent = text;
+        if (fit) this.fitText(el);
+    }
+
+    // Satu baris: ukuran huruf diperkecil bertahap sampai angka muat di lebar card
+    fitText(el) {
+        el.style.whiteSpace = 'nowrap';
+        el.style.fontSize = '';
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        while (el.scrollWidth > el.clientWidth && size > 12) {
+            size -= 1;
+            el.style.fontSize = `${size}px`;
+        }
     }
 
     // Contoh: -57123456 -> "-57M" ("+ 0" supaya nilai kecil negatif tidak tampil "-0M")
@@ -148,10 +142,12 @@ class DashboardAbsoluteVariance {
         return `${(Math.round(Number(v || 0) / 1e6) + 0).toLocaleString('en-US')}M`;
     }
 
-    // Contoh: 12280 -> "12.28K"
-    fmtThousand(v) {
-        const k = Math.round(Number(v || 0) / 10) / 100 + 0;
-        return `${k.toFixed(2)}K`;
+    // Disingkat tanpa desimal: -143331250123 -> "-143,331M", 523400 -> "523K", 870 -> "870"
+    fmtShort(v) {
+        const n = Number(v || 0);
+        const abs = Math.abs(n);
+        const [value, unit] = abs >= 1e6 ? [n / 1e6, 'M'] : abs >= 1e3 ? [n / 1e3, 'K'] : [n, ''];
+        return `${(Math.round(value) + 0).toLocaleString('en-US')}${unit}`;
     }
 
     // Contoh: -8170 -> "-8,170"
@@ -178,7 +174,8 @@ class DashboardAbsoluteVariance {
         return { show: false, min: min - pad, max: max + pad };
     }
 
-    waterfallOptions(points, height, extra = {}) {
+    // extra.events = event ApexCharts (mis. klik), sisanya menimpa opsi chart
+    waterfallOptions(points, height, { events = {}, ...extra } = {}) {
         return {
             series: [{ name: 'Variance', data: points }],
             chart: {
@@ -187,7 +184,8 @@ class DashboardAbsoluteVariance {
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
-                animations: { enabled: true, speed: 500 }
+                animations: { enabled: true, speed: 500 },
+                events
             },
             plotOptions: {
                 bar: { horizontal: false, columnWidth: '65%', borderRadius: 0 }
@@ -247,8 +245,9 @@ class DashboardAbsoluteVariance {
         this.charts.posneg.render();
     }
 
-    // Waterfall nett variance per area (urut dari terbesar) ditutup bar Total
-    renderAreaWaterfall(items, total) {
+    // Waterfall nett variance per area (urut dari terbesar) ditutup bar Total. Selalu memuat semua area;
+    // klik area = filter area, area lain dipudarkan.
+    renderAreaWaterfall(items) {
         const el = document.getElementById('av-chart-area');
         if (!el) return;
 
@@ -260,22 +259,33 @@ class DashboardAbsoluteVariance {
         }
 
         el.innerHTML = '';
+        el.style.cursor = 'pointer';
         let running = 0;
         const points = items.map(d => {
             const value = Number(d.value || 0);
             const start = running;
             running += value;
+            const color = value < 0 ? THEME.decrease : THEME.increase;
+            const dimmed = this.selectedAreas.size > 0 && !this.selectedAreas.has(d.area);
 
             return {
                 x: d.area,
                 y: [Math.min(start, running), Math.max(start, running)],
-                fillColor: value < 0 ? THEME.decrease : THEME.increase,
+                fillColor: dimmed ? `${color}40` : color,
                 value
             };
         });
+        const total = running;
+        const select = index => {
+            if (items[index]) this.selectArea(items[index].area);
+        };
         points.push({ x: 'Total', y: [Math.min(0, total), Math.max(0, total)], fillColor: THEME.total, value: total });
 
         this.charts.area = new ApexCharts(el, this.waterfallOptions(points, TOP_CHART_HEIGHT, {
+            events: {
+                click: (event, ctx, config) => select(config.dataPointIndex),
+                xAxisLabelClick: (event, ctx, config) => select(config.labelIndex)
+            },
             xaxis: {
                 type: 'category',
                 axisBorder: { show: false },
@@ -284,8 +294,9 @@ class DashboardAbsoluteVariance {
                 labels: {
                     rotate: -45,
                     rotateAlways: true,
-                    trim: true,
-                    maxHeight: 60,
+                    // Nama area ditampilkan lengkap (tidak dipotong)
+                    trim: false,
+                    maxHeight: 120,
                     hideOverlappingLabels: false,
                     style: { fontSize: '10px', colors: '#555555' }
                 }

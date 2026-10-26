@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_MSHUNITCOST as UnitCost; // Mengambil model Unit Cost
 use App\Traits\DataTableTrait;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
@@ -14,6 +15,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF003DataTable extends DataTable
 {
     use DataTableTrait;
+    use MasterServiceName;
 
     /**
      * Build the DataTable class.
@@ -152,14 +154,14 @@ class FACDBTF003DataTable extends DataTable
         $buttons = [
             [
                 'action' => 'edit',
-                'service' => 'FACDBT003-Update', // Disesuaikan untuk Master Unit Cost
+                'service' => $this->masterService('003', 'Update'), // Disesuaikan untuk Master Unit Cost
                 'icon' => 'pencil',
                 'class' => 'edit-unitcost', // Class tombol edit
                 'id' => $data->part_no, 
             ],
             [
                 'action' => 'delete',
-                'service' => 'FACDBT003-Delete',
+                'service' => $this->masterService('003', 'Delete'),
                 'icon' => 'trash',
                 'class' => 'delete-unitcost', // Class tombol delete
                 'title' => 'Delete unit cost',

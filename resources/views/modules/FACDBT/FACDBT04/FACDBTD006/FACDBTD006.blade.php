@@ -1,8 +1,9 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'Dashboard - History Taking')
+@section('title', 'Dashboard - Taking Data Revision')
 
 @section('content')
+
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item">
@@ -11,57 +12,69 @@
             <li class="breadcrumb-item">
                 <a href="javascript:void(0);">Dashboard</a>
             </li>
-            <li class="breadcrumb-item active">History Taking</li>
+            <li class="breadcrumb-item active">Taking Data Revision</li>
         </ol>
     </nav>
 
-    <div class="card">
-        <div class="card-datatable">
-            <div class="d-flex justify-content-between align-items-center my-5 flex-column flex-xl-row gap-3 px-6">
-                <div class="d-flex align-items-center gap-2 justify-content-center flex-wrap">
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3"
-                            id="export-excel">
-                            <i class="icon-base ti tabler-upload"></i> Export
-                        </button>
-                    </div>
+<style>
+    /* Baris 1: chart Taking Data Revision (lebar penuh); baris 2: Reason Revision & Revision Performance */
+    .tr-row { display: flex; gap: .75rem; align-items: stretch; }
+    .tr-row > .card { min-width: 0; flex: 1 1 0; }
+    .tr-row-main > .card { height: 500px; }
+    .tr-row-side > .card { height: 440px; }
+    .tr-title { font-weight: 700; color: #333; }
+    @media (max-width: 1199.98px) {
+        .tr-row { flex-wrap: wrap; }
+        .tr-row > .card { flex: 1 1 100%; height: auto; }
+    }
+</style>
 
-                    {{-- Filter periode: Year -> Month -> Event (Event hanya tampil bila 1 bulan punya >1 taking) --}}
-                    <select class="form-select form-select-sm" id="filter-year" style="width: 110px;" aria-label="Year">
-                        <option value="">All Year</option>
-                    </select>
-                    <select class="form-select form-select-sm" id="filter-month" style="width: 140px;" aria-label="Month" disabled>
-                        <option value="">All Month</option>
-                    </select>
-                    <select class="form-select form-select-sm d-none" id="filter-event" style="width: 190px;" aria-label="Event"></select>
-                </div>
-                <div class="d-flex gap-2 align-items-center flex-column flex-lg-row mt-2 mt-xxl-0">
-                    <div class="d-flex align-items-center gap-1 justify-content-center">
-                        <select class="form-select form-select-sm mx-2" id="entries"
-                            style="width: 70px; max-width: 70px; font-size: 1rem; padding: 0.25rem 0.5rem;">
-                            <option value="10">10</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                            <option value="500">500</option>
-                        </select>
-                    </div>
-                    <div class="input-group" style="width: 100%; min-width: 200px;">
-                        <span class="input-group-text border-end-0">
-                            <i class="icon-base ti tabler-search"></i>
-                        </span>
-                        <input type="text" class="form-control border-start-0" placeholder="Search"
-                            aria-label="Search History Taking" id="search-input">
-                    </div>
-                </div>
-            </div>
+{{-- Filter TIME (paling atas, horizontal): revisi yang dibuat di rentang ini; Reset = seluruh periode taking --}}
+<div class="border border-dark rounded-3 shadow-sm bg-white px-3 py-2 mb-3">
+    <div id="tr-time-filter"></div>
+</div>
 
-            {{ $dataTable->table(['class' => 'table'], true) }}
+<div class="tr-row tr-row-main mb-3">
+    {{-- Item_Book & % Area per area. Klik area = filter area chart lain --}}
+    <div class="card shadow-none border border-dark rounded-0">
+        <div class="card-header pt-2 pb-0 d-flex justify-content-center align-items-center gap-2">
+            <h5 class="tr-title mb-0">Taking Data Revision</h5>
+            <button type="button" class="btn btn-sm btn-dark py-0 px-2 d-none" id="tr-area-selected" title="Hapus filter area">
+                <span></span> <i class="icon-base ti tabler-x"></i>
+            </button>
+        </div>
+        <div class="card-body p-1">
+            <div id="tr-chart-area"></div>
         </div>
     </div>
+</div>
+
+<div class="tr-row tr-row-side mb-4">
+    <div class="card shadow-none border border-dark rounded-0">
+        <div class="card-header text-center pt-2 pb-0">
+            <h5 class="tr-title mb-0">Reason Revision</h5>
+        </div>
+        <div class="card-body p-1">
+            <div id="tr-chart-reason"></div>
+        </div>
+    </div>
+
+    <div class="card shadow-none border border-dark rounded-0">
+        <div class="card-header pt-2 pb-0 d-flex justify-content-center align-items-center gap-2">
+            <h5 class="tr-title mb-0">Revision Performance</h5>
+            {{-- Klik nama = filter modified by chart lain --}}
+            <button type="button" class="btn btn-sm btn-dark py-0 px-2 d-none" id="tr-modifier-selected" title="Hapus filter modified by">
+                <span></span> <i class="icon-base ti tabler-x"></i>
+            </button>
+        </div>
+        <div class="card-body p-1">
+            <div id="tr-chart-performance"></div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @section('page-script')
-    {{ $dataTable->scripts(attributes: ['type' => 'module']) }}
-    @vite(['resources/js/pages/FACDBT/FACDBT04/Taking-History/takinghistory.js'])
+    @vite(['resources/js/pages/FACDBT/FACDBT04/Taking-Revision/takingrevision.js'])
 @endsection

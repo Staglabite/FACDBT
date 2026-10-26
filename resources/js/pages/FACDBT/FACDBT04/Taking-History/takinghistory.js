@@ -7,12 +7,12 @@ const ENDPOINT = '/FACDBT/ds/taking-history';
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 class TakingHistory {
-  #table = $('#facdbtd006-table');
+  #table = $('#facdbtd005-table');
   #selectedIds = new Set();
   #selectAllPromise = null;
   #events = [];
   // Filter yang dikirim ke DataTable & export
-  #filters = { year: '', month: '', taking_date: '', keyword: '' };
+  #filters = { year: '', month: '', taking_date: '', event_type: '', keyword: '' };
 
   init() {
     const self = this;
@@ -40,6 +40,11 @@ class TakingHistory {
         this.#events = res.data?.events || [];
         const years = [...new Set(this.#events.map(e => e.year))];
         $('#filter-year').append(years.map(y => `<option value="${y}">${y}</option>`).join(''));
+
+        const types = Object.entries(res.data?.event_types || {});
+        $('#filter-event-type')
+          .append(types.map(([code, name]) => $('<option>', { value: code, text: name })))
+          .toggleClass('d-none', types.length === 0);
       })
       .catch(() => toast.error('Failed to load history periods.'));
   }
@@ -74,6 +79,7 @@ class TakingHistory {
     $(document).on('change', '#filter-year', e => this.#onYearChange($(e.target).val()));
     $(document).on('change', '#filter-month', e => this.#onMonthChange($('#filter-year').val(), $(e.target).val()));
     $(document).on('change', '#filter-event', e => this.#updateQuery({ taking_date: $(e.target).val() }));
+    $(document).on('change', '#filter-event-type', e => this.#updateQuery({ event_type: $(e.target).val() }));
 
     $(document).on('change', '#entries', e => {
       this.#table.DataTable().page.len(Number($(e.target).val())).draw();

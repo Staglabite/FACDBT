@@ -3,7 +3,7 @@
 namespace App\Services\FACDBT;
 
 /**
- * Perhitungan Nett Variance Dashboard (FACDBTD004), dipakai controller (ringkasan & chart)
+ * Perhitungan Nett Variance Dashboard (FACDBTD003), dipakai controller (ringkasan & chart)
  * dan DataTable (detail part positif / negatif).
  *
  * Variance qty = qty taking - qty book (dicocokkan per lokasi lalu dijumlah per part),
@@ -14,7 +14,7 @@ class NettVarianceService extends VarianceDashboardService
 {
     protected function cachePrefix(): string
     {
-        return 'FACDBTD004:data:v4';
+        return 'FACDBTD003:data:v8';
     }
 
     protected function emptyResult(): array
@@ -43,12 +43,17 @@ class NettVarianceService extends VarianceDashboardService
         }
 
         $negative = array_filter($perPart, fn ($p) => $this->isNegative($p['qty'], $p['amount']));
+        $positive = array_diff_key($perPart, $negative);
+
+        // Urutan tabel tetap: positive dari Var Amount terbesar, negative dari yang paling minus
+        uasort($positive, fn ($a, $b) => $b['amount'] <=> $a['amount'] ?: $b['qty'] <=> $a['qty']);
+        uasort($negative, fn ($a, $b) => $a['amount'] <=> $b['amount'] ?: $a['qty'] <=> $b['qty']);
 
         return [
             'nett_qty'    => round(array_sum(array_column($perPart, 'qty')), 2),
             'nett_amount' => round(array_sum(array_column($perPart, 'amount')), 2),
             'by_area'     => $this->areaSeries($perArea),
-            'positive'    => $this->detail(array_diff_key($perPart, $negative), $names),
+            'positive'    => $this->detail($positive, $names),
             'negative'    => $this->detail($negative, $names),
         ];
     }

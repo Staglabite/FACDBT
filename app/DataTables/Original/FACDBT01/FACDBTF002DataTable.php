@@ -3,6 +3,7 @@
 // Sesuaikan namespace dengan struktur folder Anda (contoh menggunakan FACDBT02)
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_MSHPART as Part; // Mengambil model Part dari folder FACDBT01
 use App\Traits\DataTableTrait;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
@@ -15,6 +16,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF002DataTable extends DataTable
 {
     use DataTableTrait;
+    use MasterServiceName;
 
     /**
      * Build the DataTable class.
@@ -150,14 +152,14 @@ class FACDBTF002DataTable extends DataTable
         $buttons = [
             [
                 'action' => 'edit',
-                'service' => 'FACDBT002-Update', // Disesuaikan dengan penamaan service Part
+                'service' => $this->masterService('002', 'Update'), // Disesuaikan dengan penamaan service Part
                 'icon' => 'pencil',
                 'class' => 'edit-part',
                 'id' => $data->part_no, // Menggunakan part_no sebagai ID
             ],
             [
                 'action' => 'delete',
-                'service' => 'FACDBT002-Delete',
+                'service' => $this->masterService('002', 'Delete'),
                 'icon' => 'trash',
                 'class' => 'delete-part',
                 'title' => 'Delete part',

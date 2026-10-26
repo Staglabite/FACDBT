@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
 /**
- * Rumus Nett & Absolute Variance Dashboard (FACDBTD004 / FACDBTD005) tanpa database:
+ * Rumus Nett & Absolute Variance Dashboard (FACDBTD003 / FACDBTD004) tanpa database:
  * build() menerima variance per (lokasi, part) yang sudah difilter area.
  */
 class VarianceServicesTest extends TestCase
@@ -40,6 +40,21 @@ class VarianceServicesTest extends TestCase
         sort($partNos);
 
         return $partNos;
+    }
+
+    public function test_nett_variance_tables_are_ordered_by_amount(): void
+    {
+        $method = new ReflectionMethod(NettVarianceService::class, 'build');
+        $result = $method->invoke(new NettVarianceService, [
+            ['L1', 'A', 0, 1, 10, 'X'],  // +10
+            ['L1', 'B', 0, 1, 50, 'X'],  // +50
+            ['L1', 'C', 1, 0, 20, 'X'],  // -20
+            ['L1', 'D', 1, 0, 70, 'X'],  // -70
+        ], []);
+
+        // Positive dari Var Amount terbesar, negative dari yang paling minus
+        $this->assertSame(['B', 'A'], array_column($result['positive']['rows'], 'part_no'));
+        $this->assertSame(['D', 'C'], array_column($result['negative']['rows'], 'part_no'));
     }
 
     public function test_nett_variance_nets_locations_per_part(): void

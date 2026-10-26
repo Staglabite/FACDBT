@@ -4,6 +4,7 @@ namespace App\Services\FACDBT;
 
 use Carbon\Carbon;
 use Illuminate\Database\Connection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\DB;
  * - book   : SIM_INV_TAKING_BOOK_TAB, INV_LIST_NO terbaru di rentang TAKING_DATE s/d CLOSE_DATE
  * - taking : SIM_INV_TAKING_DATA_TAB, CREATED_DATETIME di rentang yang sama (tanggal scan)
  * - master (lokasi, area, part, unit cost) disalin saat snapshot supaya history tidak ikut berubah.
+ * - event periode (Master Event) membatasi book & taking seperti di dashboard; jenisnya disimpan di EVENT_TYPE.
  */
 class TakingHistoryService
 {
@@ -29,13 +31,13 @@ class TakingHistoryService
 
     /**
      * Periode yang sudah ditutup (ROWSTATE = Closed) tetapi belum ada di history.
+     * CLOSE_DATE boleh kosong (lihat closeDay()).
      */
     public function pendingPeriods(): array
     {
         return $this->db()->table('SIM_INV_TAKING_CONCLUDING_TAB as c')
             ->where('c.ROWSTATE', self::CLOSED_ROWSTATE)
             ->whereNotNull('c.TAKING_DATE')
-            ->whereNotNull('c.CLOSE_DATE')
             ->whereNotExists(fn ($q) => $q->select(DB::raw(1))
                 ->from(self::TABLE . ' as h')
                 ->whereRaw('h.TAKING_DATE = DATE(c.TAKING_DATE)'))
@@ -62,7 +64,9 @@ class TakingHistoryService
 
         $takingDay  = Carbon::parse($period->TAKING_DATE)->startOfDay();
         $takingDate = $takingDay->format('Y-m-d H:i:s');
-        $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
+        $closeDay   = $this->closeDay($period);
+        $closeDate  = $closeDay->copy()->endOfDay()->format('Y-m-d H:i:s');
+        $period->CLOSE_DATE = $closeDay->toDateString();
 
         $invListNo = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
@@ -82,9 +86,52 @@ class TakingHistoryService
         return count($rows);
     }
 
+    /**
+     * Hari terakhir periode. CLOSE_DATE kosong: sehari sebelum periode berikutnya dimulai, atau hari ini bila
+     * belum ada periode berikutnya (supaya data periode berikutnya tidak ikut masuk).
+     */
+    private function closeDay(object $period): Carbon
+    {
+        if (!empty($period->CLOSE_DATE)) {
+            return Carbon::parse($period->CLOSE_DATE)->startOfDay();
+        }
+
+        $next = $this->db()->table('SIM_INV_TAKING_CONCLUDING_TAB')
+            ->where('TAKING_DATE', '>', Carbon::parse($period->TAKING_DATE)->endOfDay()->format('Y-m-d H:i:s'))
+            ->min('TAKING_DATE');
+
+        return $next ? Carbon::parse($next)->subDay()->startOfDay() : now()->startOfDay();
+    }
+
+    /**
+     * Simpan semua periode tertutup yang belum ada di history. Dipanggil saat halaman History Taking dibuka
+     * (tidak perlu scheduler) dan oleh command facdbt:taking-history. Satu proses dalam satu waktu.
+     *
+     * @return int jumlah periode yang disimpan
+     */
+    public function snapshotPending(?string $createdBy = null): int
+    {
+        $periods = $this->pendingPeriods();
+        if (empty($periods)) {
+            return 0;
+        }
+
+        return Cache::lock('FACDBTD005:snapshot', 600)->get(function () use ($periods, $createdBy) {
+            set_time_limit(600);
+            ini_set('memory_limit', '1024M');
+
+            foreach ($periods as $period) {
+                $this->snapshot($period, $createdBy);
+            }
+
+            return count($periods);
+        }) ?: 0;
+    }
+
     private function buildRows(object $period, string $takingDate, string $closeDate, $invListNo, ?string $createdBy): array
     {
-        $db = $this->db();
+        $db    = $this->db();
+        $event = TakingEvent::forPeriod($db, $period);
 
         // [lokasi|part|lot => data] dari book & taking, diagregasi di database tanpa join
         $lines = [];
@@ -107,6 +154,7 @@ class TakingHistoryService
             $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
                 ->where('INV_LIST_NO', $invListNo)
+                ->tap(fn ($q) => TakingEvent::scope($q, $event))
                 ->groupBy('LOCATION_NO', 'PART_NO', 'LOT_BATCH_NO')
                 ->select(
                     'LOCATION_NO', 'PART_NO', 'LOT_BATCH_NO',
@@ -130,6 +178,7 @@ class TakingHistoryService
 
         $taking = $db->table('SIM_INV_TAKING_DATA_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+            ->tap(fn ($q) => TakingEvent::scope($q, $event))
             ->groupBy('LOCATION_NO', 'PART_NO', 'LOT_BATCH_NO')
             ->select(
                 'LOCATION_NO', 'PART_NO', 'LOT_BATCH_NO',
@@ -169,6 +218,8 @@ class TakingHistoryService
         $parts     = $this->parts();
         $costs     = $this->unitCosts();
         $now       = now()->format('Y-m-d H:i:s');
+        // Kolom EVENT_TYPE ditambahkan oleh docs/FACDBT/sim_inv_taking_event.sql
+        $withEvent = $db->getSchemaBuilder()->hasColumn(self::TABLE, 'EVENT_TYPE');
 
         $rows = [];
         foreach ($lines as $line) {
@@ -178,7 +229,7 @@ class TakingHistoryService
             $unitCost = $cost['mat'] + $cost['lab'] + $cost['foh'];
             $variance = $line['qty_taking'] - $line['qty_book'];
 
-            $rows[] = [
+            $row = [
                 'INV_LIST_NO'          => (string) ($invListNo ?? ''),
                 'TAKING_DATE'          => Carbon::parse($period->TAKING_DATE)->toDateString(),
                 'CLOSE_DATE'           => Carbon::parse($period->CLOSE_DATE)->toDateString(),
@@ -214,6 +265,10 @@ class TakingHistoryService
                 'CREATED_DATETIME'     => $now,
                 'CREATED_BY'           => $createdBy,
             ];
+            if ($withEvent) {
+                $row['EVENT_TYPE'] = $event?->type;
+            }
+            $rows[] = $row;
         }
 
         return $rows;
@@ -257,7 +312,7 @@ class TakingHistoryService
         $map = [];
         foreach ($this->db()->table('SIM_INV_GROUP_LOCATION')->orderBy('IID')->get(['LOCATION_NO', 'location_group']) as $r) {
             $loc   = trim((string) $r->LOCATION_NO);
-            $group = trim((string) $r->location_group);
+            $group = AreaName::of($r->location_group);
             if ($group !== '' && !isset($map[$loc])) {
                 $map[$loc] = $group;
             }

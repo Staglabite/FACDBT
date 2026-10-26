@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\Services\FACDBT\AreaName;
 use App\Services\FACDBT\RunningTakingPeriod;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\UsesTakingEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -14,25 +16,48 @@ class FACDBTD001 extends Controller
 {
     use CachesDashboard;
     use FiltersTakingRange;
+    use UsesTakingEvent;
 
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
 
-    // Slot waktu untuk chart atas
-    private const SLOTS = [
-        0 => [0, '00:00', '6-00.00'],
-        1 => [0, '07:30', '6-07.30'],
-        2 => [0, '10:00', '6-10.00'],
-        3 => [0, '13:00', '6-13.00'],
-        4 => [0, '16:15', '6-16.15'],
-        5 => [0, '19:30', '6-19.30'],
-        6 => [1, '09:00', '7-09.00'],
-        7 => [1, '10:00', '7-10.00'],
-        8 => [1, '11:00', '7-11.00'],
-    ];
+    // Jam slot setiap hari taking (kumulatif s/d jam itu).
+    // Counting Progress & Absolute Variance: 00:00, lalu per 3 jam mulai 07:30 s/d 22:00.
+    private const SLOT_TIMES     = ['00:00', '07:30', '10:30', '13:30', '16:30', '19:30', '22:00'];
+    // Counting Progress Oil
+    private const OIL_SLOT_TIMES = ['00:00', '10:00', '14:00', '18:00'];
 
-    private const NON_OIL_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-    private const OIL_SLOTS     = [0, 2, 3, 4, 8];
+    /**
+     * Jam slot chart atas & Absolute Variance: SLOT_TIMES (non-oil) / OIL_SLOT_TIMES (oil) setiap hari,
+     * dari hari pertama taking s/d hari terakhir periode (CLOSE_DATE, atau hari ini bila belum ditutup).
+     *
+     * @return array{times: array<int, string>, non_oil: array<int, int>, oil: array<int, int>} times urut waktu;
+     *         non_oil / oil berisi index slot di times
+     */
+    public static function slotPlan(Carbon $baseDay, string $closeDate): array
+    {
+        $lastDay = Carbon::parse($closeDate)->startOfDay();
+        $groups  = ['non_oil' => self::SLOT_TIMES, 'oil' => self::OIL_SLOT_TIMES];
+
+        $byGroup = ['non_oil' => [], 'oil' => []];
+        for ($day = $baseDay->copy()->startOfDay(); $day->lte($lastDay); $day->addDay()) {
+            foreach ($groups as $group => $slotTimes) {
+                foreach ($slotTimes as $time) {
+                    $byGroup[$group][] = $day->format('Y-m-d') . " {$time}:00";
+                }
+            }
+        }
+
+        $times = array_values(array_unique(array_merge($byGroup['non_oil'], $byGroup['oil'])));
+        sort($times);
+        $index = array_flip($times);
+
+        return [
+            'times'   => $times,
+            'non_oil' => array_map(fn ($t) => $index[$t], $byGroup['non_oil']),
+            'oil'     => array_map(fn ($t) => $index[$t], $byGroup['oil']),
+        ];
+    }
 
     public function index()
     {
@@ -77,6 +102,7 @@ class FACDBTD001 extends Controller
             ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
             ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('b.INV_LIST_NO', $invListNo)
+            ->tap(fn ($q) => $this->eventScope($q, $db, 'b.LOCATION_NO', 'b.PART_NO'))
             ->groupBy('b.PART_NO')
             ->select(
                 'b.PART_NO',
@@ -94,11 +120,11 @@ class FACDBTD001 extends Controller
      */
     private function locationAreaMap($db): array
     {
-        return $this->dashboardCache('FACDBTD001:location-area-map:v3', function () use ($db) {
+        return $this->dashboardCache('FACDBTD001:location-area-map:v4', function () use ($db) {
             $map = [];
             foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->get() as $r) {
                 $loc   = trim((string) $r->LOCATION_NO);
-                $group = trim((string) $r->location_group);
+                $group = AreaName::of($r->location_group);
                 $map[$loc][$group === '' ? '' : $group] = $group === '' ? null : $group;
             }
 
@@ -138,6 +164,7 @@ class FACDBTD001 extends Controller
         $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('INV_LIST_NO', $invListNo)
+            ->tap(fn ($q) => $this->eventScope($q, $db))
             ->groupBy('LOCATION_NO', 'PART_NO')
             ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'))
             ->get();
@@ -235,14 +262,11 @@ class FACDBTD001 extends Controller
             return response()->json($empty);
         }
 
-        $cacheKey = "FACDBTD001:v6:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+        $plan     = self::slotPlan($baseDay, $closeDate);
+        $cacheKey = "FACDBTD001:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
-        $payload = $this->dashboardCache($cacheKey, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
-            $slotTimes = [];
-            foreach (self::SLOTS as $i => [$dayOffset, $hm]) {
-                [$h, $m] = explode(':', $hm);
-                $slotTimes[$i] = $baseDay->copy()->addDays($dayOffset)->setTime((int) $h, (int) $m, 0)->format('Y-m-d H:i:s');
-            }
+        $payload = $this->dashboardCache($cacheKey, function () use ($db, $plan, $takingDate, $closeDate, $latestInvListNo) {
+            $slotTimes = $plan['times'];
 
             $bookSub = $this->bookPartsSub($db, $takingDate, $closeDate, $latestInvListNo);
 
@@ -267,6 +291,7 @@ class FACDBTD001 extends Controller
             $agg = $db->table('SIM_INV_TAKING_DATA_TAB as t')
                 ->joinSub($bookSub, 'bk', 'bk.PART_NO', '=', 't.PART_NO')
                 ->whereBetween('t.CREATED_DATETIME', [$takingDate, $closeDate])
+                ->tap(fn ($q) => $this->eventScope($q, $db, 't.LOCATION_NO', 't.PART_NO'))
                 ->groupBy('bk.is_oil')
                 ->select('bk.is_oil');
 
@@ -309,12 +334,36 @@ class FACDBTD001 extends Controller
             };
 
             return [
-                'non_oil' => $buildSeries(0, self::NON_OIL_SLOTS),
-                'oil'     => $buildSeries(1, self::OIL_SLOTS),
+                'non_oil' => $buildSeries(0, $plan['non_oil']),
+                'oil'     => $buildSeries(1, $plan['oil']),
             ];
         });
 
+        // Slot yang jamnya belum tiba dikosongkan (tidak meneruskan progress jam sebelumnya)
+        foreach ($payload as $category => $series) {
+            $payload[$category] = self::blankFutureSlots($series, ['item_taking', 'qty_taking', 'pct_qty', 'pct_item']);
+        }
+
         return response()->json($payload);
+    }
+
+    /**
+     * Kosongkan (null) nilai $fields pada slot yang jamnya belum tiba. Dilakukan setelah cache supaya
+     * slot terisi tepat saat jamnya tiba walaupun hasil hitungan masih dari cache.
+     */
+    public static function blankFutureSlots(array $series, array $fields, ?string $now = null): array
+    {
+        $now ??= now()->format('Y-m-d H:i:s');
+
+        foreach ($series as $i => $slot) {
+            if ($slot['time'] > $now) {
+                foreach ($fields as $field) {
+                    $series[$i][$field] = null;
+                }
+            }
+        }
+
+        return $series;
     }
 
     /**
@@ -349,7 +398,7 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:area:v11:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:area:v12:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
         $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo) {
             // 1 baris per (area, part). Part oil (inventory_uom = ml) dipisah per part ke area
@@ -368,12 +417,14 @@ class FACDBTD001 extends Controller
             $partsSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
                 ->where('INV_LIST_NO', $latestInvListNo)
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->select('PART_NO')
                 ->distinct();
 
             $takingRows = $db->table('SIM_INV_TAKING_DATA_TAB as t')
                 ->joinSub($partsSub, 'bp', 'bp.PART_NO', '=', 't.PART_NO')
                 ->whereBetween('t.CREATED_DATETIME', [$takingFrom, $takingTo])
+                ->tap(fn ($q) => $this->eventScope($q, $db, 't.LOCATION_NO', 't.PART_NO'))
                 ->groupBy('t.LOCATION_NO', 't.PART_NO')
                 ->select('t.LOCATION_NO', 't.PART_NO', DB::raw('SUM(t.QTY) as qty'))
                 ->get();
@@ -394,12 +445,7 @@ class FACDBTD001 extends Controller
             // Daftar area diambil dari MASTER (SIM_INV_GROUP_LOCATION.location_group), bukan hanya dari
             // data book, supaya semua area tetap tampil (0% bila belum ada data book).
             $grouped      = $bookRows->groupBy('area_label');
-            $allAreaNames = $db->table('SIM_INV_GROUP_LOCATION')
-                ->selectRaw('TRIM(location_group) as area_name')
-                ->whereRaw("TRIM(location_group) <> ''")
-                ->distinct()
-                ->pluck('area_name')
-                ->all();
+            $allAreaNames = AreaName::list($db->table('SIM_INV_GROUP_LOCATION')->distinct()->pluck('location_group'));
             $areaNames = array_values(array_unique(array_merge($allAreaNames, $grouped->keys()->all())));
 
             foreach ($areaNames as $areaName) {
@@ -415,6 +461,11 @@ class FACDBTD001 extends Controller
                         $itemTaking++;
                         $qtyTaking += (float) $takingData[$areaName][$row->PART_NO];
                     }
+                }
+
+                // Periode dengan event (Master Event): area tanpa data event tidak ditampilkan
+                if ($itemBook === 0 && $itemTaking === 0 && $this->takingEvent($db) !== null) {
+                    continue;
                 }
 
                 $pctQty  = $qtyBook > 0 ? round(($qtyTaking / $qtyBook) * 100, 2) : 0;
@@ -479,6 +530,7 @@ class FACDBTD001 extends Controller
         $rows = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('INV_LIST_NO', $invListNo)
+            ->tap(fn ($q) => $this->eventScope($q, $db))
             ->groupBy('LOCATION_NO', 'PART_NO')
             ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'))
             ->get();
@@ -529,6 +581,88 @@ class FACDBTD001 extends Controller
     }
 
     /**
+     * Label area (seperti chart progress by area) untuk satu (lokasi, part): area non-oil / 'OIL <area>' / 'PPC-OIL'.
+     * Lokasi di beberapa group punya beberapa label.
+     *
+     * @return array<int, string>
+     */
+    private static function lineAreaLabels(string $location, bool $isOil, array $areaMap): array
+    {
+        $labels = [];
+        foreach ($areaMap[$location] ?? [null] as $area) {
+            $labels[self::areaLabel($location, $area, $isOil)] = true;
+        }
+
+        return array_keys($labels);
+    }
+
+    /**
+     * Filter interaktif chart variance dari request: area (label area chart progress), seg (4W / 2W),
+     * acc (RM / WIP / FG). Kosong = tanpa filter.
+     *
+     * @return array{area: ?string, seg: ?string, acc: ?string}
+     */
+    private static function varianceFilters(Request $request): array
+    {
+        $value = fn (string $key) => ($v = trim((string) $request->input($key, ''))) !== '' ? $v : null;
+
+        return ['area' => $value('area'), 'seg' => $value('seg'), 'acc' => $value('acc')];
+    }
+
+    /**
+     * Ringkasan variance dari baris dasar [[labels, seg, acc, nett, absolute], ...] dengan filter interaktif.
+     * Chart yang menjadi sumber filter tetap menampilkan semua kelompoknya (yang lain dipudarkan di browser):
+     * - by_part_group       : difilter area & acc (tidak difilter seg)
+     * - by_accounting_group : difilter area & seg (tidak difilter acc)
+     * - nett / absolute     : difilter area, seg & acc
+     */
+    public static function varianceSummary(array $rows, array $filters): array
+    {
+        $byPartGroup = [];
+        $byAccGroup  = [];
+        $nett = 0.0;
+        $absolute = 0.0;
+
+        foreach ($rows as [$labels, $seg, $acc, $rowNett, $rowAbs]) {
+            if ($filters['area'] !== null && !in_array($filters['area'], $labels, true)) {
+                continue;
+            }
+            $segMatch = $filters['seg'] === null || $filters['seg'] === $seg;
+            $accMatch = $filters['acc'] === null || $filters['acc'] === $acc;
+
+            if ($accMatch) {
+                $byPartGroup[$seg]['nett'] = ($byPartGroup[$seg]['nett'] ?? 0.0) + $rowNett;
+                $byPartGroup[$seg]['absolute'] = ($byPartGroup[$seg]['absolute'] ?? 0.0) + $rowAbs;
+            }
+            if ($segMatch) {
+                $byAccGroup[$acc]['nett'] = ($byAccGroup[$acc]['nett'] ?? 0.0) + $rowNett;
+                $byAccGroup[$acc]['absolute'] = ($byAccGroup[$acc]['absolute'] ?? 0.0) + $rowAbs;
+            }
+            if ($segMatch && $accMatch) {
+                $nett     += $rowNett;
+                $absolute += $rowAbs;
+            }
+        }
+
+        $summarize = fn (array $groups) => array_map(
+            fn ($group, $sum) => [
+                'group'    => (string) $group,
+                'nett'     => round($sum['nett'], 2),
+                'absolute' => round($sum['absolute'], 2),
+            ],
+            array_keys($groups),
+            $groups
+        );
+
+        return [
+            'nett'                => round($nett, 2),
+            'absolute'            => round($absolute, 2),
+            'by_part_group'       => $summarize($byPartGroup),
+            'by_accounting_group' => $summarize($byAccGroup),
+        ];
+    }
+
+    /**
      * Endpoint untuk Chart Variance (Nett & Absolute Variance).
      * Variance dihitung per (lokasi, part): amount = (qty taking - qty book) x unit cost,
      * unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh); UNIT_COST di book tidak dipakai.
@@ -536,28 +670,23 @@ class FACDBTD001 extends Controller
      * - Absolute variance : jumlah ABS(amount)
      * Dikelompokkan per seg (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
      * Taking hanya yang di-scan di rentang filter waktu (sama seperti chart progress by area).
+     * Filter interaktif: `area`, `seg`, `acc` (lihat varianceSummary()).
      */
     public function getVariance(Request $request)
     {
-        $empty = [
-            'nett'              => 0,
-            'absolute'          => 0,
-            'by_part_group'     => [],
-            'by_accounting_group' => [],
-        ];
-
         $db = DB::connection(self::CONN);
 
         $period = $this->resolvePeriod($db, $request);
         if ($period === null) {
-            return response()->json($empty);
+            return response()->json(self::varianceSummary([], self::varianceFilters($request)));
         }
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:variance:v7:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:variance:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
-        $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo, $empty) {
+        // Baris dasar per (label area, seg, acc) supaya filter interaktif cukup dihitung di PHP
+        $rows = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo) {
             // [lokasi|part => [qty book, qty taking]]
             $lines = [];
             foreach ($this->varianceBookQty($db, $takingDate, $closeDate, $latestInvListNo) as $key => $qty) {
@@ -566,6 +695,7 @@ class FACDBTD001 extends Controller
 
             $taking = $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->groupBy('LOCATION_NO', 'PART_NO')
                 ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QTY) as qty'))
                 ->get();
@@ -575,50 +705,28 @@ class FACDBTD001 extends Controller
                 $lines[$key][1] += (float) $r->qty;
             }
 
-            if (empty($lines)) {
-                return $empty;
-            }
-
             $unitCosts  = $this->varianceUnitCosts($db);
             $partGroups = $this->variancePartGroups($db);
+            $oilParts   = $this->oilPartsSub($db)->pluck('is_oil', 'part_no')->all();
+            $areaMap    = $this->locationAreaMap($db);
 
-            $byPartGroup = [];
-            $byAccGroup  = [];
-            $nett = 0.0;
-            $absolute = 0.0;
+            $rows = [];
             foreach ($lines as $key => [$qtyBook, $qtyTaking]) {
-                $part     = explode('|', $key, 2)[1];
+                [$location, $part] = explode('|', $key, 2);
                 $variance = ($qtyTaking - $qtyBook) * ($unitCosts[$part] ?? 0.0);
-                [$partGroup, $accGroup] = $partGroups[$part] ?? ['OTHERS', 'OTHERS'];
+                [$seg, $acc] = $partGroups[$part] ?? ['OTHERS', 'OTHERS'];
+                $labels = self::lineAreaLabels($location, (int) ($oilParts[$part] ?? 0) === 1, $areaMap);
 
-                $nett     += $variance;
-                $absolute += abs($variance);
-
-                $byPartGroup[$partGroup]['nett'] = ($byPartGroup[$partGroup]['nett'] ?? 0.0) + $variance;
-                $byPartGroup[$partGroup]['absolute'] = ($byPartGroup[$partGroup]['absolute'] ?? 0.0) + abs($variance);
-                $byAccGroup[$accGroup]['nett'] = ($byAccGroup[$accGroup]['nett'] ?? 0.0) + $variance;
-                $byAccGroup[$accGroup]['absolute'] = ($byAccGroup[$accGroup]['absolute'] ?? 0.0) + abs($variance);
+                $group = implode("\0", $labels) . "\1{$seg}\1{$acc}";
+                $rows[$group] ??= [$labels, $seg, $acc, 0.0, 0.0];
+                $rows[$group][3] += $variance;
+                $rows[$group][4] += abs($variance);
             }
 
-            $summarize = fn (array $groups) => array_map(
-                fn ($group, $sum) => [
-                    'group'    => (string) $group,
-                    'nett'     => round($sum['nett'], 2),
-                    'absolute' => round($sum['absolute'], 2),
-                ],
-                array_keys($groups),
-                $groups
-            );
-
-            return [
-                'nett'                => round($nett, 2),
-                'absolute'            => round($absolute, 2),
-                'by_part_group'       => $summarize($byPartGroup),
-                'by_accounting_group' => $summarize($byAccGroup),
-            ];
+            return array_values($rows);
         });
 
-        return response()->json($result);
+        return response()->json(self::varianceSummary($rows, self::varianceFilters($request)));
     }
 
     /**
@@ -626,7 +734,7 @@ class FACDBTD001 extends Controller
      * Slot waktu sama dengan chart atas (Counting Progress keseluruhan), tidak terpengaruh filter tombol waktu.
      * - Abs Var [+] : jumlah variance amount per (lokasi, part) yang positif (taking > book)
      * - Abs Var [-] : jumlah ABS variance amount per (lokasi, part) yang negatif (taking < book)
-     * Taking dihitung kumulatif s/d jam slot.
+     * Taking dihitung kumulatif s/d jam slot. Filter interaktif `area`, `seg`, `acc` berlaku.
      */
     public function getVarianceTrend(Request $request)
     {
@@ -648,20 +756,19 @@ class FACDBTD001 extends Controller
             return response()->json([]);
         }
 
-        $cacheKey = "FACDBTD001:variance-trend:v4:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+        $plan      = self::slotPlan($baseDay, $closeDate);
+        $slotTimes = array_intersect_key($plan['times'], array_flip($plan['non_oil']));
 
-        $series = $this->dashboardCache($cacheKey, function () use ($db, $baseDay, $takingDate, $closeDate, $latestInvListNo) {
-            $slotTimes = [];
-            foreach (self::NON_OIL_SLOTS as $i) {
-                [$dayOffset, $hm] = self::SLOTS[$i];
-                [$h, $m] = explode(':', $hm);
-                $slotTimes[$i] = $baseDay->copy()->addDays($dayOffset)->setTime((int) $h, (int) $m, 0)->format('Y-m-d H:i:s');
-            }
+        $cacheKey = "FACDBTD001:variance-trend:v7:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+
+        // Baris dasar per (label area, seg, acc): [labels, seg, acc, [slot => Var (+)], [slot => |Var (-)|]]
+        $rows = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $latestInvListNo, $slotTimes) {
             $lastSlot = max($slotTimes);
 
             // Qty taking kumulatif per (lokasi, part) untuk setiap slot dalam satu query
             $takingQuery = $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $lastSlot])
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->groupBy('LOCATION_NO', 'PART_NO')
                 ->select('LOCATION_NO', 'PART_NO');
             foreach ($slotTimes as $i => $time) {
@@ -681,37 +788,61 @@ class FACDBTD001 extends Controller
                 }
             }
 
-            $unitCosts = $this->varianceUnitCosts($db);
+            $unitCosts  = $this->varianceUnitCosts($db);
+            $partGroups = $this->variancePartGroups($db);
+            $oilParts   = $this->oilPartsSub($db)->pluck('is_oil', 'part_no')->all();
+            $areaMap    = $this->locationAreaMap($db);
+            $zero       = array_fill_keys(array_keys($slotTimes), 0.0);
 
-            $positive = array_fill_keys(array_keys($slotTimes), 0.0);
-            $negative = $positive;
+            $rows = [];
             foreach ($lines as $key => [$qtyBook, $qtyTaking]) {
-                $unitCost = $unitCosts[explode('|', $key, 2)[1]] ?? 0.0;
+                [$location, $part] = explode('|', $key, 2);
+                $unitCost = $unitCosts[$part] ?? 0.0;
                 if ($unitCost == 0.0) {
                     continue;
                 }
+                [$seg, $acc] = $partGroups[$part] ?? ['OTHERS', 'OTHERS'];
+                $labels = self::lineAreaLabels($location, (int) ($oilParts[$part] ?? 0) === 1, $areaMap);
+
+                $group = implode("\0", $labels) . "\1{$seg}\1{$acc}";
+                $rows[$group] ??= [$labels, $seg, $acc, $zero, $zero];
                 foreach (array_keys($slotTimes) as $i) {
                     $variance = (($qtyTaking[$i] ?? 0.0) - $qtyBook) * $unitCost;
                     if ($variance > 0) {
-                        $positive[$i] += $variance;
+                        $rows[$group][3][$i] += $variance;
                     } else {
-                        $negative[$i] -= $variance;
+                        $rows[$group][4][$i] -= $variance;
                     }
                 }
             }
 
-            $series = [];
-            foreach ($slotTimes as $i => $time) {
-                $series[] = [
-                    'time'         => $time,
-                    'abs_positive' => round($positive[$i], 2),
-                    'abs_negative' => round($negative[$i], 2),
-                ];
-            }
-
-            return $series;
+            return array_values($rows);
         });
 
-        return response()->json($series);
+        $filters  = self::varianceFilters($request);
+        $positive = array_fill_keys(array_keys($slotTimes), 0.0);
+        $negative = $positive;
+        foreach ($rows as [$labels, $seg, $acc, $pos, $neg]) {
+            if (($filters['area'] !== null && !in_array($filters['area'], $labels, true))
+                || ($filters['seg'] !== null && $filters['seg'] !== $seg)
+                || ($filters['acc'] !== null && $filters['acc'] !== $acc)) {
+                continue;
+            }
+            foreach (array_keys($slotTimes) as $i) {
+                $positive[$i] += $pos[$i];
+                $negative[$i] += $neg[$i];
+            }
+        }
+
+        $series = [];
+        foreach ($slotTimes as $i => $time) {
+            $series[] = [
+                'time'         => $time,
+                'abs_positive' => round($positive[$i], 2),
+                'abs_negative' => round($negative[$i], 2),
+            ];
+        }
+
+        return response()->json(self::blankFutureSlots($series, ['abs_positive', 'abs_negative']));
     }
 }

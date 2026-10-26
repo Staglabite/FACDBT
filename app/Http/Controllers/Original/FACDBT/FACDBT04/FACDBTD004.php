@@ -6,11 +6,11 @@ use App\DataTables\Original\FACDBT04\FACDBTD004NegativeDataTable;
 use App\DataTables\Original\FACDBT04\FACDBTD004PositiveDataTable;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\BuildsVarianceLines;
-use App\Services\FACDBT\NettVarianceService;
+use App\Services\FACDBT\AbsoluteVarianceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-// Variance Taking by Qty & Amount / Nett Variance Dashboard (ringkasan + detail part positif / negatif)
+// Variance Taking by Part No per Location No / Absolute Variance Dashboard (ringkasan + detail part per lokasi lebih / kurang)
 class FACDBTD004 extends Controller
 {
     use BuildsVarianceLines;
@@ -27,30 +27,22 @@ class FACDBTD004 extends Controller
     }
 
     /**
-     * Pilihan filter: hari untuk rentang waktu dan area (location_group dari SIM_INV_GROUP_LOCATION).
+     * Pilihan filter: hari untuk rentang waktu (area dipilih dengan klik chart Nett Variance by Area).
      */
     public function getFilters()
     {
         $db = DB::connection(self::CONN);
         $period = $this->resolvePeriod($db);
 
-        $areas = $db->table('SIM_INV_GROUP_LOCATION')
-            ->selectRaw('TRIM(location_group) as area')
-            ->whereRaw("TRIM(location_group) <> ''")
-            ->distinct()
-            ->orderBy('area')
-            ->pluck('area');
-
         return response()->json([
             'time_range' => $period ? $this->timeRangePayload($period['takingDate'], $period['closeDate']) : ['days' => []],
-            'areas' => $areas,
         ]);
     }
 
     /**
      * Ringkasan & chart (tanpa baris detail; detail part dimuat lewat DataTable).
      */
-    public function getData(Request $request, NettVarianceService $service)
+    public function getData(Request $request, AbsoluteVarianceService $service)
     {
         $data = $service->compute($request);
 
@@ -62,7 +54,7 @@ class FACDBTD004 extends Controller
     }
 
     /**
-     * Tabel biru: part dengan nett variance tidak minus.
+     * Tabel biru: variance lebih (taking > book), nilai absolut.
      */
     public function positiveTable(FACDBTD004PositiveDataTable $dataTable)
     {
@@ -70,7 +62,7 @@ class FACDBTD004 extends Controller
     }
 
     /**
-     * Tabel merah: part dengan nett variance minus.
+     * Tabel merah: variance kurang (taking < book), nilai absolut.
      */
     public function negativeTable(FACDBTD004NegativeDataTable $dataTable)
     {

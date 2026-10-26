@@ -1,5 +1,5 @@
 -- =====================================================================================
--- DATA DUMMY untuk mengetes dashboard FACDBT (FACDBTD001 - FACDBTD006)
+-- DATA DUMMY untuk mengetes dashboard FACDBT (menu Dashboard Taking FACDBT04)
 -- =====================================================================================
 -- PERHATIAN
 -- - JANGAN dijalankan di database utama. SIM_INV_TAKING_CONCLUDING_TAB juga dibaca sistem taking/scanner,
@@ -38,7 +38,7 @@
 --   DMY-ENG 77.08% (185/240, item 3/5) | DMY-PROD 104% -> bar 100% (182/175, item 4/4)
 --   DMY-WH 100% | OIL DMY-PROD 96% (480/500) | PPC-OIL 100%
 --   (P03 yang di-scan di DMY-PRD-01 TIDAK menambah progress DMY-ENG)
--- Variance (Main, Variance by Area, Nett, Absolute)
+-- Variance (Main, Qty & Amount, Part No per Location No)
 --   Nett     = -63M      Absolute = 339M
 --   2W: nett +20M, abs 40M | 4W: nett -83M, abs 299M
 --   RM: nett -1M, abs 1M   | WIP: nett -110M, abs 110M | FG: nett +48M, abs 228M

@@ -3,7 +3,7 @@
 namespace App\Services\FACDBT;
 
 /**
- * Perhitungan Absolute Variance Dashboard (FACDBTD005), dipakai controller (ringkasan & chart)
+ * Perhitungan Absolute Variance Dashboard (FACDBTD004), dipakai controller (ringkasan & chart)
  * dan DataTable (detail part per lokasi).
  *
  * Variance dihitung per (lokasi, part): qty taking - qty book, amount = variance qty x unit cost.
@@ -17,7 +17,7 @@ class AbsoluteVarianceService extends VarianceDashboardService
 {
     protected function cachePrefix(): string
     {
-        return 'FACDBTD005:data:v3';
+        return 'FACDBTD004:data:v8';
     }
 
     protected function emptyResult(): array

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns;
 
+use App\Services\FACDBT\AreaName;
 use App\Services\FACDBT\RunningTakingPeriod;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ trait BuildsVarianceLines
 {
     use CachesDashboard;
     use FiltersTakingRange;
+    use UsesTakingEvent;
 
     /**
      * Periode taking aktif (TAKING_DATE s/d CLOSE_DATE terbaru) + INV_LIST_NO terbaru.
@@ -68,12 +70,14 @@ trait BuildsVarianceLines
             $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $period['closeDate']])
                 ->where('INV_LIST_NO', $period['invListNo'])
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->groupBy('LOCATION_NO', 'PART_NO')
                 ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'))
                 ->get();
 
             $taking = $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->groupBy('LOCATION_NO', 'PART_NO')
                 ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QTY) as qty'))
                 ->get();
@@ -106,11 +110,11 @@ trait BuildsVarianceLines
      */
     private function locationAreas($db): array
     {
-        return $this->dashboardCache('FACDBT04:location-areas:v3', function () use ($db) {
+        return $this->dashboardCache('FACDBT04:location-areas:v4', function () use ($db) {
             $map = [];
             foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->orderBy('IID')->get() as $r) {
                 $loc   = trim((string) $r->LOCATION_NO);
-                $group = trim((string) $r->location_group);
+                $group = AreaName::of($r->location_group);
                 if ($group !== '' && !isset($map[$loc])) {
                     $map[$loc] = $group;
                 }

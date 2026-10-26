@@ -24,6 +24,25 @@ class MasterDataExport
         private array $expressions = [],
     ) {}
 
+    /**
+     * Template import CSV: hanya baris judul kolom (sama dengan file export), jadi file export maupun
+     * template yang sudah diisi bisa langsung di-import kembali.
+     *
+     * @param  array<int, string>  $titles  judul kolom
+     */
+    public static function template(array $titles, string $filename): StreamedResponse
+    {
+        return response()->streamDownload(function () use ($titles) {
+            $out = fopen('php://output', 'w');
+
+            // BOM supaya Excel membaca CSV sebagai UTF-8
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, $titles);
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     public function download(string $filename): StreamedResponse
     {
         return response()->streamDownload(function () {

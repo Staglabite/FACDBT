@@ -2,9 +2,10 @@ import axios from 'axios';
 import ApexCharts from 'apexcharts';
 import { autoRefresh, track } from '../shared/dashboardStatus';
 import { TimeRangeFilter } from '../shared/timeRangeFilter';
+import { renderProgressByAreaChart } from '../shared/progressByAreaChart';
+import { dimCategories, clickedIndex } from '../shared/chartDim';
 
 // Konfigurasi Chart Atas
-const MIN_QTY_LABEL = 10;
 const LABEL_HEIGHT  = 18;
 const LABEL_PAD_X   = 5;
 const ITEM_GAP      = 8;
@@ -38,17 +39,12 @@ const THEMES = {
         line: '#EAE095',
         itemBg: '#EAE095',
         itemColor: '#333333',
-        qtyBg: 'transparent',
+        // Kotak % Qty tetap terlihat walaupun bar pendek / kosong
+        qtyBg: '#333333',
         qtyColor: '#FFFFFF',
         columnMax: 115,
         lineMax: 115
     }
-};
-
-// Tema chart bawah & tombol slot waktu
-const PROGRESS_THEME = {
-    remaining: '#14229B',
-    progress: '#E63946'
 };
 
 const OIL_AREA_THEME = {
@@ -71,7 +67,19 @@ const PART_GROUP_ORDER = ['4W', '2W'];
 class Dashboard {
     constructor() {
         this.charts = {};
-        this.timeFilter = new TimeRangeFilter(document.getElementById('time-slots-container'), () => this.loadBottomCharts(), { inline: true });
+        // Filter waktu manual menggantikan filter klik jam
+        this.timeFilter = new TimeRangeFilter(document.getElementById('time-slots-container'), () => {
+            this.filters.slot = null;
+            this.applyDims();
+            this.renderFilterBar();
+            this.loadBottomCharts();
+        }, { inline: true });
+        // Filter interaktif dari klik chart (null = tidak difilter):
+        // slot = jam slot (kumulatif s/d jam itu), area = label area chart progress, seg = 4W / 2W, acc = RM / WIP / FG
+        this.filters = { slot: null, area: null, seg: null, acc: null };
+        this.topData = {};
+        this.trendItems = [];
+        this.oilItems = [];
         this.progressChart = null;
         this.progressItems = [];
         this.oilChart = null;
@@ -81,6 +89,7 @@ class Dashboard {
     }
 
     init() {
+        this.bindVarianceCards();
         this.loadTopCharts();
         this.loadTimeRange();
         this.loadBottomCharts();
@@ -92,6 +101,138 @@ class Dashboard {
             this.loadTopCharts();
             this.loadBottomCharts();
             this.loadVarianceTrend();
+        });
+    }
+
+    // -------------------------------------------------------------
+    // Filter interaktif (klik chart)
+    // -------------------------------------------------------------
+
+    // Nomor request per jenis data: klik filter beruntun hanya memakai hasil request terakhir
+    nextSeq(name) {
+        this.seq = this.seq || {};
+        this.seq[name] = (this.seq[name] || 0) + 1;
+        return this.seq[name];
+    }
+
+    isLatest(name, seq) {
+        return this.seq[name] === seq;
+    }
+
+    // Klik nilai yang sama lagi = batal
+    toggleFilter(key, value) {
+        this.filters[key] = this.filters[key] === value ? null : value;
+        this.applyDims();
+        this.renderFilterBar();
+
+        if (key === 'slot') {
+            this.loadBottomCharts();
+        } else {
+            this.loadVariance();
+            this.loadVarianceTrend();
+        }
+    }
+
+    clearFilters() {
+        const slotChanged = this.filters.slot !== null;
+        this.filters = { slot: null, area: null, seg: null, acc: null };
+        this.applyDims();
+        this.renderFilterBar();
+
+        if (slotChanged) this.loadBottomCharts();
+        else this.loadVariance();
+        this.loadVarianceTrend();
+    }
+
+    // Rentang waktu chart bawah & variance: klik jam = kumulatif dari awal taking s/d jam itu
+    bottomParams() {
+        return this.filters.slot
+            ? { to: this.filters.slot.slice(0, 16) }
+            : this.timeFilter.params();
+    }
+
+    varianceFilterParams() {
+        const params = {};
+        ['area', 'seg', 'acc'].forEach(key => {
+            if (this.filters[key]) params[key] = this.filters[key];
+        });
+        return params;
+    }
+
+    // Pudarkan kategori yang tidak dipilih di semua chart yang sudah tergambar
+    applyDims() {
+        const slotIndex = items => items.findIndex(d => d.time === this.filters.slot);
+
+        ['non_oil', 'oil'].forEach(key => {
+            const data = this.topData[key] || [];
+            if (this.charts[key]) dimCategories(this.charts[key], data.length, slotIndex(data), { seriesIndex: 1 });
+        });
+        if (this.varianceTrendChart) {
+            dimCategories(this.varianceTrendChart, this.trendItems.length, slotIndex(this.trendItems));
+        }
+        if (this.progressChart) {
+            dimCategories(this.progressChart, this.progressItems.length, this.progressItems.findIndex(d => d.area === this.filters.area));
+        }
+        if (this.oilChart) {
+            dimCategories(this.oilChart, this.oilItems.length, this.oilItems.findIndex(d => d.area === this.filters.area), { horizontal: true });
+        }
+        this.dimVarianceCards();
+    }
+
+    // Penanda filter aktif di atas dashboard, tiap filter bisa dihapus satu per satu
+    renderFilterBar() {
+        const bar = document.getElementById('chart-filter-bar');
+        if (!bar) return;
+
+        const labels = {
+            slot: v => `Jam ${this.formatTime(v)}`,
+            area: v => `Area ${v}`,
+            seg: v => v,
+            acc: v => v
+        };
+        const active = Object.keys(labels).filter(key => this.filters[key]);
+
+        bar.classList.toggle('d-none', active.length === 0);
+        bar.innerHTML = '';
+        if (active.length === 0) return;
+
+        const title = document.createElement('span');
+        title.className = 'small fw-semibold text-dark';
+        title.textContent = 'Filter:';
+        bar.appendChild(title);
+
+        active.forEach(key => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'btn btn-sm btn-dark py-0 px-2 d-flex align-items-center gap-1';
+            chip.innerHTML = `<span></span><i class="icon-base ti tabler-x"></i>`;
+            chip.querySelector('span').textContent = labels[key](this.filters[key]);
+            chip.title = 'Hapus filter';
+            chip.addEventListener('click', () => this.toggleFilter(key, this.filters[key]));
+            bar.appendChild(chip);
+        });
+
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'btn btn-sm btn-outline-secondary py-0 px-2';
+        reset.textContent = 'Reset semua';
+        reset.addEventListener('click', () => this.clearFilters());
+        bar.appendChild(reset);
+    }
+
+    // Kotak RM / WIP / FG yang tidak dipilih dipudarkan
+    dimVarianceCards() {
+        document.querySelectorAll('#variance-accounting-groups .variance-value').forEach(el => {
+            el.closest('.card').classList.toggle('fd-dim', Boolean(this.filters.acc) && this.filters.acc !== el.dataset.group);
+        });
+    }
+
+    // Kotak RM / WIP / FG bisa diklik sebagai filter accounting group
+    bindVarianceCards() {
+        document.querySelectorAll('#variance-accounting-groups .variance-value').forEach(el => {
+            const card = el.closest('.card');
+            card.classList.add('fd-clickable');
+            card.addEventListener('click', () => this.toggleFilter('acc', el.dataset.group));
         });
     }
 
@@ -210,6 +351,9 @@ class Dashboard {
         };
 
         categories.forEach((_, i) => {
+            // Slot yang jamnya belum tiba (null) tidak diberi label
+            if (itemData[i] === null || qtyData[i] === null) return;
+
             const cx   = Number.isFinite(lineX[i]) ? lineX[i] : step * i + step / 2;
             const qty  = Number(qtyData[i]);
             const item = Number(itemData[i]);
@@ -217,14 +361,22 @@ class Dashboard {
             const pointY = Number.isFinite(lineY[i]) ? lineY[i] : g.gridHeight * (1 - item / theme.lineMax);
             addLabel(cx, pointY - ITEM_GAP, this.fmtPct(item), theme.itemBg, theme.itemColor);
 
-            if (qty >= MIN_QTY_LABEL) {
-                addLabel(cx, g.gridHeight - QTY_GAP, this.fmtPct(qty), theme.qtyBg, theme.qtyColor);
-            }
+            // % Qty selalu ditampilkan, termasuk saat nilainya kecil
+            addLabel(cx, g.gridHeight - QTY_GAP, this.fmtPct(qty), theme.qtyBg, theme.qtyColor);
         });
     }
 
-    getTopChartOptions(categories, qtyData, itemData, theme) {
-        const redraw = ctx => this.drawLabels(ctx, categories, qtyData, itemData, theme);
+    getTopChartOptions(categories, qtyData, itemData, theme, key) {
+        const redraw = ctx => {
+            this.drawLabels(ctx, categories, qtyData, itemData, theme);
+            const data = this.topData[key] || [];
+            dimCategories(ctx, data.length, data.findIndex(d => d.time === this.filters.slot), { seriesIndex: 1 });
+        };
+        // Klik jam = filter chart lain kumulatif s/d jam itu (jam yang belum tiba tidak bisa dipilih)
+        const select = (ctx, config) => {
+            const slot = (this.topData[key] || [])[clickedIndex(ctx, config)];
+            if (slot && slot.pct_qty !== null) this.toggleFilter('slot', slot.time);
+        };
 
         return {
             series: [
@@ -240,7 +392,9 @@ class Dashboard {
                 animations: { enabled: false },
                 events: {
                     mounted: redraw,
-                    updated: redraw
+                    updated: redraw,
+                    click: (event, ctx, config) => select(ctx, config),
+                    xAxisLabelClick: (event, ctx, config) => select(ctx, { dataPointIndex: config.labelIndex })
                 }
             },
             colors: [theme.column, theme.line],
@@ -260,6 +414,8 @@ class Dashboard {
             xaxis: {
                 type: 'category',
                 categories,
+                // Kolom + garis: tanpa 'between' area hover bergeser setengah kolom (tooltip menunjuk jam sebelumnya)
+                tickPlacement: 'between',
                 axisBorder: { show: false },
                 axisTicks: { show: false },
                 tooltip: { enabled: false },
@@ -282,7 +438,7 @@ class Dashboard {
             tooltip: {
                 shared: true,
                 intersect: false,
-                y: { formatter: val => this.fmtPct(val) }
+                y: { formatter: val => (val === null || val === undefined ? '-' : this.fmtPct(val)) }
             }
         };
     }
@@ -302,11 +458,15 @@ class Dashboard {
         }
 
         el.innerHTML = '';
+        el.classList.add('fd-clickable');
+        this.topData[key] = data;
         const categories = data.map(d => this.formatTime(d.time));
-        const qtyData    = data.map(d => Number(d.pct_qty));
-        const itemData   = data.map(d => Number(d.pct_item));
+        // null = jam slot belum tiba (dibiarkan kosong)
+        const toValue    = v => (v === null || v === undefined ? null : Number(v));
+        const qtyData    = data.map(d => toValue(d.pct_qty));
+        const itemData   = data.map(d => toValue(d.pct_item));
 
-        const options = this.getTopChartOptions(categories, qtyData, itemData, theme);
+        const options = this.getTopChartOptions(categories, qtyData, itemData, theme, key);
         this.charts[key] = new ApexCharts(el, options);
         this.charts[key].render();
     }
@@ -321,8 +481,10 @@ class Dashboard {
     }
 
     loadBottomCharts() {
-        track(axios.get('FACDBT/ds/main-dashboard/progress-by-area', { params: this.timeFilter.params() }))
+        const seq = this.nextSeq('area');
+        track(axios.get('FACDBT/ds/main-dashboard/progress-by-area', { params: this.bottomParams() }))
         .then(res => {
+            if (!this.isLatest('area', seq)) return;
             const data = res.data || { parts: [], oil: [] };
             this.renderProgressChart(data.parts || []);
             this.renderOilAreaChart(data.oil || []);
@@ -336,8 +498,10 @@ class Dashboard {
     // 3. Variance (mengikuti filter rentang waktu)
     // -------------------------------------------------------------
     loadVariance() {
-        track(axios.get('FACDBT/ds/main-dashboard/variance', { params: this.timeFilter.params() }))
+        const seq = this.nextSeq('variance');
+        track(axios.get('FACDBT/ds/main-dashboard/variance', { params: { ...this.bottomParams(), ...this.varianceFilterParams() } }))
             .then(res => {
+                if (!this.isLatest('variance', seq)) return;
                 const data = res.data || {};
                 const partGroups = this.sortPartGroups(data.by_part_group || []);
 
@@ -350,8 +514,11 @@ class Dashboard {
 
     // Chart Absolute Variance per slot waktu (tidak terpengaruh filter tombol waktu)
     loadVarianceTrend() {
-        track(axios.get('FACDBT/ds/main-dashboard/variance-trend'))
-            .then(res => this.renderVarianceTrendChart(Array.isArray(res.data) ? res.data : []))
+        const seq = this.nextSeq('trend');
+        track(axios.get('FACDBT/ds/main-dashboard/variance-trend', { params: this.varianceFilterParams() }))
+            .then(res => {
+                if (this.isLatest('trend', seq)) this.renderVarianceTrendChart(Array.isArray(res.data) ? res.data : []);
+            })
             .catch(err => console.error('Error load variance trend:', err));
     }
 
@@ -370,10 +537,18 @@ class Dashboard {
         }
 
         el.innerHTML = '';
+        el.classList.add('fd-clickable');
+        this.trendItems = items;
         const colors     = [VARIANCE_THEME.trendPositive, VARIANCE_THEME.trendNegative];
+        const dim = ctx => dimCategories(ctx, items.length, items.findIndex(d => d.time === this.filters.slot));
+        const select = index => {
+            const slot = items[index];
+            if (slot && slot.abs_positive !== null) this.toggleFilter('slot', slot.time);
+        };
         const categories = items.map(d => this.formatTime(d.time));
-        const positive   = items.map(d => Number(d.abs_positive || 0));
-        const negative   = items.map(d => Number(d.abs_negative || 0));
+        // null = jam slot belum tiba (dibiarkan kosong)
+        const positive   = items.map(d => (d.abs_positive === null ? null : Number(d.abs_positive || 0)));
+        const negative   = items.map(d => (d.abs_negative === null ? null : Number(d.abs_negative || 0)));
 
         // Label lewat annotation supaya tiap series bisa punya posisi sendiri: label garis yang lebih
         // tinggi di atas titik, label garis yang lebih rendah di bawah titik, sehingga tidak bertumpuk
@@ -397,6 +572,8 @@ class Dashboard {
             }
         });
         const labels = categories.flatMap((x, i) => {
+            if (positive[i] === null || negative[i] === null) return [];
+
             const positiveOnTop = positive[i] >= negative[i];
 
             return [
@@ -416,7 +593,13 @@ class Dashboard {
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
-                animations: { enabled: true, speed: 500 }
+                animations: { enabled: true, speed: 500 },
+                events: {
+                    mounted: dim,
+                    updated: dim,
+                    click: (event, ctx, config) => select(clickedIndex(ctx, config)),
+                    xAxisLabelClick: (event, ctx, config) => select(config.labelIndex)
+                }
             },
             colors,
             stroke: { curve: 'straight', width: 3 },
@@ -451,7 +634,7 @@ class Dashboard {
             tooltip: {
                 shared: true,
                 intersect: false,
-                y: { formatter: v => this.fmtMillion(v) }
+                y: { formatter: v => (v === null || v === undefined ? '-' : this.fmtMillion(v)) }
             }
         };
 
@@ -482,6 +665,7 @@ class Dashboard {
         document.querySelectorAll('#variance-accounting-groups .variance-value').forEach(el => {
             el.textContent = this.fmtMillion(byAccounting[el.dataset.group] || 0);
         });
+        this.dimVarianceCards();
 
         const nettEl = document.getElementById('variance-nett-total');
         const absEl  = document.getElementById('variance-absolute-total');
@@ -510,23 +694,39 @@ class Dashboard {
             const start = running;
             running += Number(g.nett || 0);
 
+            // Part group yang tidak dipilih dipudarkan (warna transparan)
+            const color = g.nett < 0 ? VARIANCE_THEME.negative : VARIANCE_THEME.positive;
+            const dimmed = this.filters.seg && this.filters.seg !== g.group;
+
             return {
                 x: g.group,
                 y: [Math.min(start, running), Math.max(start, running)],
-                fillColor: g.nett < 0 ? VARIANCE_THEME.negative : VARIANCE_THEME.positive,
+                fillColor: dimmed ? `${color}40` : color,
                 nett: Number(g.nett || 0)
             };
         });
+        el.classList.add('fd-clickable');
 
         const options = {
             series: [{ name: 'Nett Variance', data: points }],
             chart: {
                 type: 'rangeBar',
-                height: 130,
+                height: 160,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
-                animations: { enabled: true, speed: 500 }
+                animations: { enabled: true, speed: 500 },
+                events: {
+                    // Klik 4W / 2W = filter part group
+                    click: (event, ctx, config) => {
+                        const point = points[config.dataPointIndex];
+                        if (point) this.toggleFilter('seg', point.x);
+                    },
+                    xAxisLabelClick: (event, ctx, config) => {
+                        const point = points[config.labelIndex];
+                        if (point) this.toggleFilter('seg', point.x);
+                    }
+                }
             },
             plotOptions: {
                 bar: { horizontal: false, columnWidth: '55%' }
@@ -535,7 +735,7 @@ class Dashboard {
                 enabled: true,
                 formatter: (val, opts) => this.fmtMillion(points[opts.dataPointIndex].nett),
                 // Saat background aktif, style.colors dipakai sebagai warna kotak label
-                style: { fontSize: '12px', fontWeight: 600, colors: [VARIANCE_THEME.labelBg] },
+                style: { fontSize: '14px', fontWeight: 700, colors: [VARIANCE_THEME.labelBg] },
                 background: {
                     enabled: true,
                     foreColor: '#FFFFFF',
@@ -550,10 +750,21 @@ class Dashboard {
                 type: 'category',
                 axisBorder: { show: false },
                 axisTicks: { show: false },
-                labels: { style: { fontSize: '12px', colors: '#555555' } }
+                labels: { style: { fontSize: '14px', fontWeight: 600, colors: '#333333' } }
             },
             yaxis: { show: false },
-            legend: { show: false },
+            // Keterangan warna: hijau = Var [+], merah = Var [-]
+            legend: {
+                show: true,
+                showForSingleSeries: true,
+                position: 'top',
+                horizontalAlign: 'center',
+                fontSize: '12px',
+                customLegendItems: ['Var [+]', 'Var [-]'],
+                markers: { size: 6, shape: 'square', strokeWidth: 0, fillColors: [VARIANCE_THEME.positive, VARIANCE_THEME.negative] },
+                labels: { colors: '#333333' },
+                itemMargin: { horizontal: 8, vertical: 0 }
+            },
             grid: { show: false, padding: { left: 10, right: 10 } },
             tooltip: {
                 custom: ({ dataPointIndex }) => {
@@ -589,7 +800,10 @@ class Dashboard {
         // Urutan card: part group terakhir di atas (2W lalu 4W), seperti layout referensi
         [...groups].reverse().forEach(g => {
             const card = document.createElement('div');
-            card.className = 'card shadow-none border border-dark rounded-3 flex-fill';
+            card.className = 'card shadow-none border border-dark rounded-3 flex-fill fd-clickable';
+            // Klik card = filter part group; part group lain dipudarkan
+            card.classList.toggle('fd-dim', Boolean(this.filters.seg) && this.filters.seg !== g.group);
+            card.addEventListener('click', () => this.toggleFilter('seg', g.group));
             card.innerHTML = `
                 <div class="card-header text-center pt-1 pb-0">
                     <div class="small fw-semibold text-dark">Absolute Variance</div>
@@ -601,32 +815,35 @@ class Dashboard {
                 series: [{ name: 'Absolute Variance', data: [Number(g.absolute || 0)] }],
                 chart: {
                     type: 'bar',
-                    height: 55,
+                    height: 60,
                     fontFamily: 'inherit',
                     toolbar: { show: false },
                     zoom: { enabled: false },
                     animations: { enabled: true, speed: 500 }
                 },
+                // Label di ujung kanan bar dengan teks gelap supaya tetap terbaca walaupun bar pendek
                 plotOptions: {
-                    bar: { horizontal: true, barHeight: '70%', dataLabels: { position: 'center' } }
+                    bar: { horizontal: true, barHeight: '70%', dataLabels: { position: 'top' } }
                 },
                 colors: [VARIANCE_THEME.absolute],
                 dataLabels: {
                     enabled: true,
                     formatter: val => this.fmtMillion(val),
-                    style: { fontSize: '11px', fontWeight: 600, colors: ['#FFFFFF'] },
+                    offsetX: 40,
+                    style: { fontSize: '14px', fontWeight: 700, colors: ['#1F1F1F'] },
                     dropShadow: { enabled: false }
                 },
                 xaxis: {
                     categories: [g.group],
                     min: 0,
-                    max: maxAbs,
+                    // Ruang di kanan bar terpanjang untuk label
+                    max: maxAbs * 1.45,
                     labels: { show: false },
                     axisBorder: { show: false },
                     axisTicks: { show: false }
                 },
                 yaxis: {
-                    labels: { style: { fontSize: '12px', colors: '#555555' } }
+                    labels: { style: { fontSize: '14px', fontWeight: 600, colors: '#333333' } }
                 },
                 legend: { show: false },
                 grid: { show: false, padding: { top: -15, bottom: -15, right: 10 } },
@@ -656,95 +873,12 @@ class Dashboard {
             this.progressChart = null;
         }
 
-        if (items.length === 0) {
-            el.innerHTML = '<p class="text-center text-muted my-5">No Data Available for selected time</p>';
-            return;
-        }
-
-        el.innerHTML = '';
-        const categories    = items.map(d => d.area);
-        const progressData  = items.map(d => Number(d.pct_progress));
-        const remainingData = items.map(d => Number(d.pct_remaining));
-        const colors        = [PROGRESS_THEME.remaining, PROGRESS_THEME.progress];
-
-        const options = {
-            series: [
-                { name: '% Remaining', data: remainingData },
-                { name: '% Progress', data: progressData }
-            ],
-            chart: {
-                type: 'area',
-                height: this.progressChartHeight(),
-                fontFamily: 'inherit',
-                toolbar: { show: false },
-                zoom: { enabled: false },
-                animations: { enabled: animate, speed: 500 }
-            },
-            colors,
-            dataLabels: {
-                enabled: true,
-                offsetY: -8,
-                formatter: val => this.fmtPct2(val),
-                // Saat background aktif, style.colors dipakai sebagai warna kotak label
-                style: { fontSize: '11px', fontWeight: 600, colors },
-                background: {
-                    enabled: true,
-                    foreColor: '#FFFFFF',
-                    borderRadius: 4,
-                    borderWidth: 0,
-                    padding: 5,
-                    opacity: 1,
-                    dropShadow: { enabled: false }
-                }
-            },
-            stroke: { curve: 'smooth', width: 2 },
-            fill: {
-                type: 'solid',
-                opacity: [0.6, 0.55]
-            },
-            markers: {
-                size: 4,
-                strokeWidth: 0,
-                hover: { sizeOffset: 2 }
-            },
-            xaxis: {
-                categories,
-                axisBorder: { show: true, color: '#CCCCCC' },
-                axisTicks: { show: false },
-                tooltip: { enabled: false },
-                labels: {
-                    rotate: -45,
-                    rotateAlways: true,
-                    trim: false,
-                    maxHeight: 120,
-                    hideOverlappingLabels: false,
-                    style: { fontSize: '11px', colors: '#555555' }
-                }
-            },
-            yaxis: {
-                min: 0,
-                max: 115, // ruang di atas 100% untuk label
-                labels: { show: false }
-            },
-            legend: {
-                show: true,
-                position: 'top',
-                horizontalAlign: 'left',
-                fontSize: '13px',
-                labels: { colors: '#555555' },
-                markers: { size: 6, shape: 'circle', strokeWidth: 0 },
-                itemMargin: { horizontal: 8 }
-            },
-            grid: { show: false, padding: { left: 55, right: 30 } },
-            tooltip: {
-                shared: true,
-                intersect: false,
-                y: { formatter: v => this.fmtPct2(v) }
-            }
-        };
-
-        this.progressChart = new ApexCharts(el, options);
-        this.progressChart.render();
+        this.progressChart = renderProgressByAreaChart(el, items, {
+            height: this.progressChartHeight(),
+            animate,
+            selected: () => this.filters.area,
+            onSelect: area => this.toggleFilter('area', area)
+        });
     }
 
     renderOilAreaChart(items) {
@@ -762,9 +896,15 @@ class Dashboard {
         }
 
         el.innerHTML = '';
+        el.classList.add('fd-clickable');
+        this.oilItems = items;
         const categories    = items.map(d => d.area);
         const progressData  = items.map(d => Number(d.pct_progress));
         const remainingData = items.map(d => Number(d.pct_remaining));
+        const dim = ctx => dimCategories(ctx, items.length, items.findIndex(d => d.area === this.filters.area), { horizontal: true });
+        const select = index => {
+            if (items[index]) this.toggleFilter('area', items[index].area);
+        };
 
         const options = {
             series: [
@@ -780,6 +920,13 @@ class Dashboard {
                 stacked: true,
                 stackType: '100%',
                 toolbar: { show: false },
+                events: {
+                    mounted: dim,
+                    updated: dim,
+                    // Klik area = filter chart variance
+                    click: (event, ctx, config) => select(clickedIndex(ctx, config)),
+                    xAxisLabelClick: (event, ctx, config) => select(config.labelIndex)
+                },
                 animations: { enabled: true, speed: 500 }
             },
             plotOptions: {
@@ -793,7 +940,8 @@ class Dashboard {
             dataLabels: {
                 enabled: true,
                 formatter: val => (val > 0 ? this.fmtPct2(val) : ''),
-                style: { fontSize: items.length > 4 ? '12px' : '16px', fontWeight: 400, colors: ['#FFFFFF'] },
+                // Teks gelap di bar Progress (abu-abu muda), teks putih di bar Remaining (abu-abu tua)
+                style: { fontSize: items.length > 4 ? '13px' : '16px', fontWeight: 700, colors: ['#1F1F1F', '#FFFFFF'] },
                 dropShadow: { enabled: false }
             },
             stroke: { width: 0 },
@@ -806,7 +954,7 @@ class Dashboard {
             yaxis: {
                 labels: {
                     maxWidth: 110,
-                    style: { fontSize: '11px', fontWeight: 400, colors: '#555555' }
+                    style: { fontSize: '12px', fontWeight: 600, colors: '#333333' }
                 }
             },
             legend: { show: false },

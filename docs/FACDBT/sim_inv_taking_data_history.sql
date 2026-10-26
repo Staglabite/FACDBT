@@ -1,4 +1,4 @@
--- History hasil taking (FACDBTD006).
+-- History hasil taking (FACDBTD005).
 -- Satu baris = satu (location_no, part_no, LOT_BATCH_NO) dalam satu periode taking.
 -- Diisi sekali saat periode di SIM_INV_TAKING_CONCLUDING_TAB ditutup (ROWSTATE Started -> Closed),
 -- oleh php artisan facdbt:taking-history yang dijadwalkan tiap jam.

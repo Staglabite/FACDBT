@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Dasar perhitungan dashboard variance dengan filter TIME & AREA serta tabel detail part
- * (Nett Variance FACDBTD004, Absolute Variance FACDBTD005).
+ * (Nett Variance FACDBTD003, Absolute Variance FACDBTD004).
  */
 abstract class VarianceDashboardService
 {
@@ -63,9 +63,12 @@ abstract class VarianceDashboardService
             $areas      = $this->locationAreas($db);
             $areaFilter = array_flip($selected);
 
-            $lines = [];
+            $lines   = [];
+            $perArea = [];
             foreach ($this->varianceLines($db, $period, $takingFrom, $takingTo) as $line) {
                 $area = $areas[$line[0]] ?? 'UNKNOWN';
+                // Chart Nett Variance by Area selalu memuat semua area (area yang tidak dipilih dipudarkan di browser)
+                $perArea[$area] = ($perArea[$area] ?? 0.0) + ($line[3] - $line[2]) * $line[4];
                 if ($areaFilter && !isset($areaFilter[$area])) {
                     continue;
                 }
@@ -74,7 +77,10 @@ abstract class VarianceDashboardService
                 $lines[] = $line;
             }
 
-            return $this->build($lines, $this->partNames($db));
+            $result = $this->build($lines, $this->partNames($db));
+            $result['by_area'] = $this->areaSeries($perArea);
+
+            return $result;
         });
     }
 
