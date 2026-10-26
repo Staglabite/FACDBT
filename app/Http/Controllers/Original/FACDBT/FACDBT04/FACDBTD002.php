@@ -7,6 +7,7 @@ use App\Services\FACDBT\RunningTakingPeriod;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\UsesTakingEvent;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ class FACDBTD002 extends Controller
 {
     use CachesDashboard;
     use FiltersTakingRange;
+    use UsesTakingEvent;
 
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
@@ -150,7 +152,7 @@ class FACDBTD002 extends Controller
      */
     private function perLocationPart($query, string $qtyColumn): array
     {
-        return $query
+        return $this->eventScope($query, DB::connection(self::CONN))
             ->groupBy('LOCATION_NO', 'PART_NO')
             ->select('LOCATION_NO', 'PART_NO', DB::raw("SUM({$qtyColumn}) as qty"))
             ->get()

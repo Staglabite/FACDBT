@@ -3,6 +3,7 @@
 namespace App\Exports\FACDBT\FACDBT04;
 
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
+use App\Services\FACDBT\TakingEvent;
 use Illuminate\Database\Eloquent\Builder;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -18,6 +19,7 @@ class FACDBTD005
         'site' => 'Site',
         'MONTH' => 'Month',
         'YEAR' => 'Year',
+        'event' => 'Event',
         'warehouse' => 'Warehouse',
         'location_group' => 'Location Group',
         'location_no' => 'Location No',
@@ -49,9 +51,29 @@ class FACDBTD005
     /** Progress % = qty taking / qty book x 100; kosong bila qty book 0 */
     public const PROGRESS_SQL = 'CASE WHEN qty_book <> 0 THEN ROUND(qty_taking / qty_book * 100, 2) END';
 
+    /**
+     * Nama event (Master Event) dari kolom EVENT_TYPE; kosong bila kolom belum ditambahkan
+     * (docs/FACDBT/sim_inv_taking_event.sql) atau periode tanpa event.
+     */
+    public static function eventSql(bool $hasEventColumn): string
+    {
+        if (!$hasEventColumn) {
+            return 'NULL';
+        }
+
+        $cases = collect(TakingEvent::TYPES)->map(fn ($name, $code) => "WHEN '{$code}' THEN '{$name}'")->implode(' ');
+
+        return "CASE EVENT_TYPE {$cases} END";
+    }
+
     public static function download(Builder $query): StreamedResponse
     {
-        return (new MasterDataExport($query, self::COLUMNS, ['progress' => self::PROGRESS_SQL]))
+        $expressions = [
+            'event'    => self::eventSql($query->getModel()->hasEventColumn()),
+            'progress' => self::PROGRESS_SQL,
+        ];
+
+        return (new MasterDataExport($query, self::COLUMNS, $expressions))
             ->download('History_Taking-' . date('YmdHis') . '.csv');
     }
 }

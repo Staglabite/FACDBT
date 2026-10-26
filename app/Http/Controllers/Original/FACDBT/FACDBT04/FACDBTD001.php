@@ -7,6 +7,7 @@ use App\Services\FACDBT\RunningTakingPeriod;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\UsesTakingEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -15,6 +16,7 @@ class FACDBTD001 extends Controller
 {
     use CachesDashboard;
     use FiltersTakingRange;
+    use UsesTakingEvent;
 
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
@@ -99,6 +101,7 @@ class FACDBTD001 extends Controller
             ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
             ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('b.INV_LIST_NO', $invListNo)
+            ->tap(fn ($q) => $this->eventScope($q, $db, 'b.LOCATION_NO', 'b.PART_NO'))
             ->groupBy('b.PART_NO')
             ->select(
                 'b.PART_NO',
@@ -160,6 +163,7 @@ class FACDBTD001 extends Controller
         $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('INV_LIST_NO', $invListNo)
+            ->tap(fn ($q) => $this->eventScope($q, $db))
             ->groupBy('LOCATION_NO', 'PART_NO')
             ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'))
             ->get();
@@ -286,6 +290,7 @@ class FACDBTD001 extends Controller
             $agg = $db->table('SIM_INV_TAKING_DATA_TAB as t')
                 ->joinSub($bookSub, 'bk', 'bk.PART_NO', '=', 't.PART_NO')
                 ->whereBetween('t.CREATED_DATETIME', [$takingDate, $closeDate])
+                ->tap(fn ($q) => $this->eventScope($q, $db, 't.LOCATION_NO', 't.PART_NO'))
                 ->groupBy('bk.is_oil')
                 ->select('bk.is_oil');
 
@@ -411,12 +416,14 @@ class FACDBTD001 extends Controller
             $partsSub = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
                 ->where('INV_LIST_NO', $latestInvListNo)
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->select('PART_NO')
                 ->distinct();
 
             $takingRows = $db->table('SIM_INV_TAKING_DATA_TAB as t')
                 ->joinSub($partsSub, 'bp', 'bp.PART_NO', '=', 't.PART_NO')
                 ->whereBetween('t.CREATED_DATETIME', [$takingFrom, $takingTo])
+                ->tap(fn ($q) => $this->eventScope($q, $db, 't.LOCATION_NO', 't.PART_NO'))
                 ->groupBy('t.LOCATION_NO', 't.PART_NO')
                 ->select('t.LOCATION_NO', 't.PART_NO', DB::raw('SUM(t.QTY) as qty'))
                 ->get();
@@ -453,6 +460,11 @@ class FACDBTD001 extends Controller
                         $itemTaking++;
                         $qtyTaking += (float) $takingData[$areaName][$row->PART_NO];
                     }
+                }
+
+                // Periode dengan event (Master Event): area tanpa data event tidak ditampilkan
+                if ($itemBook === 0 && $itemTaking === 0 && $this->takingEvent($db) !== null) {
+                    continue;
                 }
 
                 $pctQty  = $qtyBook > 0 ? round(($qtyTaking / $qtyBook) * 100, 2) : 0;
@@ -517,6 +529,7 @@ class FACDBTD001 extends Controller
         $rows = $db->table('SIM_INV_TAKING_BOOK_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('INV_LIST_NO', $invListNo)
+            ->tap(fn ($q) => $this->eventScope($q, $db))
             ->groupBy('LOCATION_NO', 'PART_NO')
             ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'))
             ->get();
@@ -681,6 +694,7 @@ class FACDBTD001 extends Controller
 
             $taking = $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->groupBy('LOCATION_NO', 'PART_NO')
                 ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QTY) as qty'))
                 ->get();
@@ -753,6 +767,7 @@ class FACDBTD001 extends Controller
             // Qty taking kumulatif per (lokasi, part) untuk setiap slot dalam satu query
             $takingQuery = $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $lastSlot])
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->groupBy('LOCATION_NO', 'PART_NO')
                 ->select('LOCATION_NO', 'PART_NO');
             foreach ($slotTimes as $i => $time) {

@@ -13,6 +13,8 @@ const VERSION_URL = '/FACDBT/ds/data-version';
 let pending = 0;
 let lastUpdated = null;
 let statusEl = null;
+// Nama event periode berjalan (Master Event), dari endpoint versi data
+let eventName = null;
 
 function ensureStatusElement() {
     if (statusEl) return statusEl;
@@ -55,6 +57,21 @@ function render() {
     el.textContent = lastUpdated
         ? `Terakhir diperbarui ${lastUpdated.toLocaleTimeString('id-ID')} · otomatis diperbarui saat ada scan baru`
         : '';
+
+    if (eventName) {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-label-primary';
+        badge.textContent = `Event: ${eventName}`;
+        el.prepend(badge);
+    }
+}
+
+function setEvent(name) {
+    name = name || null;
+    if (name !== eventName) {
+        eventName = name;
+        render();
+    }
 }
 
 /**
@@ -96,6 +113,7 @@ export function autoRefresh(callback, interval = REFRESH_INTERVAL) {
         try {
             const res = await axios.get(VERSION_URL, { timeout: 15000 });
             const latest = res.data?.version ?? null;
+            setEvent(res.data?.event);
 
             if (version !== null && latest !== version) {
                 callback();
@@ -112,7 +130,10 @@ export function autoRefresh(callback, interval = REFRESH_INTERVAL) {
     };
 
     // Versi awal (data yang baru dimuat saat halaman dibuka)
-    axios.get(VERSION_URL).then(res => { version = res.data?.version ?? null; }).catch(() => {});
+    axios.get(VERSION_URL).then(res => {
+        version = res.data?.version ?? null;
+        setEvent(res.data?.event);
+    }).catch(() => {});
 
     setInterval(check, CHECK_INTERVAL);
     document.addEventListener('visibilitychange', () => {

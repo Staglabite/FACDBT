@@ -4,6 +4,7 @@ namespace App\DataTables\Original\FACDBT04;
 
 use App\Exports\FACDBT\FACDBT04\FACDBTD005 as Export;
 use App\Models\FACDBT04\FACDBT_SIMINVTAKINGDATAHISTORY as TakingHistory;
+use App\Services\FACDBT\TakingEvent;
 use App\Traits\DataTableTrait;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
 use Yajra\DataTables\EloquentDataTable;
@@ -32,6 +33,7 @@ class FACDBTD005DataTable extends DataTable
                 return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->IID . '">';
             })
             ->editColumn('time', fn ($row) => $row->time?->format('Y-m-d H:i:s'))
+            ->addColumn('event', fn ($row) => TakingEvent::TYPES[$row->EVENT_TYPE ?? ''] ?? '-')
             // Progress % = qty taking / qty book x 100; "-" bila qty book 0
             ->addColumn('progress', fn ($row) => (float) $row->qty_book != 0.0
                 ? self::number(round((float) $row->qty_taking / (float) $row->qty_book * 100, 2), 2) . '%'
@@ -74,6 +76,7 @@ class FACDBTD005DataTable extends DataTable
     {
         return $model->newQuery()
             ->forPeriod(request('year'), request('month'), request('taking_date'))
+            ->forEvent(request('event_type'))
             ->orderByDesc('TAKING_DATE')
             ->orderBy('location_no')
             ->orderBy('part_no');
@@ -123,9 +126,11 @@ class FACDBTD005DataTable extends DataTable
         ];
 
         foreach (Export::COLUMNS as $column => $title) {
-            $col = $column === 'progress'
-                ? Column::computed('progress')->title($title)->orderable(true)->searchable(false)->addClass('text-nowrap')
-                : Column::make($column)->title($title)->addClass('text-nowrap');
+            $col = match ($column) {
+                'progress' => Column::computed('progress')->title($title)->orderable(true)->searchable(false)->addClass('text-nowrap'),
+                'event'    => Column::computed('event')->title($title)->orderable(false)->searchable(false)->addClass('text-nowrap'),
+                default    => Column::make($column)->title($title)->addClass('text-nowrap'),
+            };
             if (in_array($column, [...self::QTY_COLUMNS, ...self::AMOUNT_COLUMNS, 'item_book', 'item_taking', 'progress'], true)) {
                 $col->addClass('text-end');
             }

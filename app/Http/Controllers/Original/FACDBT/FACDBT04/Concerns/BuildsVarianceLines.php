@@ -17,6 +17,7 @@ trait BuildsVarianceLines
 {
     use CachesDashboard;
     use FiltersTakingRange;
+    use UsesTakingEvent;
 
     /**
      * Periode taking aktif (TAKING_DATE s/d CLOSE_DATE terbaru) + INV_LIST_NO terbaru.
@@ -69,12 +70,14 @@ trait BuildsVarianceLines
             $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $period['closeDate']])
                 ->where('INV_LIST_NO', $period['invListNo'])
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->groupBy('LOCATION_NO', 'PART_NO')
                 ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QUANTITY) as qty'))
                 ->get();
 
             $taking = $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->groupBy('LOCATION_NO', 'PART_NO')
                 ->select('LOCATION_NO', 'PART_NO', DB::raw('SUM(QTY) as qty'))
                 ->get();

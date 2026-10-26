@@ -26,14 +26,18 @@
                         </button>
                     </div>
 
-                    {{-- Filter periode: Year -> Month -> Event (Event hanya tampil bila 1 bulan punya >1 taking) --}}
+                    {{-- Filter periode: Year -> Month -> Taking (Taking hanya tampil bila 1 bulan punya >1 taking) --}}
                     <select class="form-select form-select-sm" id="filter-year" style="width: 110px;" aria-label="Year">
                         <option value="">All Year</option>
                     </select>
                     <select class="form-select form-select-sm" id="filter-month" style="width: 140px;" aria-label="Month" disabled>
                         <option value="">All Month</option>
                     </select>
-                    <select class="form-select form-select-sm d-none" id="filter-event" style="width: 190px;" aria-label="Event"></select>
+                    <select class="form-select form-select-sm d-none" id="filter-event" style="width: 260px;" aria-label="Taking"></select>
+                    {{-- Filter jenis event (Master Event); tampil bila kolom EVENT_TYPE sudah ada --}}
+                    <select class="form-select form-select-sm d-none" id="filter-event-type" style="width: 200px;" aria-label="Event">
+                        <option value="">All Event</option>
+                    </select>
                 </div>
                 <div class="d-flex gap-2 align-items-center flex-column flex-lg-row mt-2 mt-xxl-0">
                     <div class="d-flex align-items-center gap-1 justify-content-center">

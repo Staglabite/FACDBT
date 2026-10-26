@@ -6,6 +6,7 @@ use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF002;
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF003; 
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF004; 
 use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF005;
+use App\Http\Controllers\Original\FACDBT\FACDBT01\FACDBTF006;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD001;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD002;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\FACDBTD003;
@@ -91,6 +92,22 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::get('/{id}', 'show')->name('facdbtf005.show');
         Route::put('/{grouplocation}', 'update')->name('facdbtf005.update');
         Route::delete('/{grouplocation}', 'destroy')->name('facdbtf005.destroy');
+    });
+
+    // Route untuk Master Event (FACDBT006)
+    Route::group(['prefix' => 'master-event', 'controller' => FACDBTF006::class], function () {
+        Route::get('/', 'index')->name('facdbtf006.index');
+        Route::post('/', 'store')->name('facdbtf006.store');
+
+        Route::get('/periods', 'periods')->name('facdbtf006.periods');
+        Route::get('/download-template', 'downloadTemplate')->name('facdbtf006.download-template');
+        Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf006.delete-multiple');
+
+        Route::get('/{id}', 'show')->name('facdbtf006.show');
+        Route::put('/{event}', 'update')->name('facdbtf006.update');
+        Route::delete('/{event}', 'destroy')->name('facdbtf006.destroy');
+        Route::post('/{event}/parts', 'importParts')->name('facdbtf006.import-parts');
+        Route::get('/{event}/parts/export', 'exportParts')->name('facdbtf006.export-parts');
     });
 
 });

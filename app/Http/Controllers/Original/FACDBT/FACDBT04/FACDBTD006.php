@@ -6,6 +6,7 @@ use App\Services\FACDBT\AreaName;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\UsesTakingEvent;
 use App\Services\FACDBT\RunningTakingPeriod;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class FACDBTD006 extends Controller
 {
     use CachesDashboard;
     use FiltersTakingRange;
+    use UsesTakingEvent;
 
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
@@ -141,6 +143,7 @@ class FACDBTD006 extends Controller
                 $rows = $db->table('SIM_INV_TAKING_BOOK_TAB')
                     ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
                     ->where('INV_LIST_NO', $invListNo)
+                    ->tap(fn ($q) => $this->eventScope($q, $db))
                     ->groupBy('LOCATION_NO')
                     ->select('LOCATION_NO', DB::raw('COUNT(*) as n'))
                     ->get();
@@ -156,6 +159,7 @@ class FACDBTD006 extends Controller
             $rows = $db->table('SIM_INV_TAKING_DATA_REVISION_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo])
                 ->where('REV_NO', '>', 1)
+                ->tap(fn ($q) => $this->eventScope($q, $db))
                 ->groupBy('LOCATION_NO', 'MODIFIED_BY', 'REASON_REVISION')
                 ->select('LOCATION_NO', 'MODIFIED_BY', 'REASON_REVISION', DB::raw('COUNT(*) as n'))
                 ->get();

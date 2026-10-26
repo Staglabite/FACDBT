@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
  * "Versi" data taking periode aktif, dipakai dashboard FACDBT04 untuk tahu kapan ada data baru.
  *
  * Versi berubah bila ada scan baru, scan diubah/dihapus (jumlah & total qty berubah), periode baru,
- * book baru, atau revisi data taking baru. Nilainya disimpan VERSION_TTL detik, sehingga dashboard
+ * book baru, revisi data taking baru, atau event / daftar part event (Master Event) berubah. Nilainya disimpan VERSION_TTL detik, sehingga dashboard
  * paling cepat dihitung ulang tiap VERSION_TTL detik walaupun scan masuk terus-menerus.
  */
 class TakingDataVersion
@@ -63,6 +63,7 @@ class TakingDataVersion
             $taking->n ?? 0, $taking->last_scan ?? '', $taking->qty ?? 0,
             $book->n ?? 0, $book->inv_list_no ?? '',
             $revision->n ?? 0, $revision->last_modified ?? '',
+            TakingEvent::signature($db, $period),
         ])), 0, 12);
     }
 }

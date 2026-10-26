@@ -6,6 +6,7 @@ use App\DataTables\Original\FACDBT04\FACDBTD005DataTable;
 use App\Exports\FACDBT\FACDBT04\FACDBTD005 as Export;
 use App\Http\Controllers\Controller;
 use App\Models\FACDBT04\FACDBT_SIMINVTAKINGDATAHISTORY as TakingHistory;
+use App\Services\FACDBT\TakingEvent;
 use App\Services\FACDBT\TakingHistoryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -34,13 +35,16 @@ class FACDBTD005 extends Controller
     }
 
     /**
-     * Daftar periode di history untuk filter Year -> Month -> Event.
-     * Event = satu periode taking (TAKING_DATE); satu bulan bisa punya lebih dari satu event.
+     * Daftar periode di history untuk filter Year -> Month -> Taking, dan pilihan filter Event (Master Event).
+     * Taking = satu periode taking (TAKING_DATE); satu bulan bisa punya lebih dari satu taking.
      */
     public function getFilters()
     {
+        $hasEvent = (new TakingHistory)->hasEventColumn();
+
         $periods = TakingHistory::query()
             ->select('YEAR', 'MONTH', 'TAKING_DATE', 'CLOSE_DATE')
+            ->when($hasEvent, fn ($q) => $q->addSelect('EVENT_TYPE'))
             ->distinct()
             ->orderByDesc('YEAR')
             ->orderByDesc('MONTH')
@@ -57,16 +61,23 @@ class FACDBTD005 extends Controller
                     ? $taking->format('j M')
                     : $taking->format('j') . '–' . $close->format('j M');
 
+                $event = TakingEvent::TYPES[$p->EVENT_TYPE ?? ''] ?? null;
+
                 $events[] = [
                     'year'        => (int) $p->YEAR,
                     'month'       => (int) $p->MONTH,
                     'taking_date' => $taking->toDateString(),
-                    'label'       => 'Taking ' . ($i + 1) . ' · ' . $range,
+                    'event_type'  => $p->EVENT_TYPE ?? null,
+                    'label'       => 'Taking ' . ($i + 1) . ' · ' . $range . ($event ? " · {$event}" : ''),
                 ];
             }
         }
 
-        return response()->json(['events' => $events]);
+        return response()->json([
+            'events'      => $events,
+            // Filter Event hanya tampil bila kolom EVENT_TYPE sudah ada
+            'event_types' => $hasEvent ? TakingEvent::TYPES : [],
+        ]);
     }
 
     /**
@@ -81,6 +92,7 @@ class FACDBTD005 extends Controller
             ->when(!empty($ids), fn ($q) => $q->whereIn('IID', $ids))
             ->when(empty($ids), fn ($q) => $q
                 ->forPeriod($request->input('year'), $request->input('month'), $request->input('taking_date'))
+                ->forEvent($request->input('event_type'))
                 ->when($keyword !== '', fn ($q) => $q->whereAny([
                     'location_no', 'location_group', 'area', 'warehouse', 'part_no', 'part_name', 'LOT_BATCH_NO',
                 ], 'LIKE', "%{$keyword}%")))

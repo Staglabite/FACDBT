@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
  * - book   : SIM_INV_TAKING_BOOK_TAB, INV_LIST_NO terbaru di rentang TAKING_DATE s/d CLOSE_DATE
  * - taking : SIM_INV_TAKING_DATA_TAB, CREATED_DATETIME di rentang yang sama (tanggal scan)
  * - master (lokasi, area, part, unit cost) disalin saat snapshot supaya history tidak ikut berubah.
+ * - event periode (Master Event) membatasi book & taking seperti di dashboard; jenisnya disimpan di EVENT_TYPE.
  */
 class TakingHistoryService
 {
@@ -129,7 +130,8 @@ class TakingHistoryService
 
     private function buildRows(object $period, string $takingDate, string $closeDate, $invListNo, ?string $createdBy): array
     {
-        $db = $this->db();
+        $db    = $this->db();
+        $event = TakingEvent::forPeriod($db, $period);
 
         // [lokasi|part|lot => data] dari book & taking, diagregasi di database tanpa join
         $lines = [];
@@ -152,6 +154,7 @@ class TakingHistoryService
             $book = $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
                 ->where('INV_LIST_NO', $invListNo)
+                ->tap(fn ($q) => TakingEvent::scope($q, $event))
                 ->groupBy('LOCATION_NO', 'PART_NO', 'LOT_BATCH_NO')
                 ->select(
                     'LOCATION_NO', 'PART_NO', 'LOT_BATCH_NO',
@@ -175,6 +178,7 @@ class TakingHistoryService
 
         $taking = $db->table('SIM_INV_TAKING_DATA_TAB')
             ->whereBetween('CREATED_DATETIME', [$takingDate, $closeDate])
+            ->tap(fn ($q) => TakingEvent::scope($q, $event))
             ->groupBy('LOCATION_NO', 'PART_NO', 'LOT_BATCH_NO')
             ->select(
                 'LOCATION_NO', 'PART_NO', 'LOT_BATCH_NO',
@@ -214,6 +218,8 @@ class TakingHistoryService
         $parts     = $this->parts();
         $costs     = $this->unitCosts();
         $now       = now()->format('Y-m-d H:i:s');
+        // Kolom EVENT_TYPE ditambahkan oleh docs/FACDBT/sim_inv_taking_event.sql
+        $withEvent = $db->getSchemaBuilder()->hasColumn(self::TABLE, 'EVENT_TYPE');
 
         $rows = [];
         foreach ($lines as $line) {
@@ -223,7 +229,7 @@ class TakingHistoryService
             $unitCost = $cost['mat'] + $cost['lab'] + $cost['foh'];
             $variance = $line['qty_taking'] - $line['qty_book'];
 
-            $rows[] = [
+            $row = [
                 'INV_LIST_NO'          => (string) ($invListNo ?? ''),
                 'TAKING_DATE'          => Carbon::parse($period->TAKING_DATE)->toDateString(),
                 'CLOSE_DATE'           => Carbon::parse($period->CLOSE_DATE)->toDateString(),
@@ -259,6 +265,10 @@ class TakingHistoryService
                 'CREATED_DATETIME'     => $now,
                 'CREATED_BY'           => $createdBy,
             ];
+            if ($withEvent) {
+                $row['EVENT_TYPE'] = $event?->type;
+            }
+            $rows[] = $row;
         }
 
         return $rows;

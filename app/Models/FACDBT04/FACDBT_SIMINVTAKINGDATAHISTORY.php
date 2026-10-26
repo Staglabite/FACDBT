@@ -53,4 +53,24 @@ class FACDBT_SIMINVTAKINGDATAHISTORY extends Model
             ->when($month, fn ($q) => $q->where('MONTH', (int) $month))
             ->when($takingDate, fn ($q) => $q->whereDate('TAKING_DATE', $takingDate));
     }
+
+    /**
+     * Filter jenis event (Master Event, kolom EVENT_TYPE). Kosong / kolom belum ada = tidak difilter.
+     */
+    public function scopeForEvent(Builder $query, $eventType = null): Builder
+    {
+        $eventType = strtoupper(trim((string) $eventType));
+
+        return $query->when($eventType !== '' && $this->hasEventColumn(), fn ($q) => $q->where('EVENT_TYPE', $eventType));
+    }
+
+    /**
+     * Kolom EVENT_TYPE ditambahkan oleh docs/FACDBT/sim_inv_taking_event.sql.
+     */
+    public function hasEventColumn(): bool
+    {
+        static $has = null;
+
+        return $has ??= $this->getConnection()->getSchemaBuilder()->hasColumn($this->getTable(), 'EVENT_TYPE');
+    }
 }
