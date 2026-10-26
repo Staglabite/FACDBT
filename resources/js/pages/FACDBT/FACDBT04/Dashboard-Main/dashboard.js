@@ -90,7 +90,6 @@ class Dashboard {
 
     init() {
         this.bindVarianceCards();
-        this.bindSlotInterval();
         this.loadTopCharts();
         this.loadTimeRange();
         this.loadBottomCharts();
@@ -221,25 +220,6 @@ class Dashboard {
         bar.appendChild(reset);
     }
 
-    // Filter "Per" (jam) untuk Counting Progress, Counting Progress Oil & Absolute Variance; kosong = slot jam tetap
-    intervalParams() {
-        const interval = document.getElementById('slot-interval')?.value;
-        return interval ? { interval } : {};
-    }
-
-    bindSlotInterval() {
-        document.getElementById('slot-interval')?.addEventListener('change', () => {
-            // Jam yang dipilih (klik chart) belum tentu ada di slot baru, jadi filter jam dilepas
-            if (this.filters.slot) {
-                this.filters.slot = null;
-                this.renderFilterBar();
-                this.loadBottomCharts();
-            }
-            this.loadTopCharts();
-            this.loadVarianceTrend();
-        });
-    }
-
     // Kotak RM / WIP / FG yang tidak dipilih dipudarkan
     dimVarianceCards() {
         document.querySelectorAll('#variance-accounting-groups .variance-value').forEach(el => {
@@ -302,7 +282,7 @@ class Dashboard {
     // 1. Chart Atas (Tidak terpengaruh filter waktu tombol)
     // -------------------------------------------------------------
     loadTopCharts() {
-        track(axios.get('FACDBT/ds/main-dashboard/data', { params: this.intervalParams() }))
+        track(axios.get('FACDBT/ds/main-dashboard/data'))
             .then(response => {
                 const result = response.data.data || response.data;
                 this.renderTopChart('#chart-non-oil', result.non_oil || [], THEMES.nonOil, 'non_oil');
@@ -343,20 +323,11 @@ class Dashboard {
         const lineY = (g.seriesYvalues && g.seriesYvalues[1]) || [];
         const step  = g.gridWidth / categories.length;
 
-        // Slot rapat (filter "Per" jam): label lebih kecil tanpa desimal, dan bila sangat rapat hanya
-        // tiap slot kedua + slot terakhir yang sudah terisi yang diberi label supaya tidak bertumpuk
-        const dense     = categories.length > 12;
-        const labelStep = categories.length > 19 ? 2 : 1;
-        const fontSize  = dense ? 10 : 12;
-        const fmt       = v => (dense ? `${Math.round(v)}%` : this.fmtPct(v));
-        let lastFilled  = -1;
-        itemData.forEach((v, i) => { if (v !== null && qtyData[i] !== null) lastFilled = i; });
-
         const addLabel = (cx, bottomY, text, bg, color) => {
             const t = document.createElementNS(SVG_NS, 'text');
             t.setAttribute('text-anchor', 'middle');
             t.setAttribute('dominant-baseline', 'central');
-            t.setAttribute('font-size', String(fontSize));
+            t.setAttribute('font-size', '12');
             t.setAttribute('font-weight', '600');
             t.setAttribute('font-family', 'inherit');
             t.setAttribute('fill', color);
@@ -382,17 +353,16 @@ class Dashboard {
         categories.forEach((_, i) => {
             // Slot yang jamnya belum tiba (null) tidak diberi label
             if (itemData[i] === null || qtyData[i] === null) return;
-            if (i % labelStep !== 0 && i !== lastFilled) return;
 
             const cx   = Number.isFinite(lineX[i]) ? lineX[i] : step * i + step / 2;
             const qty  = Number(qtyData[i]);
             const item = Number(itemData[i]);
 
             const pointY = Number.isFinite(lineY[i]) ? lineY[i] : g.gridHeight * (1 - item / theme.lineMax);
-            addLabel(cx, pointY - ITEM_GAP, fmt(item), theme.itemBg, theme.itemColor);
+            addLabel(cx, pointY - ITEM_GAP, this.fmtPct(item), theme.itemBg, theme.itemColor);
 
             // % Qty selalu ditampilkan, termasuk saat nilainya kecil
-            addLabel(cx, g.gridHeight - QTY_GAP, fmt(qty), theme.qtyBg, theme.qtyColor);
+            addLabel(cx, g.gridHeight - QTY_GAP, this.fmtPct(qty), theme.qtyBg, theme.qtyColor);
         });
     }
 
@@ -545,7 +515,7 @@ class Dashboard {
     // Chart Absolute Variance per slot waktu (tidak terpengaruh filter tombol waktu)
     loadVarianceTrend() {
         const seq = this.nextSeq('trend');
-        track(axios.get('FACDBT/ds/main-dashboard/variance-trend', { params: { ...this.intervalParams(), ...this.varianceFilterParams() } }))
+        track(axios.get('FACDBT/ds/main-dashboard/variance-trend', { params: this.varianceFilterParams() }))
             .then(res => {
                 if (this.isLatest('trend', seq)) this.renderVarianceTrendChart(Array.isArray(res.data) ? res.data : []);
             })
@@ -601,12 +571,8 @@ class Dashboard {
                 }
             }
         });
-        // Slot rapat (filter "Per" jam): label hanya tiap slot kedua + slot terakhir yang sudah terisi
-        const labelStep  = categories.length > 12 ? 2 : 1;
-        const lastFilled = positive.reduce((last, v, i) => (v !== null ? i : last), -1);
         const labels = categories.flatMap((x, i) => {
             if (positive[i] === null || negative[i] === null) return [];
-            if (i % labelStep !== 0 && i !== lastFilled) return [];
 
             const positiveOnTop = positive[i] >= negative[i];
 
