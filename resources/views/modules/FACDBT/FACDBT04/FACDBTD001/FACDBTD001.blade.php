@@ -36,8 +36,19 @@
       {{-- Tinggi natural kolom (tidak di-stretch) dipakai JS untuk menyamakan bawah kedua kolom --}}
       <div class="d-flex flex-column gap-3" id="dashboard-left">
         <div class="card shadow-none border border-dark rounded-3">
-            <div class="card-header text-center pt-3 pb-0">
+            <div class="card-header text-center pt-3 pb-0 position-relative">
                 <h5 class="card-title mb-0 fw-semibold">Counting Progress</h5>
+                {{-- Jarak slot jam untuk Counting Progress, Counting Progress Oil & Absolute Variance
+                     (tidak ikut filter Time); Default = slot jam tetap --}}
+                <div class="position-absolute top-0 end-0 mt-2 me-3 d-flex align-items-center gap-1">
+                    <label for="slot-interval" class="small fw-semibold text-dark mb-0">Per</label>
+                    <select class="form-select form-select-sm" id="slot-interval" style="width: 105px;">
+                        <option value="">Default</option>
+                        <option value="2">2 jam</option>
+                        <option value="2.5">2.5 jam</option>
+                        <option value="3">3 jam</option>
+                    </select>
+                </div>
             </div>
             <div class="card-body pt-0 pb-2">
                 <div id="chart-non-oil" style="min-height: 260px;"></div>
