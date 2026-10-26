@@ -7,7 +7,8 @@ use Carbon\Carbon;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Jam slot chart Counting Progress / Absolute Variance (per 4 jam) dan Counting Progress Oil (per 5 jam).
+ * Jam slot chart Counting Progress / Absolute Variance (00:00, lalu per 3 jam 07:30 s/d 22:00) dan
+ * Counting Progress Oil (00:00, 10:00, 14:00, 18:00), berulang setiap hari taking.
  */
 class SlotPlanTest extends TestCase
 {
@@ -21,14 +22,13 @@ class SlotPlanTest extends TestCase
         $plan = FACDBTD001::slotPlan(Carbon::parse('2026-03-06'), '2026-03-07 23:59:59');
 
         $this->assertSame([
-            '06 00:00', '06 04:00', '06 08:00', '06 12:00', '06 16:00', '06 20:00',
-            '07 00:00', '07 04:00', '07 08:00', '07 12:00', '07 16:00', '07 20:00',
+            '06 00:00', '06 07:30', '06 10:30', '06 13:30', '06 16:30', '06 19:30', '06 22:00',
+            '07 00:00', '07 07:30', '07 10:30', '07 13:30', '07 16:30', '07 19:30', '07 22:00',
         ], $this->times($plan, 'non_oil'));
 
-        // Oil per 5 jam, setiap hari mulai lagi dari 00:00
         $this->assertSame([
-            '06 00:00', '06 05:00', '06 10:00', '06 15:00', '06 20:00',
-            '07 00:00', '07 05:00', '07 10:00', '07 15:00', '07 20:00',
+            '06 00:00', '06 10:00', '06 14:00', '06 18:00',
+            '07 00:00', '07 10:00', '07 14:00', '07 18:00',
         ], $this->times($plan, 'oil'));
 
         // times urut dan tanpa duplikat
@@ -42,7 +42,7 @@ class SlotPlanTest extends TestCase
     {
         $plan = FACDBTD001::slotPlan(Carbon::parse('2026-03-06'), '2026-03-06 23:59:59');
 
-        $this->assertCount(6, $plan['non_oil']);
-        $this->assertCount(5, $plan['oil']);
+        $this->assertCount(7, $plan['non_oil']);
+        $this->assertCount(4, $plan['oil']);
     }
 }

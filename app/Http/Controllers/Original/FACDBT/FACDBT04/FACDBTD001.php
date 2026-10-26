@@ -21,14 +21,15 @@ class FACDBTD001 extends Controller
     private const CONN = 'INV_TAKING';
     private const CACHE_TTL = 60;
 
-    // Jarak slot (jam) chart Counting Progress & Absolute Variance, dan chart Counting Progress Oil.
-    // Slot dimulai dari 00:00 setiap hari taking.
-    private const SLOT_HOURS     = 4;
-    private const OIL_SLOT_HOURS = 5;
+    // Jam slot setiap hari taking (kumulatif s/d jam itu).
+    // Counting Progress & Absolute Variance: 00:00, lalu per 3 jam mulai 07:30 s/d 22:00.
+    private const SLOT_TIMES     = ['00:00', '07:30', '10:30', '13:30', '16:30', '19:30', '22:00'];
+    // Counting Progress Oil
+    private const OIL_SLOT_TIMES = ['00:00', '10:00', '14:00', '18:00'];
 
     /**
-     * Jam slot chart atas & Absolute Variance: tiap SLOT_HOURS (non-oil) / OIL_SLOT_HOURS (oil) jam mulai 00:00
-     * setiap hari, dari hari pertama taking s/d hari terakhir periode (CLOSE_DATE, atau hari ini bila belum ditutup).
+     * Jam slot chart atas & Absolute Variance: SLOT_TIMES (non-oil) / OIL_SLOT_TIMES (oil) setiap hari,
+     * dari hari pertama taking s/d hari terakhir periode (CLOSE_DATE, atau hari ini bila belum ditutup).
      *
      * @return array{times: array<int, string>, non_oil: array<int, int>, oil: array<int, int>} times urut waktu;
      *         non_oil / oil berisi index slot di times
@@ -36,13 +37,13 @@ class FACDBTD001 extends Controller
     public static function slotPlan(Carbon $baseDay, string $closeDate): array
     {
         $lastDay = Carbon::parse($closeDate)->startOfDay();
-        $groups  = ['non_oil' => self::SLOT_HOURS, 'oil' => self::OIL_SLOT_HOURS];
+        $groups  = ['non_oil' => self::SLOT_TIMES, 'oil' => self::OIL_SLOT_TIMES];
 
         $byGroup = ['non_oil' => [], 'oil' => []];
         for ($day = $baseDay->copy()->startOfDay(); $day->lte($lastDay); $day->addDay()) {
-            foreach ($groups as $group => $hours) {
-                for ($h = 0; $h < 24; $h += $hours) {
-                    $byGroup[$group][] = $day->copy()->setTime($h, 0)->format('Y-m-d H:i:s');
+            foreach ($groups as $group => $slotTimes) {
+                foreach ($slotTimes as $time) {
+                    $byGroup[$group][] = $day->format('Y-m-d') . " {$time}:00";
                 }
             }
         }
@@ -262,7 +263,7 @@ class FACDBTD001 extends Controller
         }
 
         $plan     = self::slotPlan($baseDay, $closeDate);
-        $cacheKey = "FACDBTD001:v7:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+        $cacheKey = "FACDBTD001:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
         $payload = $this->dashboardCache($cacheKey, function () use ($db, $plan, $takingDate, $closeDate, $latestInvListNo) {
             $slotTimes = $plan['times'];
@@ -758,7 +759,7 @@ class FACDBTD001 extends Controller
         $plan      = self::slotPlan($baseDay, $closeDate);
         $slotTimes = array_intersect_key($plan['times'], array_flip($plan['non_oil']));
 
-        $cacheKey = "FACDBTD001:variance-trend:v6:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+        $cacheKey = "FACDBTD001:variance-trend:v7:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
         // Baris dasar per (label area, seg, acc): [labels, seg, acc, [slot => Var (+)], [slot => |Var (-)|]]
         $rows = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $latestInvListNo, $slotTimes) {
