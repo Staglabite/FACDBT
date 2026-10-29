@@ -1,6 +1,6 @@
 import axios from 'axios';
 import ApexCharts from 'apexcharts';
-import { autoRefresh, track } from '../shared/dashboardStatus';
+import { autoRefresh, track, onEventType } from '../shared/dashboardStatus';
 import { TimeRangeFilter } from '../shared/timeRangeFilter';
 import { renderProgressByAreaChart } from '../shared/progressByAreaChart';
 import { dimCategories, clickedIndex } from '../shared/chartDim';
@@ -44,8 +44,39 @@ const THEMES = {
         qtyColor: '#FFFFFF',
         columnMax: 115,
         lineMax: 115
+    },
+    // Tampilan TWH: semua part
+    twh: {
+        column: '#118DFF',
+        line: '#14229B',
+        itemBg: '#3D3D3D',
+        itemColor: '#FFFFFF',
+        qtyBg: '#118DFF',
+        qtyColor: '#FFFFFF',
+        columnMax: 108,
+        lineMax: 115,
+        itemName: '% Part',
+        height: 290
     }
 };
+
+// Tampilan Main Dashboard (lihat FACDBTD001::index): 'twh' saat event Taking TWH/Indirect
+const TWH_LAYOUT = document.getElementById('dashboard-layout')?.dataset.layout === 'twh';
+const TWH_EVENT  = 'TWH';
+
+const TWH_THEME = {
+    trendPositive: '#1E9E1E',
+    trendNegative: '#E8713A',
+    increase: '#1E9E1E',
+    decrease: '#D9434F',
+    labelBg: '#14229B'
+};
+
+// Counting Progress (by Part) tampilan TWH: % Achieve dari jumlah part, % Remaining dari qty
+const TWH_PROGRESS_SERIES = [
+    { name: '% Achieve (Part)', key: 'pct_item' },
+    { name: '% Remaining (Qty)', key: 'pct_remaining' }
+];
 
 const OIL_AREA_THEME = {
     progress: '#CCCCCC',
@@ -95,6 +126,11 @@ class Dashboard {
         this.loadBottomCharts();
         this.loadVarianceTrend();
         this.watchColumnHeights();
+
+        // Event periode berganti dari / ke Taking TWH: muat ulang halaman supaya tampilannya ikut berganti
+        onEventType(type => {
+            if ((type === TWH_EVENT) !== TWH_LAYOUT) window.location.reload();
+        });
 
         // Perbarui semua chart secara berkala (rentang waktu yang diterapkan tetap dipakai)
         autoRefresh(() => {
@@ -163,7 +199,7 @@ class Dashboard {
     applyDims() {
         const slotIndex = items => items.findIndex(d => d.time === this.filters.slot);
 
-        ['non_oil', 'oil'].forEach(key => {
+        ['non_oil', 'oil', 'all'].forEach(key => {
             const data = this.topData[key] || [];
             if (this.charts[key]) dimCategories(this.charts[key], data.length, slotIndex(data), { seriesIndex: 1 });
         });
@@ -285,6 +321,10 @@ class Dashboard {
         track(axios.get('FACDBT/ds/main-dashboard/data'))
             .then(response => {
                 const result = response.data.data || response.data;
+                if (TWH_LAYOUT) {
+                    this.renderTopChart('#chart-twh-progress', result.all || [], THEMES.twh, 'all');
+                    return;
+                }
                 this.renderTopChart('#chart-non-oil', result.non_oil || [], THEMES.nonOil, 'non_oil');
                 this.renderTopChart('#chart-oil', result.oil || [], THEMES.oil, 'oil');
             })
@@ -381,10 +421,10 @@ class Dashboard {
         return {
             series: [
                 { name: '% Qty',  type: 'column', data: qtyData },
-                { name: '% Item', type: 'line',   data: itemData }
+                { name: theme.itemName || '% Item', type: 'line',   data: itemData }
             ],
             chart: {
-                height: TOP_CHART_HEIGHT,
+                height: theme.height || TOP_CHART_HEIGHT,
                 type: 'line',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -486,6 +526,13 @@ class Dashboard {
         .then(res => {
             if (!this.isLatest('area', seq)) return;
             const data = res.data || { parts: [], oil: [] };
+            if (TWH_LAYOUT) {
+                // Area oil ikut di chart yang sama, urut dari % Achieve (Part) tertinggi
+                const areas = [...(data.parts || []), ...(data.oil || [])]
+                    .sort((a, b) => Number(b.pct_item || 0) - Number(a.pct_item || 0));
+                this.renderProgressChart(areas);
+                return;
+            }
             this.renderProgressChart(data.parts || []);
             this.renderOilAreaChart(data.oil || []);
         })
@@ -503,6 +550,11 @@ class Dashboard {
             .then(res => {
                 if (!this.isLatest('variance', seq)) return;
                 const data = res.data || {};
+                if (TWH_LAYOUT) {
+                    this.renderVarianceSummary(data);
+                    this.renderTwhNettVarianceChart(data.by_accounting_group || []);
+                    return;
+                }
                 const partGroups = this.sortPartGroups(data.by_part_group || []);
 
                 this.renderVarianceSummary(data);
@@ -539,7 +591,9 @@ class Dashboard {
         el.innerHTML = '';
         el.classList.add('fd-clickable');
         this.trendItems = items;
-        const colors     = [VARIANCE_THEME.trendPositive, VARIANCE_THEME.trendNegative];
+        const colors     = TWH_LAYOUT
+            ? [TWH_THEME.trendPositive, TWH_THEME.trendNegative]
+            : [VARIANCE_THEME.trendPositive, VARIANCE_THEME.trendNegative];
         const dim = ctx => dimCategories(ctx, items.length, items.findIndex(d => d.time === this.filters.slot));
         const select = index => {
             const slot = items[index];
@@ -589,7 +643,7 @@ class Dashboard {
             ],
             chart: {
                 type: 'area',
-                height: 190,
+                height: TWH_LAYOUT ? 280 : 190,
                 fontFamily: 'inherit',
                 toolbar: { show: false },
                 zoom: { enabled: false },
@@ -602,8 +656,9 @@ class Dashboard {
                 }
             },
             colors,
-            stroke: { curve: 'straight', width: 3 },
-            fill: { type: 'solid', opacity: [0.15, 0.35] },
+            // Tampilan TWH: garis bertangga (nilai bertahan sampai jam slot berikutnya)
+            stroke: { curve: TWH_LAYOUT ? 'stepline' : 'straight', width: 3 },
+            fill: { type: 'solid', opacity: TWH_LAYOUT ? [0.2, 0.4] : [0.15, 0.35] },
             markers: { size: 5, strokeWidth: 0, hover: { sizeOffset: 2 } },
             dataLabels: { enabled: false },
             annotations: { points: labels },
@@ -648,6 +703,113 @@ class Dashboard {
         return `${million.toLocaleString('en-US')}M`;
     }
 
+    // Angka penuh dengan pemisah ribuan, contoh: -45842574869 -> "-45,842,574,869"
+    fmtFull(v) {
+        return Math.round(Number(v || 0)).toLocaleString('en-US');
+    }
+
+    // Tampilan TWH: waterfall Nett Variance per accounting_group part TW1, urut dari nett terbesar.
+    // Klik accounting group = filter chart lain (group lain dipudarkan).
+    renderTwhNettVarianceChart(groups) {
+        const el = document.querySelector('#chart-nett-variance');
+        if (!el) return;
+
+        if (this.nettVarianceChart) {
+            this.nettVarianceChart.destroy();
+            this.nettVarianceChart = null;
+        }
+
+        const sorted = groups
+            .filter(g => Number(g.nett || 0) !== 0)
+            .sort((a, b) => Number(b.nett || 0) - Number(a.nett || 0));
+
+        if (sorted.length === 0) {
+            el.innerHTML = '<p class="text-center text-muted my-5">No Data Available</p>';
+            return;
+        }
+
+        el.innerHTML = '';
+        el.classList.add('fd-clickable');
+        let running = 0;
+        const points = sorted.map(g => {
+            const start = running;
+            running += Number(g.nett || 0);
+
+            const color  = g.nett < 0 ? TWH_THEME.decrease : TWH_THEME.increase;
+            const dimmed = this.filters.acc && this.filters.acc !== g.group;
+
+            return {
+                x: g.group,
+                y: [Math.min(start, running), Math.max(start, running)],
+                fillColor: dimmed ? `${color}40` : color,
+                nett: Number(g.nett || 0)
+            };
+        });
+        const select = index => {
+            if (points[index]) this.toggleFilter('acc', points[index].x);
+        };
+
+        this.nettVarianceChart = new ApexCharts(el, {
+            series: [{ name: 'Nett Variance', data: points }],
+            chart: {
+                type: 'rangeBar',
+                height: 280,
+                fontFamily: 'inherit',
+                toolbar: { show: false },
+                zoom: { enabled: false },
+                animations: { enabled: true, speed: 500 },
+                events: {
+                    click: (event, ctx, config) => select(config.dataPointIndex),
+                    xAxisLabelClick: (event, ctx, config) => select(config.labelIndex)
+                }
+            },
+            plotOptions: {
+                bar: { horizontal: false, columnWidth: '75%', dataLabels: { position: 'bottom' } }
+            },
+            dataLabels: {
+                enabled: true,
+                formatter: (val, opts) => this.fmtFull(points[opts.dataPointIndex].nett),
+                // Saat background aktif, style.colors dipakai sebagai warna kotak label
+                style: { fontSize: '12px', fontWeight: 600, colors: [TWH_THEME.labelBg] },
+                background: {
+                    enabled: true,
+                    foreColor: '#FFFFFF',
+                    borderRadius: 3,
+                    borderWidth: 0,
+                    padding: 4,
+                    opacity: 1,
+                    dropShadow: { enabled: false }
+                }
+            },
+            xaxis: {
+                type: 'category',
+                axisBorder: { show: false },
+                axisTicks: { show: false },
+                labels: { style: { fontSize: '13px', fontWeight: 600, colors: '#333333' } }
+            },
+            yaxis: { show: false },
+            legend: {
+                show: true,
+                showForSingleSeries: true,
+                position: 'top',
+                horizontalAlign: 'center',
+                fontSize: '12px',
+                customLegendItems: ['Increase', 'Decrease'],
+                markers: { size: 6, shape: 'circle', strokeWidth: 0, fillColors: [TWH_THEME.increase, TWH_THEME.decrease] },
+                labels: { colors: '#333333' },
+                itemMargin: { horizontal: 8, vertical: 0 }
+            },
+            grid: { show: false, padding: { left: 10, right: 10 } },
+            tooltip: {
+                custom: ({ dataPointIndex }) => {
+                    const p = points[dataPointIndex];
+                    return `<div class="px-2 py-1"><strong>${p.x}</strong>: ${this.fmtFull(p.nett)}</div>`;
+                }
+            }
+        });
+        this.nettVarianceChart.render();
+    }
+
     sortPartGroups(groups) {
         const rank = g => PART_GROUP_ORDER.indexOf(String(g.group).toUpperCase());
 
@@ -667,10 +829,12 @@ class Dashboard {
         });
         this.dimVarianceCards();
 
+        // Tampilan TWH: angka penuh
+        const fmt    = v => (TWH_LAYOUT ? this.fmtFull(v) : this.fmtMillion(v));
         const nettEl = document.getElementById('variance-nett-total');
         const absEl  = document.getElementById('variance-absolute-total');
-        if (nettEl) nettEl.textContent = this.fmtMillion(data.nett);
-        if (absEl) absEl.textContent = this.fmtMillion(data.absolute);
+        if (nettEl) nettEl.textContent = fmt(data.nett);
+        if (absEl) absEl.textContent = fmt(data.absolute);
     }
 
     // Waterfall: tiap part group berangkat dari total kumulatif group sebelumnya
@@ -876,6 +1040,7 @@ class Dashboard {
         this.progressChart = renderProgressByAreaChart(el, items, {
             height: this.progressChartHeight(),
             animate,
+            ...(TWH_LAYOUT ? { series: TWH_PROGRESS_SERIES } : {}),
             selected: () => this.filters.area,
             onSelect: area => this.toggleFilter('area', area)
         });

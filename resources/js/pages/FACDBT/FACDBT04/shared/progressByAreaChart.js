@@ -11,12 +11,19 @@ const THEME = {
 
 const fmtPct2 = v => `${Number(v || 0).toFixed(2)}%`;
 
+// Series bawaan: [{ name, key }] -> nilai items[key]; warna mengikuti urutan THEME (biru tua, merah)
+const DEFAULT_SERIES = [
+    { name: '% Remaining', key: 'pct_remaining' },
+    { name: '% Progress', key: 'pct_progress' }
+];
+
 /**
- * Gambar chart di elemen el. items: [{ area, pct_progress, pct_remaining }, ...].
+ * Gambar chart di elemen el. items: [{ area, pct_progress, pct_remaining, ... }, ...].
  * Opsional filter interaktif: onSelect(area) dipanggil saat area diklik, selected() = area yang dipilih
- * (area lain dipudarkan). Mengembalikan instance ApexCharts, atau null bila tidak ada data.
+ * (area lain dipudarkan). series mengganti nama / kolom nilai kedua series (lihat DEFAULT_SERIES).
+ * Mengembalikan instance ApexCharts, atau null bila tidak ada data.
  */
-export function renderProgressByAreaChart(el, items, { height = 400, animate = true, emptyText = 'No Data Available for selected time', onSelect = null, selected = null } = {}) {
+export function renderProgressByAreaChart(el, items, { height = 400, animate = true, emptyText = 'No Data Available for selected time', onSelect = null, selected = null, series = DEFAULT_SERIES } = {}) {
     if (!items || items.length === 0) {
         el.innerHTML = `<p class="text-center text-muted my-5">${emptyText}</p>`;
         return null;
@@ -24,8 +31,6 @@ export function renderProgressByAreaChart(el, items, { height = 400, animate = t
 
     el.innerHTML = '';
     const categories    = items.map(d => d.area);
-    const progressData  = items.map(d => Number(d.pct_progress));
-    const remainingData = items.map(d => Number(d.pct_remaining));
     const colors        = [THEME.remaining, THEME.progress];
     const dim = ctx => dimCategories(ctx, items.length, selected ? items.findIndex(d => d.area === selected()) : -1);
     const select = index => {
@@ -34,10 +39,7 @@ export function renderProgressByAreaChart(el, items, { height = 400, animate = t
     if (onSelect) el.classList.add('fd-clickable');
 
     const options = {
-        series: [
-            { name: '% Remaining', data: remainingData },
-            { name: '% Progress', data: progressData }
-        ],
+        series: series.map(({ name, key }) => ({ name, data: items.map(d => Number(d[key] || 0)) })),
         chart: {
             type: 'area',
             height,

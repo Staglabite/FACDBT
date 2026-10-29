@@ -15,6 +15,8 @@ let lastUpdated = null;
 let statusEl = null;
 // Nama event periode berjalan (Master Event), dari endpoint versi data
 let eventName = null;
+// Dipanggil dengan kode event (PRE / TWH / DIRECT / null) setiap kali versi data dicek
+const eventTypeListeners = [];
 
 function ensureStatusElement() {
     if (statusEl) return statusEl;
@@ -66,12 +68,21 @@ function render() {
     }
 }
 
-function setEvent(name) {
-    name = name || null;
+function setEvent(data) {
+    const name = data?.event || null;
     if (name !== eventName) {
         eventName = name;
         render();
     }
+    eventTypeListeners.forEach(listener => listener(data?.event_type || null));
+}
+
+/**
+ * Pantau kode event periode berjalan (dicek bersama versi data oleh autoRefresh), mis. supaya Main Dashboard
+ * berpindah ke tampilan TWH saat event diganti.
+ */
+export function onEventType(listener) {
+    eventTypeListeners.push(listener);
 }
 
 /**
@@ -113,7 +124,7 @@ export function autoRefresh(callback, interval = REFRESH_INTERVAL) {
         try {
             const res = await axios.get(VERSION_URL, { timeout: 15000 });
             const latest = res.data?.version ?? null;
-            setEvent(res.data?.event);
+            setEvent(res.data);
 
             if (version !== null && latest !== version) {
                 callback();
@@ -132,7 +143,7 @@ export function autoRefresh(callback, interval = REFRESH_INTERVAL) {
     // Versi awal (data yang baru dimuat saat halaman dibuka)
     axios.get(VERSION_URL).then(res => {
         version = res.data?.version ?? null;
-        setEvent(res.data?.event);
+        setEvent(res.data);
     }).catch(() => {});
 
     setInterval(check, CHECK_INTERVAL);

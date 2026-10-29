@@ -22,6 +22,9 @@
     .card.fd-dim { opacity: .35; transition: opacity .2s ease; }
 </style>
 
+{{-- Tampilan dashboard: main / twh (dashboard.js berpindah tampilan bila event berubah) --}}
+<div class="d-none" id="dashboard-layout" data-layout="{{ $layout ?? 'main' }}"></div>
+
 {{-- Filter aktif dari klik chart (jam, area, 4W/2W, RM/WIP/FG); disembunyikan bila tidak ada --}}
 <div class="d-none d-flex flex-wrap align-items-center gap-2 mb-2" id="chart-filter-bar"></div>
 

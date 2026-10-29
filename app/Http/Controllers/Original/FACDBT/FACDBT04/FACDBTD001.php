@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
 use App\Services\FACDBT\AreaName;
 use App\Services\FACDBT\RunningTakingPeriod;
+use App\Services\FACDBT\TakingEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
@@ -59,9 +60,18 @@ class FACDBTD001 extends Controller
         ];
     }
 
+    /**
+     * Event Taking TWH/Indirect memakai tampilan khusus TWH (FACDBTD001-twh); event lain / tanpa event
+     * memakai tampilan biasa. Halaman berpindah sendiri bila event berubah (lihat dashboard.js).
+     */
     public function index()
     {
-        return view('modules.FACDBT.FACDBT04.FACDBTD001.FACDBTD001');
+        $twh = DashboardDataVersion::runningEvent()['type'] === TakingEvent::TWH;
+
+        return view(
+            $twh ? 'modules.FACDBT.FACDBT04.FACDBTD001.FACDBTD001-twh' : 'modules.FACDBT.FACDBT04.FACDBTD001.FACDBTD001',
+            ['layout' => $twh ? 'twh' : 'main']
+        );
     }
 
     /**
@@ -243,7 +253,7 @@ class FACDBTD001 extends Controller
      */
     public function getData(Request $request)
     {
-        $empty = ['non_oil' => [], 'oil' => []];
+        $empty = ['non_oil' => [], 'oil' => [], 'all' => []];
         $db = DB::connection(self::CONN);
 
         $concluding = RunningTakingPeriod::find($db);
@@ -263,7 +273,7 @@ class FACDBTD001 extends Controller
         }
 
         $plan     = self::slotPlan($baseDay, $closeDate);
-        $cacheKey = "FACDBTD001:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}";
+        $cacheKey = "FACDBTD001:v9:{$takingDate}:{$closeDate}:{$latestInvListNo}";
 
         $payload = $this->dashboardCache($cacheKey, function () use ($db, $plan, $takingDate, $closeDate, $latestInvListNo) {
             $slotTimes = $plan['times'];
@@ -283,7 +293,7 @@ class FACDBTD001 extends Controller
                 ->keyBy('is_oil');
 
             if ($bookTotals->isEmpty()) {
-                return ['non_oil' => [], 'oil' => []];
+                return ['non_oil' => [], 'oil' => [], 'all' => []];
             }
 
             // Progres taking untuk SEMUA slot dalam 1 query (conditional aggregation),
@@ -333,9 +343,30 @@ class FACDBTD001 extends Controller
                 return $series;
             };
 
+            // Semua part (non-oil + oil) di jam slot non-oil, untuk Counting Progress tampilan TWH.
+            // Part oil / non-oil tidak bertumpuk (is_oil per part), jadi item & qty cukup dijumlah.
+            $all = [];
+            foreach (array_map(null, $buildSeries(0, $plan['non_oil']), $buildSeries(1, $plan['non_oil'])) as [$a, $b]) {
+                $itemBook   = $a['item_book'] + $b['item_book'];
+                $qtyBook    = $a['qty_book'] + $b['qty_book'];
+                $itemTaking = $a['item_taking'] + $b['item_taking'];
+                $qtyTaking  = $a['qty_taking'] + $b['qty_taking'];
+
+                $all[] = [
+                    'time'        => $a['time'],
+                    'item_book'   => $itemBook,
+                    'qty_book'    => $qtyBook,
+                    'item_taking' => $itemTaking,
+                    'qty_taking'  => $qtyTaking,
+                    'pct_qty'     => $qtyBook > 0 ? round(($qtyTaking / $qtyBook) * 100, 2) : 0,
+                    'pct_item'    => $itemBook > 0 ? round(($itemTaking / $itemBook) * 100, 2) : 0,
+                ];
+            }
+
             return [
                 'non_oil' => $buildSeries(0, $plan['non_oil']),
                 'oil'     => $buildSeries(1, $plan['oil']),
+                'all'     => $all,
             ];
         });
 
