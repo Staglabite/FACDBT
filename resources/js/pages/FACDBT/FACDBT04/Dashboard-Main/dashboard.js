@@ -351,7 +351,7 @@ class Dashboard {
         };
 
         categories.forEach((_, i) => {
-            // Slot yang jamnya belum tiba (null) tidak diberi label
+            // Jam slot yang belum tiba sudah bernilai 0 dari server (tampil 0%)
             if (itemData[i] === null || qtyData[i] === null) return;
 
             const cx   = Number.isFinite(lineX[i]) ? lineX[i] : step * i + step / 2;
@@ -375,7 +375,7 @@ class Dashboard {
         // Klik jam = filter chart lain kumulatif s/d jam itu (jam yang belum tiba tidak bisa dipilih)
         const select = (ctx, config) => {
             const slot = (this.topData[key] || [])[clickedIndex(ctx, config)];
-            if (slot && slot.pct_qty !== null) this.toggleFilter('slot', slot.time);
+            if (slot && !slot.future) this.toggleFilter('slot', slot.time);
         };
 
         return {
@@ -461,7 +461,7 @@ class Dashboard {
         el.classList.add('fd-clickable');
         this.topData[key] = data;
         const categories = data.map(d => this.formatTime(d.time));
-        // null = jam slot belum tiba (dibiarkan kosong)
+        // Jam slot yang belum tiba bernilai 0 (tidak bisa diklik sebagai filter)
         const toValue    = v => (v === null || v === undefined ? null : Number(v));
         const qtyData    = data.map(d => toValue(d.pct_qty));
         const itemData   = data.map(d => toValue(d.pct_item));
@@ -543,10 +543,10 @@ class Dashboard {
         const dim = ctx => dimCategories(ctx, items.length, items.findIndex(d => d.time === this.filters.slot));
         const select = index => {
             const slot = items[index];
-            if (slot && slot.abs_positive !== null) this.toggleFilter('slot', slot.time);
+            if (slot && !slot.future) this.toggleFilter('slot', slot.time);
         };
         const categories = items.map(d => this.formatTime(d.time));
-        // null = jam slot belum tiba (dibiarkan kosong)
+        // Jam slot yang belum tiba bernilai 0 (tidak bisa diklik sebagai filter)
         const positive   = items.map(d => (d.abs_positive === null ? null : Number(d.abs_positive || 0)));
         const negative   = items.map(d => (d.abs_negative === null ? null : Number(d.abs_negative || 0)));
 

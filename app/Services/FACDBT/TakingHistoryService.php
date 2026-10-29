@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\DB;
  * - taking : SIM_INV_TAKING_DATA_TAB, CREATED_DATETIME di rentang yang sama (tanggal scan)
  * - master (lokasi, area, part, unit cost) disalin saat snapshot supaya history tidak ikut berubah.
  * - event periode (Master Event) membatasi book & taking seperti di dashboard; jenisnya disimpan di EVENT_TYPE.
+ *   Pre-Taking: hanya part di daftar part event; setelah history periode tertutup tersimpan, daftar part
+ *   event (SIM_INV_TAKING_EVENT_PART) dikosongkan.
  */
 class TakingHistoryService
 {
@@ -42,7 +44,7 @@ class TakingHistoryService
                 ->from(self::TABLE . ' as h')
                 ->whereRaw('h.TAKING_DATE = DATE(c.TAKING_DATE)'))
             ->orderBy('c.TAKING_DATE')
-            ->get(['c.MONTH', 'c.YEAR', 'c.TAKING_DATE', 'c.CLOSE_DATE'])
+            ->get(['c.MONTH', 'c.YEAR', 'c.TAKING_DATE', 'c.CLOSE_DATE', 'c.ROWSTATE'])
             ->all();
     }
 
@@ -50,7 +52,7 @@ class TakingHistoryService
     {
         return $this->db()->table('SIM_INV_TAKING_CONCLUDING_TAB')
             ->whereDate('TAKING_DATE', Carbon::parse($takingDate)->toDateString())
-            ->first(['MONTH', 'YEAR', 'TAKING_DATE', 'CLOSE_DATE']);
+            ->first(['MONTH', 'YEAR', 'TAKING_DATE', 'CLOSE_DATE', 'ROWSTATE']);
     }
 
     /**
@@ -73,17 +75,83 @@ class TakingHistoryService
             ->orderByRaw('CAST(INV_LIST_NO AS UNSIGNED) DESC')
             ->value('INV_LIST_NO');
 
-        $rows = $this->buildRows($period, $takingDate, $closeDate, $invListNo, $createdBy);
+        $event = TakingEvent::forPeriod($db, $period);
+        $isPre = $event?->type === TakingEvent::PRE;
+        if ($isPre) {
+            $this->restoreEventParts($event, $takingDay);
+        }
 
-        $db->transaction(function () use ($db, $takingDay, $rows) {
+        $rows = $this->buildRows($period, $event, $takingDate, $closeDate, $invListNo, $createdBy);
+
+        $closed = strcasecmp(trim((string) ($period->ROWSTATE ?? '')), self::CLOSED_ROWSTATE) === 0;
+
+        $db->transaction(function () use ($db, $takingDay, $rows, $isPre, $closed, $event) {
             $db->table(self::TABLE)->whereDate('TAKING_DATE', $takingDay->toDateString())->delete();
 
             foreach (array_chunk($rows, 1000) as $chunk) {
                 $db->table(self::TABLE)->insert($chunk);
             }
+
+            // Pre-Taking selesai: daftar part event tidak dipakai lagi (part-nya sudah tercatat di history)
+            if ($isPre && $closed) {
+                $db->table(TakingEvent::PART_TABLE)->where('EVENT_ID', $event->id)->delete();
+            }
         });
 
         return count($rows);
+    }
+
+    /**
+     * History periode Pre-Taking dibuat ulang (command --taking-date) setelah daftar part event dikosongkan:
+     * daftar part diisi kembali dari part di history periode itu supaya hasilnya tetap sama.
+     */
+    private function restoreEventParts(TakingEvent $event, Carbon $takingDay): void
+    {
+        $db = $this->db();
+        if ($db->table(TakingEvent::PART_TABLE)->where('EVENT_ID', $event->id)->exists()) {
+            return;
+        }
+
+        $parts = $db->table(self::TABLE)
+            ->whereDate('TAKING_DATE', $takingDay->toDateString())
+            ->distinct()
+            ->pluck('part_no')
+            ->filter(fn ($part) => trim((string) $part) !== '')
+            ->map(fn ($part) => ['EVENT_ID' => $event->id, 'PART_NO' => trim((string) $part)])
+            ->unique('PART_NO')
+            ->values()
+            ->all();
+
+        foreach (array_chunk($parts, 1000) as $chunk) {
+            $db->table(TakingEvent::PART_TABLE)->insert($chunk);
+        }
+    }
+
+    /**
+     * Kosongkan daftar part event Pre-Taking yang periodenya sudah ditutup dan sudah ada di history
+     * (mis. history disimpan sebelum aturan ini ada).
+     *
+     * @return int jumlah baris part yang dihapus
+     */
+    public function clearFinishedEventParts(): int
+    {
+        $db = $this->db();
+        if (!TakingEvent::installed($db)) {
+            return 0;
+        }
+
+        $eventIds = $db->table(TakingEvent::TABLE . ' as e')
+            ->where('e.EVENT_TYPE', TakingEvent::PRE)
+            ->whereExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('SIM_INV_TAKING_CONCLUDING_TAB as c')
+                ->whereRaw('DATE(c.TAKING_DATE) = e.TAKING_DATE')
+                ->where('c.ROWSTATE', self::CLOSED_ROWSTATE))
+            ->whereExists(fn ($q) => $q->select(DB::raw(1))
+                ->from(self::TABLE . ' as h')
+                ->whereRaw('h.TAKING_DATE = e.TAKING_DATE'))
+            ->pluck('e.IID');
+
+        return $eventIds->isEmpty() ? 0 : $db->table(TakingEvent::PART_TABLE)->whereIn('EVENT_ID', $eventIds)->delete();
     }
 
     /**
@@ -112,26 +180,26 @@ class TakingHistoryService
     public function snapshotPending(?string $createdBy = null): int
     {
         $periods = $this->pendingPeriods();
-        if (empty($periods)) {
-            return 0;
-        }
 
         return Cache::lock('FACDBTD005:snapshot', 600)->get(function () use ($periods, $createdBy) {
-            set_time_limit(600);
-            ini_set('memory_limit', '1024M');
+            if (!empty($periods)) {
+                set_time_limit(600);
+                ini_set('memory_limit', '1024M');
+            }
 
             foreach ($periods as $period) {
                 $this->snapshot($period, $createdBy);
             }
 
+            $this->clearFinishedEventParts();
+
             return count($periods);
         }) ?: 0;
     }
 
-    private function buildRows(object $period, string $takingDate, string $closeDate, $invListNo, ?string $createdBy): array
+    private function buildRows(object $period, ?TakingEvent $event, string $takingDate, string $closeDate, $invListNo, ?string $createdBy): array
     {
-        $db    = $this->db();
-        $event = TakingEvent::forPeriod($db, $period);
+        $db = $this->db();
 
         // [lokasi|part|lot => data] dari book & taking, diagregasi di database tanpa join
         $lines = [];

@@ -12,6 +12,7 @@ use App\Imports\FACDBT\FACDBT01\FACDBTF006 as Import;
 use App\Models\FACDBT01\FACDBT_SIMINVTAKINGEVENT as TakingEventModel;
 use App\Models\FACDBT01\FACDBT_SIMINVTAKINGEVENTPART as TakingEventPart;
 use App\Services\FACDBT\TakingEvent;
+use App\Services\FACDBT\TakingHistoryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,8 +28,17 @@ class FACDBTF006 extends Controller
 
     private const PART_TITLE = 'Part No';
 
-    public function index(FACDBTF006DataTable $dataTable)
+    public function index(FACDBTF006DataTable $dataTable, TakingHistoryService $history)
     {
+        // Daftar part Pre-Taking yang periodenya sudah ditutup & tersimpan di history dikosongkan
+        if (!request()->ajax()) {
+            try {
+                $history->clearFinishedEventParts();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         if (request()->boolean('ids_only')) {
             return response()->json(['ids' => $dataTable->filteredKeys('IID')]);
         }
