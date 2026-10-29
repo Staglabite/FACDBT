@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Data yang dihitung dashboard per event (Master Event): Pre-Taking = part di daftar event,
- * TWH = lokasi mengandung "TWH" (huruf besar / kecil sama), Direct = selain TWH, tanpa event = semua.
+ * TWH = PART_NO mengandung "TW1" (huruf besar / kecil sama), Direct = selain itu, tanpa event = semua.
  */
 class TakingEventScopeTest extends TestCase
 {
@@ -22,9 +22,9 @@ class TakingEventScopeTest extends TestCase
         $db->statement('CREATE TABLE SIM_INV_TAKING_DATA_TAB (LOCATION_NO TEXT, PART_NO TEXT)');
         $db->table('SIM_INV_TAKING_DATA_TAB')->insert([
             ['LOCATION_NO' => 'TWH-01', 'PART_NO' => 'P1'],
-            ['LOCATION_NO' => 'a-twh-02', 'PART_NO' => 'P2'],
+            ['LOCATION_NO' => 'L-02', 'PART_NO' => 'ab-tw1-9'],
             ['LOCATION_NO' => 'PROD-1A', 'PART_NO' => 'P1'],
-            ['LOCATION_NO' => 'QA-01', 'PART_NO' => 'P3'],
+            ['LOCATION_NO' => 'QA-01', 'PART_NO' => 'TW1-55'],
         ]);
 
         if ($withEventTables) {
@@ -56,9 +56,10 @@ class TakingEventScopeTest extends TestCase
     {
         $db = $this->db('event_scope');
 
-        $this->assertSame(['PROD-1A/P1', 'QA-01/P3', 'TWH-01/P1', 'a-twh-02/P2'], $this->rows($db, null));
-        $this->assertSame(['TWH-01/P1', 'a-twh-02/P2'], $this->rows($db, new TakingEvent(2, TakingEvent::TWH)));
-        $this->assertSame(['PROD-1A/P1', 'QA-01/P3'], $this->rows($db, new TakingEvent(2, TakingEvent::DIRECT)));
+        $this->assertSame(['L-02/ab-tw1-9', 'PROD-1A/P1', 'QA-01/TW1-55', 'TWH-01/P1'], $this->rows($db, null));
+        // Lokasi "TWH" tidak berpengaruh; yang dilihat PART_NO
+        $this->assertSame(['L-02/ab-tw1-9', 'QA-01/TW1-55'], $this->rows($db, new TakingEvent(2, TakingEvent::TWH)));
+        $this->assertSame(['PROD-1A/P1', 'TWH-01/P1'], $this->rows($db, new TakingEvent(2, TakingEvent::DIRECT)));
         // Hanya part di daftar event 1
         $this->assertSame(['PROD-1A/P1', 'TWH-01/P1'], $this->rows($db, new TakingEvent(1, TakingEvent::PRE)));
     }

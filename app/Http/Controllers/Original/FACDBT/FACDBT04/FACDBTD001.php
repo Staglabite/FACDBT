@@ -102,7 +102,7 @@ class FACDBTD001 extends Controller
             ->leftJoinSub($this->oilPartsSub($db), 'cost', 'cost.part_no', '=', 'b.PART_NO')
             ->whereBetween('b.CREATED_DATETIME', [$takingDate, $closeDate])
             ->where('b.INV_LIST_NO', $invListNo)
-            ->tap(fn ($q) => $this->eventScope($q, $db, 'b.LOCATION_NO', 'b.PART_NO'))
+            ->tap(fn ($q) => $this->eventScope($q, $db, 'b.PART_NO'))
             ->groupBy('b.PART_NO')
             ->select(
                 'b.PART_NO',
@@ -291,7 +291,7 @@ class FACDBTD001 extends Controller
             $agg = $db->table('SIM_INV_TAKING_DATA_TAB as t')
                 ->joinSub($bookSub, 'bk', 'bk.PART_NO', '=', 't.PART_NO')
                 ->whereBetween('t.CREATED_DATETIME', [$takingDate, $closeDate])
-                ->tap(fn ($q) => $this->eventScope($q, $db, 't.LOCATION_NO', 't.PART_NO'))
+                ->tap(fn ($q) => $this->eventScope($q, $db, 't.PART_NO'))
                 ->groupBy('bk.is_oil')
                 ->select('bk.is_oil');
 
@@ -428,7 +428,7 @@ class FACDBTD001 extends Controller
             $takingRows = $db->table('SIM_INV_TAKING_DATA_TAB as t')
                 ->joinSub($partsSub, 'bp', 'bp.PART_NO', '=', 't.PART_NO')
                 ->whereBetween('t.CREATED_DATETIME', [$takingFrom, $takingTo])
-                ->tap(fn ($q) => $this->eventScope($q, $db, 't.LOCATION_NO', 't.PART_NO'))
+                ->tap(fn ($q) => $this->eventScope($q, $db, 't.PART_NO'))
                 ->groupBy('t.LOCATION_NO', 't.PART_NO')
                 ->select('t.LOCATION_NO', 't.PART_NO', DB::raw('SUM(t.QTY) as qty'))
                 ->get();

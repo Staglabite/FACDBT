@@ -3,8 +3,8 @@
 --
 -- SIM_INV_TAKING_EVENT      : jenis event untuk satu periode taking (TAKING_DATE di SIM_INV_TAKING_CONCLUDING_TAB).
 --   EVENT_TYPE PRE    = Pre-Taking            -> dashboard hanya menghitung part di SIM_INV_TAKING_EVENT_PART
---              TWH    = Taking TWH / Indirect -> hanya lokasi yang LOCATION_NO-nya mengandung "TWH"
---              DIRECT = Taking Besar / Direct -> semua lokasi kecuali yang mengandung "TWH"
+--              TWH    = Taking TWH / Indirect -> hanya part yang PART_NO-nya mengandung "TW1"
+--              DIRECT = Taking Besar / Direct -> semua part kecuali yang PART_NO-nya mengandung "TW1"
 --   Periode tanpa event: dashboard menghitung semua data.
 -- SIM_INV_TAKING_EVENT_PART : daftar part yang di-taking pada event Pre-Taking (di-import dari menu Master Event).
 

@@ -17,8 +17,8 @@ trait UsesTakingEvent
         return once(fn () => TakingEvent::forPeriod($db, RunningTakingPeriod::find($db)));
     }
 
-    private function eventScope(Builder $query, $db, string $locationColumn = 'LOCATION_NO', string $partColumn = 'PART_NO'): Builder
+    private function eventScope(Builder $query, $db, string $partColumn = 'PART_NO'): Builder
     {
-        return TakingEvent::scope($query, $this->takingEvent($db), $locationColumn, $partColumn);
+        return TakingEvent::scope($query, $this->takingEvent($db), $partColumn);
     }
 }

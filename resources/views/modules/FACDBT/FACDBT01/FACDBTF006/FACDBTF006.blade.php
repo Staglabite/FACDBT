@@ -57,8 +57,8 @@
 
             <div class="px-6 pb-4 small text-muted">
                 <div><b>Pre-Taking</b>: semua book ditransfer, dashboard hanya menampilkan part di daftar part event.</div>
-                <div><b>Taking TWH/Indirect</b>: hanya Location No yang mengandung "TWH".</div>
-                <div><b>Taking Besar/Direct</b>: semua Location No kecuali yang mengandung "TWH".</div>
+                <div><b>Taking TWH/Indirect</b>: hanya Part No yang mengandung "TW1".</div>
+                <div><b>Taking Besar/Direct</b>: semua Part No kecuali yang mengandung "TW1".</div>
             </div>
 
             {{ $dataTable->table(['class' => 'table'], true) }}
