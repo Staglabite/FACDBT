@@ -99,12 +99,13 @@ class Dashboard {
     constructor() {
         this.charts = {};
         // Filter waktu manual menggantikan filter klik jam
+        // Tampilan TWH: satu baris di tengah halaman (mode bawaan TimeRangeFilter); tampilan biasa: sebaris di kolom kiri
         this.timeFilter = new TimeRangeFilter(document.getElementById('time-slots-container'), () => {
             this.filters.slot = null;
             this.applyDims();
             this.renderFilterBar();
             this.loadBottomCharts();
-        }, { inline: true });
+        }, TWH_LAYOUT ? {} : { inline: true });
         // Filter interaktif dari klik chart (null = tidak difilter):
         // slot = jam slot (kumulatif s/d jam itu), area = label area chart progress, seg = 4W / 2W, acc = RM / WIP / FG
         this.filters = { slot: null, area: null, seg: null, acc: null };
