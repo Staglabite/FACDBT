@@ -3,6 +3,7 @@
 // Namespace disesuaikan persis dengan struktur folder (menggunakan Original)
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\AppliesDefaultOrder;
 use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_MSHLOCATION as Location;
 use App\Traits\DataTableTrait;
@@ -16,6 +17,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF001DataTable extends DataTable
 {
     use DataTableTrait;
+    use AppliesDefaultOrder;
     use MasterServiceName;
 
     /**
@@ -66,7 +68,8 @@ class FACDBTF001DataTable extends DataTable
             $query->whereIn('location_no', $selectedIds);
         }
 
-        return $query->orderBy('location_no', 'asc');
+        // Urutan bawaan; klik judul kolom menggantikannya
+        return $query->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('location_no', 'asc'));
     }
 
     /**

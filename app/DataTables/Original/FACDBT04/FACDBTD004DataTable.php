@@ -8,7 +8,7 @@ use Yajra\DataTables\Html\Builder as HtmlBuilder;
 use Yajra\DataTables\Html\Column;
 
 // Detail part per lokasi Absolute Variance Dashboard; turunannya menentukan tabel lebih (positive) / kurang (negative).
-// Urutan baris mengikuti service (part dengan variance terbesar dulu), part yang sama ditampilkan berkelompok.
+// Urutan awal mengikuti service (part dengan variance terbesar dulu), part yang sama ditampilkan berkelompok.
 abstract class FACDBTD004DataTable extends VarianceDetailDataTable
 {
     protected function service(): VarianceDashboardService
@@ -29,8 +29,8 @@ abstract class FACDBTD004DataTable extends VarianceDetailDataTable
     public function html(): HtmlBuilder
     {
         return parent::html()->parameters([
-            // Urutan sudah ditentukan service, jadi pengurutan per kolom dimatikan
-            'ordering' => false,
+            // Urutan awal mengikuti service (part dengan variance terbesar dulu); judul kolom tetap bisa
+            // diklik untuk mengurutkan ulang, klik area di chart mengembalikan urutan awal
             'order' => [],
             // Part No & Part Name hanya ditulis di baris pertama tiap part (baris berikutnya = lokasi lain)
             'drawCallback' => '

@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\AppliesDefaultOrder;
 use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_SIMINVTAKINGEVENT as TakingEventModel;
 use App\Services\FACDBT\TakingEvent;
@@ -16,6 +17,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF006DataTable extends DataTable
 {
     use DataTableTrait;
+    use AppliesDefaultOrder;
     use MasterServiceName;
 
     private const BADGES = [
@@ -99,7 +101,8 @@ class FACDBTF006DataTable extends DataTable
             ->selectSub($period('MONTH'), 'period_month')
             ->selectSub($period('YEAR'), 'period_year')
             ->withCount('parts')
-            ->orderBy('TAKING_DATE', 'desc');
+            // Urutan bawaan (terbaru dulu); klik judul kolom menggantikannya
+            ->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('TAKING_DATE', 'desc'));
     }
 
     public function html(): HtmlBuilder

@@ -3,6 +3,7 @@
 // Sesuaikan namespace dengan struktur folder Anda (contoh menggunakan FACDBT02)
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\AppliesDefaultOrder;
 use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_MSHPART as Part; // Mengambil model Part dari folder FACDBT01
 use App\Traits\DataTableTrait;
@@ -16,6 +17,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF002DataTable extends DataTable
 {
     use DataTableTrait;
+    use AppliesDefaultOrder;
     use MasterServiceName;
 
     /**
@@ -66,7 +68,8 @@ class FACDBTF002DataTable extends DataTable
             $query->whereIn('part_no', $selectedIds);
         }
 
-        return $query->orderBy('part_no', 'asc');
+        // Urutan bawaan; klik judul kolom menggantikannya
+        return $query->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('part_no', 'asc'));
     }
 
     /**

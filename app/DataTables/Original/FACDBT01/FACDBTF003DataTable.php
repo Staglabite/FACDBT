@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\AppliesDefaultOrder;
 use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_MSHUNITCOST as UnitCost; // Mengambil model Unit Cost
 use App\Traits\DataTableTrait;
@@ -15,6 +16,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF003DataTable extends DataTable
 {
     use DataTableTrait;
+    use AppliesDefaultOrder;
     use MasterServiceName;
 
     /**
@@ -66,7 +68,8 @@ class FACDBTF003DataTable extends DataTable
             $query->whereIn('part_no', $selectedIds);
         }
 
-        return $query->orderBy('part_no', 'asc');
+        // Urutan bawaan; klik judul kolom menggantikannya
+        return $query->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('part_no', 'asc'));
     }
 
     /**
