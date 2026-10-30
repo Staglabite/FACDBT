@@ -11,14 +11,26 @@ trait AppliesDefaultOrder
 {
     /**
      * Request DataTables berisi urutan dari kolom yang bisa diurutkan?
+     * minifiedAjax() tidak mengirim orderable=true (nilai bawaan), jadi orderable yang tidak dikirim = bisa
+     * diurutkan, sama seperti cara Yajra membacanya; kolom seperti checkbox mengirim orderable=false.
      */
     private function hasColumnOrder(): bool
     {
-        $columns = (array) request('columns', []);
+        return self::requestHasColumnOrder((array) request('columns', []), (array) request('order', []));
+    }
 
-        foreach ((array) request('order', []) as $order) {
-            $column = $columns[$order['column'] ?? -1] ?? null;
-            if ($column && filter_var($column['orderable'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+    /**
+     * @param  array  $columns  parameter columns dari DataTables
+     * @param  array  $order    parameter order dari DataTables
+     */
+    public static function requestHasColumnOrder(array $columns, array $order): bool
+    {
+        foreach ($order as $item) {
+            $index = $item['column'] ?? null;
+            if ($index === null || !isset($columns[$index])) {
+                continue;
+            }
+            if (filter_var($columns[$index]['orderable'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
                 return true;
             }
         }
