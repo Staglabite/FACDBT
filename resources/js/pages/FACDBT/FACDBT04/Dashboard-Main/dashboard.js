@@ -105,7 +105,7 @@ class Dashboard {
             this.applyDims();
             this.renderFilterBar();
             this.loadBottomCharts();
-        }, TWH_LAYOUT ? {} : { inline: true });
+        }, TWH_LAYOUT ? { inlineStatus: true } : { inline: true });
         // Filter interaktif dari klik chart (null = tidak difilter):
         // slot = jam slot (kumulatif s/d jam itu), area = label area chart progress, seg = 4W / 2W, acc = RM / WIP / FG
         this.filters = { slot: null, area: null, seg: null, acc: null };

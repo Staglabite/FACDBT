@@ -9,15 +9,17 @@
  *   const filter = new TimeRangeFilter(container, () => this.loadData(), { vertical: true });
  *   - vertical : semua isian & tombol bersusun ke bawah (kolom sempit)
  *   - inline   : satu baris tanpa turun baris, tombol tepat di sebelah isian jam
+ *   - inlineStatus : keterangan rentang (mis. "Seluruh periode taking") sebaris di kanan tombol, bukan di bawah
  *   filter.setDays(res.data.days);
  *   axios.get(url, { params: { ...filter.params() } });
  */
 export class TimeRangeFilter {
-    constructor(container, onChange, { vertical = false, inline = false } = {}) {
+    constructor(container, onChange, { vertical = false, inline = false, inlineStatus = false } = {}) {
         this.container = container;
         this.onChange = onChange;
         this.vertical = vertical;
         this.inline = inline;
+        this.inlineStatus = inlineStatus;
         this.days = [];
         this.applied = null; // { from: 'Y-m-d H:i', to: 'Y-m-d H:i' }
     }
@@ -41,6 +43,7 @@ export class TimeRangeFilter {
         const daySelect = role => `<select class="form-select form-select-sm trf-day${single ? ' d-none' : ''}" data-role="${role}" aria-label="Hari">${options}</select>`;
         const timeInput = (role, value) => `<input type="time" class="form-control form-control-sm" data-role="${role}" value="${value}" aria-label="Jam">`;
         const label = text => `<span class="small fw-semibold text-dark">${text}</span>`;
+        const status = classes => `<div class="small text-muted ${classes}" data-role="status">Seluruh periode taking</div>`;
 
         const group = this.vertical
             ? 'd-flex flex-column gap-1'
@@ -62,8 +65,9 @@ export class TimeRangeFilter {
                     <button type="button" class="btn btn-sm btn-dark" data-role="apply">Terapkan</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-role="reset" title="Seluruh periode taking">Reset</button>
                 </div>
+                ${this.inlineStatus ? status('align-self-center text-nowrap') : ''}
             </div>
-            <div class="small text-muted text-center mt-1" data-role="status">Seluruh periode taking</div>`;
+            ${this.inlineStatus ? '' : status('text-center mt-1')}`;
 
         // Default: dari hari pertama, sampai hari terakhir
         const toDay = this.el('to-day');
