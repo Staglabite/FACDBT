@@ -34,10 +34,16 @@ class FACDBTF006DataTable extends DataTable
             ->editColumn('TAKING_DATE', fn ($row) => $row->TAKING_DATE?->format('Y-m-d'))
             ->editColumn('EVENT_TYPE', fn ($row) => '<span class="badge ' . (self::BADGES[$row->EVENT_TYPE] ?? 'bg-label-secondary') . '">'
                 . e(TakingEvent::TYPES[$row->EVENT_TYPE] ?? $row->EVENT_TYPE) . '</span>')
-            // Jumlah part hanya berarti untuk Pre-Taking
-            ->editColumn('parts_count', fn ($row) => $row->EVENT_TYPE === TakingEvent::PRE ? number_format((int) $row->parts_count) : '-')
+            // Jumlah part hanya berarti untuk Pre-Taking; Pre-Taking tanpa part diberi tanda peringatan
+            ->editColumn('parts_count', fn ($row) => match (true) {
+                $row->EVENT_TYPE !== TakingEvent::PRE => '-',
+                (int) $row->parts_count === 0 => '<span class="badge bg-label-warning">Belum ada part</span>',
+                default => number_format((int) $row->parts_count),
+            })
             ->addColumn('action', fn ($data) => $this->getActionButton($data))
-            ->rawColumns(['checkbox', 'EVENT_TYPE', 'action'])
+            // Daftar Taking Date Pre-Taking (periode belum ditutup) yang belum punya daftar part, untuk peringatan di atas tabel
+            ->with('missing_parts', fn () => self::missingParts())
+            ->rawColumns(['checkbox', 'EVENT_TYPE', 'parts_count', 'action'])
             ->setRowId('IID')
             ->filter(function ($query) {
                 $keyword = trim((string) request('keyword'));
@@ -52,6 +58,27 @@ class FACDBTF006DataTable extends DataTable
                     });
                 }
             });
+    }
+
+    /**
+     * Taking Date event Pre-Taking yang belum punya daftar part dan periodenya belum ditutup
+     * (daftar part periode yang sudah ditutup memang dikosongkan setelah masuk history).
+     *
+     * @return array<int, string>
+     */
+    public static function missingParts(): array
+    {
+        return TakingEventModel::query()
+            ->where('EVENT_TYPE', TakingEvent::PRE)
+            ->whereDoesntHave('parts')
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')
+                ->from('SIM_INV_TAKING_CONCLUDING_TAB as c')
+                ->whereRaw('DATE(c.TAKING_DATE) = ' . TakingEvent::TABLE . '.TAKING_DATE')
+                ->where('c.ROWSTATE', 'Closed'))
+            ->orderBy('TAKING_DATE')
+            ->pluck('TAKING_DATE')
+            ->map(fn ($date) => substr((string) $date, 0, 10))
+            ->all();
     }
 
     /**

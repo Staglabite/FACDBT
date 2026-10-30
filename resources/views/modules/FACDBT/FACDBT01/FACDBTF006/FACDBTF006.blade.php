@@ -55,6 +55,12 @@
                 </div>
             </div>
 
+            {{-- Pre-Taking (periode belum ditutup) tanpa daftar part; diisi dari response tabel (event.js) --}}
+            <div class="alert alert-warning d-none align-items-center gap-2 mx-6 mb-4 py-2" role="alert" id="event-missing-parts">
+                <i class="icon-base ti tabler-alert-triangle"></i>
+                <span></span>
+            </div>
+
             {{ $dataTable->table(['class' => 'table'], true) }}
         </div>
     </div>

@@ -22,6 +22,10 @@ class DashboardDataVersion extends Controller
             'version'    => TakingDataVersion::current(),
             'event'      => $event['name'],
             'event_type' => $event['type'],
+            // Pre-Taking tanpa daftar part: dashboard kosong, browser menampilkan peringatan
+            'warning'    => $event['missing_parts']
+                ? 'Event Pre-Taking belum memiliki daftar part. Upload daftar part di menu Master Event supaya data tampil.'
+                : null,
         ]);
     }
 
@@ -29,16 +33,21 @@ class DashboardDataVersion extends Controller
      * Event periode berjalan, disimpan TakingDataVersion::VERSION_TTL detik. Dipakai juga oleh Main Dashboard
      * saat memilih tampilan, supaya halaman dan pengecekan berkala selalu melihat event yang sama.
      *
-     * @return array{type: ?string, name: ?string}
+     * @return array{type: ?string, name: ?string, missing_parts: bool}
      */
     public static function runningEvent(): array
     {
         return Cache::store(config('cache.dashboard_store', 'file'))
-            ->remember('FACDBT04:running-event', TakingDataVersion::VERSION_TTL, function () {
+            ->remember('FACDBT04:running-event:v2', TakingDataVersion::VERSION_TTL, function () {
                 $db    = DB::connection('INV_TAKING');
                 $event = TakingEvent::forPeriod($db, RunningTakingPeriod::find($db));
 
-                return ['type' => $event?->type, 'name' => $event?->name()];
+                return [
+                    'type'          => $event?->type,
+                    'name'          => $event?->name(),
+                    'missing_parts' => $event?->type === TakingEvent::PRE
+                        && !$db->table(TakingEvent::PART_TABLE)->where('EVENT_ID', $event->id)->exists(),
+                ];
             });
     }
 }

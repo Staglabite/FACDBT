@@ -15,6 +15,9 @@ let lastUpdated = null;
 let statusEl = null;
 // Nama event periode berjalan (Master Event), dari endpoint versi data
 let eventName = null;
+// Peringatan data event (mis. Pre-Taking tanpa daftar part)
+let eventWarning = null;
+let warningEl = null;
 // Dipanggil dengan kode event (PRE / TWH / DIRECT / null) setiap kali versi data dicek
 const eventTypeListeners = [];
 
@@ -68,7 +71,28 @@ function render() {
     }
 }
 
+// Kotak peringatan di bawah baris status; disembunyikan bila tidak ada peringatan
+function renderWarning() {
+    if (!warningEl) {
+        if (!eventWarning) return;
+        warningEl = document.createElement('div');
+        warningEl.className = 'alert alert-warning d-flex align-items-center gap-2 py-2 mb-3';
+        warningEl.setAttribute('role', 'alert');
+        ensureStatusElement().insertAdjacentElement('afterend', warningEl);
+    }
+
+    warningEl.classList.toggle('d-none', !eventWarning);
+    warningEl.innerHTML = '<i class="icon-base ti tabler-alert-triangle"></i><span></span>';
+    warningEl.querySelector('span').textContent = eventWarning || '';
+}
+
 function setEvent(data) {
+    const warning = data?.warning || null;
+    if (warning !== eventWarning) {
+        eventWarning = warning;
+        renderWarning();
+    }
+
     const name = data?.event || null;
     if (name !== eventName) {
         eventName = name;

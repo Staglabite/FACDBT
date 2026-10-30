@@ -191,6 +191,9 @@ class MasterEvent {
       }, 500);
     });
 
+    // Peringatan Pre-Taking tanpa daftar part (data dari response tabel)
+    this.#table.on('xhr.dt', (e, settings, json) => this.#renderMissingParts(json?.missing_parts || []));
+
     // Pilihan baris (halaman yang terlihat)
     this.#table.on('draw.dt', () => {
       $('input[name="selected[]"]').each((_, el) => $(el).prop('checked', this.#selected.has(String($(el).val()))));
@@ -209,6 +212,14 @@ class MasterEvent {
       $(this).is(':checked') ? self.#selected.add(id) : self.#selected.delete(id);
       self.#refreshSelection();
     });
+  }
+
+  #renderMissingParts(dates) {
+    const $alert = $('#event-missing-parts');
+    $alert.toggleClass('d-none', dates.length === 0).toggleClass('d-flex', dates.length > 0);
+    $alert.find('span').text(dates.length
+      ? `Event Pre-Taking tanggal ${dates.join(', ')} belum memiliki daftar part, sehingga dashboard tidak menampilkan data. Upload daftar part lewat tombol daftar part pada tabel.`
+      : '');
   }
 
   #refreshSelection() {
