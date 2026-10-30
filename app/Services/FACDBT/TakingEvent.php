@@ -67,10 +67,7 @@ class TakingEvent
      */
     public static function installed(Connection $db): bool
     {
-        static $installed = [];
-
-        return $installed[$db->getName()] ??= $db->getSchemaBuilder()->hasTable(self::TABLE)
-            && $db->getSchemaBuilder()->hasTable(self::PART_TABLE);
+        return SchemaCheck::hasTable($db, self::TABLE) && SchemaCheck::hasTable($db, self::PART_TABLE);
     }
 
     /**

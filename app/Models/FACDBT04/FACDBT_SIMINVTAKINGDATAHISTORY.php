@@ -2,6 +2,7 @@
 
 namespace App\Models\FACDBT04;
 
+use App\Services\FACDBT\SchemaCheck;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
@@ -69,8 +70,6 @@ class FACDBT_SIMINVTAKINGDATAHISTORY extends Model
      */
     public function hasEventColumn(): bool
     {
-        static $has = null;
-
-        return $has ??= $this->getConnection()->getSchemaBuilder()->hasColumn($this->getTable(), 'EVENT_TYPE');
+        return SchemaCheck::hasColumn($this->getConnection(), $this->getTable(), 'EVENT_TYPE');
     }
 }

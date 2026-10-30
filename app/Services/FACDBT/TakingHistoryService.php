@@ -287,7 +287,7 @@ class TakingHistoryService
         $costs     = $this->unitCosts();
         $now       = now()->format('Y-m-d H:i:s');
         // Kolom EVENT_TYPE ditambahkan oleh docs/FACDBT/sim_inv_taking_event.sql
-        $withEvent = $db->getSchemaBuilder()->hasColumn(self::TABLE, 'EVENT_TYPE');
+        $withEvent = SchemaCheck::hasColumn($db, self::TABLE, 'EVENT_TYPE');
 
         $rows = [];
         foreach ($lines as $line) {
