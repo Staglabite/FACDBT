@@ -184,7 +184,7 @@ class FACDBTF001 extends Controller
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
 
-            $db = DB::connection('INV_TAKING');
+            $db = DB::connection('FACDBT');
             $db->beginTransaction();
 
             try {

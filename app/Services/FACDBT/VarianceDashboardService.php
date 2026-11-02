@@ -14,7 +14,7 @@ abstract class VarianceDashboardService
 {
     use BuildsVarianceLines;
 
-    protected const CONN = 'INV_TAKING';
+    protected const CONN = 'FACDBT';
     protected const CACHE_TTL = 60;
 
     /**

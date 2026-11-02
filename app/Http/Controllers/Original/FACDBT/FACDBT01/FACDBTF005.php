@@ -149,7 +149,7 @@ class FACDBTF005 extends Controller
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
 
-            DB::connection('INV_TAKING')->beginTransaction();
+            DB::connection('FACDBT')->beginTransaction();
 
             try {
                 // Kombinasi Location No, ID Loc & Location Group yang sudah ada (termasuk yang pernah dihapus)
@@ -160,7 +160,7 @@ class FACDBTF005 extends Controller
                     ['VLOCATIONNO', 'VIDLOC', 'VLOCGROUP']
                 );
 
-                DB::connection('INV_TAKING')->commit();
+                DB::connection('FACDBT')->commit();
 
                 return response()->json([
                     'success' => true,
@@ -172,7 +172,7 @@ class FACDBTF005 extends Controller
                     ],
                 ], 200);
             } catch (\Exception $e) {
-                DB::connection('INV_TAKING')->rollBack();
+                DB::connection('FACDBT')->rollBack();
 
                 return response()->json([
                     'success' => false,

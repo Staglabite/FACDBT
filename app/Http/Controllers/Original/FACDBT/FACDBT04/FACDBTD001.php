@@ -20,7 +20,7 @@ class FACDBTD001 extends Controller
     use FiltersTakingRange;
     use UsesTakingEvent;
 
-    private const CONN = 'INV_TAKING';
+    private const CONN = 'FACDBT';
     private const CACHE_TTL = 60;
 
     // Jam slot setiap hari taking (kumulatif s/d jam itu).

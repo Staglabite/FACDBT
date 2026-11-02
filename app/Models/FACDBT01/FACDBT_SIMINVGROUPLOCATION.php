@@ -15,7 +15,7 @@ class FACDBT_SIMINVGROUPLOCATION extends Model
     use HasFactory;
     use HasAuditColumns;
 
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
     protected $table = FacdbtTable::GROUP_LOCATIONS;
 
     protected $primaryKey = 'IID';

@@ -19,7 +19,7 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 class FACDBTF004 extends Controller
 {
-    protected string $connection = 'INV_TAKING'; // Sesuaikan dengan konfigurasi koneksi database Anda
+    protected string $connection = 'FACDBT'; // Sesuaikan dengan konfigurasi koneksi database Anda
     protected string $table = 'SIM_INV_TAKING_BOOK_TAB';
 
     public function __construct()
@@ -308,7 +308,7 @@ class FACDBTF004 extends Controller
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
 
-            // Transaksi di koneksi INV_TAKING (tempat data book disimpan), bukan koneksi default
+            // Transaksi di koneksi FACDBT (tempat data book disimpan), bukan koneksi default
             $db = DB::connection($this->connection);
             $db->beginTransaction();
             try {

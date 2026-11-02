@@ -40,7 +40,7 @@ class DashboardDataVersion extends Controller
     {
         return Cache::store(config('cache.dashboard_store', 'file'))
             ->remember('FACDBT04:running-event:v3', TakingDataVersion::VERSION_TTL, function () {
-                $db    = DB::connection('INV_TAKING');
+                $db    = DB::connection('FACDBT');
                 $event = TakingEvent::forPeriod($db, RunningTakingPeriod::find($db));
 
                 return [

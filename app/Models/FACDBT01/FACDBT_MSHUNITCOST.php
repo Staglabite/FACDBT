@@ -15,7 +15,7 @@ class FACDBT_MSHUNITCOST extends Model
     use HasFactory;
     use HasAuditColumns;
 
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
     protected $table = FacdbtTable::UNIT_COSTS;
 
     protected $primaryKey = 'IID';

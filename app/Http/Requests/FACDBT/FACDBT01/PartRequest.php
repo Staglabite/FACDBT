@@ -19,7 +19,7 @@ class PartRequest extends FormRequest
      */
     public function rules(): array
     {
-        $unique = Rule::unique('INV_TAKING.' . FacdbtTable::PARTS, 'VPARTNO')->whereNull(FacdbtTable::DELETED_AT);
+        $unique = Rule::unique('FACDBT.' . FacdbtTable::PARTS, 'VPARTNO')->whereNull(FacdbtTable::DELETED_AT);
         if ($part = $this->route('part')) {
             $unique->ignore($part->IID, 'IID');
         }

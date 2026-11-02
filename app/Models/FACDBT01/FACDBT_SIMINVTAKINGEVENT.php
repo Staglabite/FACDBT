@@ -13,7 +13,7 @@ class FACDBT_SIMINVTAKINGEVENT extends Model
 {
     use HasAuditColumns;
 
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
     protected $table = TakingEvent::TABLE;
 
     protected $primaryKey = 'IID';

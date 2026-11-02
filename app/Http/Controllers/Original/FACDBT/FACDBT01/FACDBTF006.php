@@ -25,7 +25,7 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
  */
 class FACDBTF006 extends Controller
 {
-    private const CONN = 'INV_TAKING';
+    private const CONN = 'FACDBT';
 
     private const PART_TITLE = 'Part No';
 

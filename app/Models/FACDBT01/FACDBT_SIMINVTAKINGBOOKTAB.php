@@ -10,7 +10,7 @@ class FACDBT_SIMINVTAKINGBOOKTAB extends Model
     use HasFactory;
 
     // Mengarahkan ke koneksi MySQL eksternal
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
 
     // Nama tabel di database berdasarkan dump SQL
     protected $table = 'SIM_INV_TAKING_BOOK_TAB';

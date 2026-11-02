@@ -60,7 +60,7 @@ class FACDBTF004DataTable extends DataTable
     public function query(TakingBook $model): QueryBuilder
     {
         // 1. Ambil nilai INV_LIST_NO terbesar (paling baru)
-        $latestInvListNo = DB::connection('INV_TAKING')
+        $latestInvListNo = DB::connection('FACDBT')
             ->table('SIM_INV_TAKING_BOOK_TAB')
             ->max(DB::raw('CAST(INV_LIST_NO AS UNSIGNED)'));
 

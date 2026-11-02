@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  */
 class TakingHistoryService
 {
-    private const CONN = 'INV_TAKING';
+    private const CONN = 'FACDBT';
     private const TABLE = FacdbtTable::HISTORY;
 
     // ROWSTATE periode di SIM_INV_TAKING_CONCLUDING_TAB berubah dari Started menjadi Closed saat taking ditutup

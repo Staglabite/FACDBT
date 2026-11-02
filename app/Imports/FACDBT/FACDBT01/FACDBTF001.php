@@ -120,7 +120,7 @@ class FACDBTF001 implements ToCollection, WithHeadingRow, WithStartRow
 
     public function mapRelations($row)
     {
-        // // Check if the location_no already exists in the INV_TAKING connection
+        // // Check if the location_no already exists in the FACDBT connection
         // $location = Location::where('location_no', $row['location_no'])
         //     ->first();
             

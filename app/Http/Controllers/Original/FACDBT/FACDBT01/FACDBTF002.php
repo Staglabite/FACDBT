@@ -192,8 +192,8 @@ class FACDBTF002 extends Controller
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
 
-            // Transaksi di koneksi INV_TAKING (tempat data master disimpan)
-            $db = DB::connection('INV_TAKING');
+            // Transaksi di koneksi FACDBT (tempat data master disimpan)
+            $db = DB::connection('FACDBT');
             $db->beginTransaction();
 
             try {

@@ -15,7 +15,7 @@ class FACDBT_MSHPART extends Model
     use HasFactory;
     use HasAuditColumns;
 
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
     protected $table = FacdbtTable::PARTS;
 
     protected $primaryKey = 'IID';

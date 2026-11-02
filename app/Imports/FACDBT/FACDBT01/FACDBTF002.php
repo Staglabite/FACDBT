@@ -131,7 +131,7 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
     {
         // Relasi dimatikan agar controller bisa menggunakan Upsert (Overwrite) dengan lancar
         
-        // // Check if the part_no already exists in the INV_TAKING connection
+        // // Check if the part_no already exists in the FACDBT connection
         // $part = Part::where('part_no', $row['part_no'])
         //     ->first();
             

@@ -19,7 +19,7 @@ class UnitCostRequest extends FormRequest
      */
     public function rules(): array
     {
-        $unique = Rule::unique('INV_TAKING.' . FacdbtTable::UNIT_COSTS, 'VPARTNO')->whereNull(FacdbtTable::DELETED_AT);
+        $unique = Rule::unique('FACDBT.' . FacdbtTable::UNIT_COSTS, 'VPARTNO')->whereNull(FacdbtTable::DELETED_AT);
         if ($unitCost = $this->route('unitcost')) {
             $unique->ignore($unitCost->IID, 'IID');
         }

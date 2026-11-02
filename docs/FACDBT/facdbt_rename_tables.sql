@@ -1,6 +1,6 @@
 -- =====================================================================
 -- FACDBT: penyesuaian nama tabel & kolom dengan Design Architecture Guidance Database (Rev01).
--- Database : dbportal (koneksi INV_TAKING, MySQL)
+-- Database : dbportal (koneksi FACDBT, MySQL)
 --
 -- - 7 tabel milik FACDBT dibuat ulang dengan nama FACDBT_<kode tabel><deskripsi>S dan kolom berawalan tipe data,
 --   ditambah kolom wajib VCREA, DCREA, VMODI, DMODI, VDELETE, DDELETE (soft delete).

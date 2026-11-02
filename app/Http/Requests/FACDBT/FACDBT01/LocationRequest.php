@@ -19,7 +19,7 @@ class LocationRequest extends FormRequest
      */
     public function rules(): array
     {
-        $unique = Rule::unique('INV_TAKING.' . FacdbtTable::LOCATIONS, 'VLOCATIONNO')->whereNull(FacdbtTable::DELETED_AT);
+        $unique = Rule::unique('FACDBT.' . FacdbtTable::LOCATIONS, 'VLOCATIONNO')->whereNull(FacdbtTable::DELETED_AT);
         if ($location = $this->route('location')) {
             $unique->ignore($location->IID, 'IID');
         }

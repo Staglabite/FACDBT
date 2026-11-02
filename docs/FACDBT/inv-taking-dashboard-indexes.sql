@@ -1,6 +1,6 @@
 -- =====================================================================
 -- Index untuk mempercepat dashboard stock taking (FACDBT04)
--- Database : INV_TAKING (MySQL 5.6+)
+-- Database : FACDBT (MySQL 5.6+)
 --
 -- Jalankan oleh DBA di luar jam taking. Script aman dijalankan berulang:
 -- index hanya dibuat bila belum ada index dengan nama yang sama.

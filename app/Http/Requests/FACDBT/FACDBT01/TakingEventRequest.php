@@ -31,7 +31,7 @@ class TakingEventRequest extends FormRequest
             'DTAKINGDATE' => [
                 'required',
                 'date_format:Y-m-d',
-                Rule::unique('INV_TAKING.' . TakingEvent::TABLE, 'DTAKINGDATE')
+                Rule::unique('FACDBT.' . TakingEvent::TABLE, 'DTAKINGDATE')
                     ->whereNull(FacdbtTable::DELETED_AT)
                     ->ignore($id, 'IID'),
             ],

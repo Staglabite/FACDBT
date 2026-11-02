@@ -15,7 +15,7 @@ class FACDBT_SIMINVTAKINGDATAHISTORY extends Model
 {
     use HasAuditColumns;
 
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
     protected $table = FacdbtTable::HISTORY;
 
     protected $primaryKey = 'IID';

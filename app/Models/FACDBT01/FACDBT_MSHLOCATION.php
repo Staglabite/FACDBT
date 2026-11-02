@@ -15,7 +15,7 @@ class FACDBT_MSHLOCATION extends Model
     use HasFactory;
     use HasAuditColumns;
 
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
     protected $table = FacdbtTable::LOCATIONS;
 
     protected $primaryKey = 'IID';
