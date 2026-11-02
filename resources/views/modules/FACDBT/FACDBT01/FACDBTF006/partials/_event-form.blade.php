@@ -14,16 +14,16 @@
                         <div class="col-12 col-lg-6">
                             <!-- Periode taking (SIM_INV_TAKING_CONCLUDING_TAB) -->
                             <div class="mb-3">
-                                <label for="TAKING_DATE" class="form-label">Taking Period</label>
-                                <select class="form-select" id="TAKING_DATE" name="TAKING_DATE" required
+                                <label for="DTAKINGDATE" class="form-label">Taking Period</label>
+                                <select class="form-select" id="DTAKINGDATE" name="DTAKINGDATE" required
                                     aria-required="true"></select>
                             </div>
                         </div>
 
                         <div class="col-12 col-lg-6">
                             <div class="mb-3">
-                                <label for="EVENT_TYPE" class="form-label">Event</label>
-                                <select class="form-select" id="EVENT_TYPE" name="EVENT_TYPE" required aria-required="true">
+                                <label for="VEVENTTYPE" class="form-label">Event</label>
+                                <select class="form-select" id="VEVENTTYPE" name="VEVENTTYPE" required aria-required="true">
                                     <option value="">- Select Event -</option>
                                     @foreach ($types as $code => $name)
                                         <option value="{{ $code }}">{{ $name }}</option>
@@ -34,8 +34,8 @@
 
                         <div class="col-12">
                             <div class="mb-3">
-                                <label for="DESCRIPTION" class="form-label">Description</label>
-                                <input type="text" class="form-control" id="DESCRIPTION" name="DESCRIPTION" maxlength="255">
+                                <label for="VDESC" class="form-label">Description</label>
+                                <input type="text" class="form-control" id="VDESC" name="VDESC" maxlength="255">
                             </div>
                             <div class="small text-muted d-none" id="event-pre-hint">
                                 Setelah disimpan, upload daftar part Pre-Taking lewat tombol

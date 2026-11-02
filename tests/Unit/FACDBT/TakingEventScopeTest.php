@@ -28,15 +28,19 @@ class TakingEventScopeTest extends TestCase
         ]);
 
         if ($withEventTables) {
-            $db->statement('CREATE TABLE SIM_INV_TAKING_EVENT (IID INTEGER PRIMARY KEY, TAKING_DATE TEXT, EVENT_TYPE TEXT)');
-            $db->statement('CREATE TABLE SIM_INV_TAKING_EVENT_PART (IID INTEGER PRIMARY KEY, EVENT_ID INTEGER, PART_NO TEXT)');
-            $db->table('SIM_INV_TAKING_EVENT')->insert([
-                ['IID' => 1, 'TAKING_DATE' => '2026-03-02', 'EVENT_TYPE' => 'PRE'],
-                ['IID' => 2, 'TAKING_DATE' => '2026-03-05', 'EVENT_TYPE' => 'twh'],
+            $audit = 'VCREA TEXT, DCREA TEXT, VMODI TEXT, DMODI TEXT, VDELETE TEXT, DDELETE TEXT';
+            $db->statement("CREATE TABLE FACDBT_MSHEVENTS (IID INTEGER PRIMARY KEY, DTAKINGDATE TEXT, VEVENTTYPE TEXT, {$audit})");
+            $db->statement("CREATE TABLE FACDBT_MSDEVENTPARTS (IID INTEGER PRIMARY KEY, IEVENTID INTEGER, VPARTNO TEXT, {$audit})");
+            $db->table('FACDBT_MSHEVENTS')->insert([
+                ['IID' => 1, 'DTAKINGDATE' => '2026-03-02', 'VEVENTTYPE' => 'PRE', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
+                ['IID' => 2, 'DTAKINGDATE' => '2026-03-05', 'VEVENTTYPE' => 'twh', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
+                // Event yang sudah dihapus (soft delete) tidak dipakai
+                ['IID' => 3, 'DTAKINGDATE' => '2026-04-01', 'VEVENTTYPE' => 'TWH', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => '2026-03-20 10:00:00'],
             ]);
-            $db->table('SIM_INV_TAKING_EVENT_PART')->insert([
-                ['EVENT_ID' => 1, 'PART_NO' => 'P1'],
-                ['EVENT_ID' => 2, 'PART_NO' => 'P3'],
+            $db->table('FACDBT_MSDEVENTPARTS')->insert([
+                ['IEVENTID' => 1, 'VPARTNO' => 'P1', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
+                ['IEVENTID' => 1, 'VPARTNO' => 'TW1-55', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => '2026-03-01 09:00:00'],
+                ['IEVENTID' => 2, 'VPARTNO' => 'P3', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
             ]);
         }
 
@@ -60,7 +64,7 @@ class TakingEventScopeTest extends TestCase
         // Lokasi "TWH" tidak berpengaruh; yang dilihat PART_NO
         $this->assertSame(['L-02/ab-tw1-9', 'QA-01/TW1-55'], $this->rows($db, new TakingEvent(2, TakingEvent::TWH)));
         $this->assertSame(['PROD-1A/P1', 'TWH-01/P1'], $this->rows($db, new TakingEvent(2, TakingEvent::DIRECT)));
-        // Hanya part di daftar event 1
+        // Hanya part aktif di daftar event 1 (TW1-55 sudah dihapus dari daftar)
         $this->assertSame(['PROD-1A/P1', 'TWH-01/P1'], $this->rows($db, new TakingEvent(1, TakingEvent::PRE)));
     }
 
@@ -73,10 +77,11 @@ class TakingEventScopeTest extends TestCase
 
         // Kode event disimpan huruf kecil tetap dikenali
         $this->assertSame(TakingEvent::TWH, TakingEvent::forPeriod($db, (object) ['TAKING_DATE' => '2026-03-05'])->type);
+        // Event periode 2026-04-01 sudah dihapus
         $this->assertNull(TakingEvent::forPeriod($db, (object) ['TAKING_DATE' => '2026-04-01']));
         $this->assertNull(TakingEvent::forPeriod($db, null));
 
-        $this->assertSame('1:PRE:1:1', TakingEvent::signature($db, (object) ['TAKING_DATE' => '2026-03-02']));
+        $this->assertSame('1:PRE:1:1:2026-03-01 08:00:00', TakingEvent::signature($db, (object) ['TAKING_DATE' => '2026-03-02']));
         $this->assertSame('none', TakingEvent::signature($db, (object) ['TAKING_DATE' => '2026-04-01']));
     }
 

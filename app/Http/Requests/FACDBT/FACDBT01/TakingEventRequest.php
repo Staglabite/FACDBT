@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\FACDBT\FACDBT01;
 
+use App\Services\FACDBT\FacdbtTable;
 use App\Services\FACDBT\TakingEvent;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -15,31 +16,34 @@ class TakingEventRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $this->merge(['EVENT_TYPE' => strtoupper(trim((string) $this->EVENT_TYPE))]);
+        $this->merge(['VEVENTTYPE' => strtoupper(trim((string) $this->VEVENTTYPE))]);
     }
 
     /**
-     * Satu periode (TAKING_DATE) hanya punya satu event.
+     * Satu periode (DTAKINGDATE) hanya punya satu event aktif; periode yang event-nya pernah dihapus boleh
+     * diberi event lagi (baris lama dipulihkan, lihat FACDBTF006::store()).
      */
     public function rules(): array
     {
         $id = $this->route('event');
 
         return [
-            'TAKING_DATE' => [
+            'DTAKINGDATE' => [
                 'required',
                 'date_format:Y-m-d',
-                Rule::unique('INV_TAKING.' . TakingEvent::TABLE, 'TAKING_DATE')->ignore($id, 'IID'),
+                Rule::unique('INV_TAKING.' . TakingEvent::TABLE, 'DTAKINGDATE')
+                    ->whereNull(FacdbtTable::DELETED_AT)
+                    ->ignore($id, 'IID'),
             ],
-            'EVENT_TYPE' => ['required', Rule::in(array_keys(TakingEvent::TYPES))],
-            'DESCRIPTION' => ['nullable', 'string', 'max:255'],
+            'VEVENTTYPE' => ['required', Rule::in(array_keys(TakingEvent::TYPES))],
+            'VDESC' => ['nullable', 'string', 'max:255'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'TAKING_DATE.unique' => 'This taking period already has an event.',
+            'DTAKINGDATE.unique' => 'This taking period already has an event.',
         ];
     }
 }

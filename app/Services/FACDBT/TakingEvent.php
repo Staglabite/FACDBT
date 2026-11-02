@@ -9,15 +9,15 @@ use Illuminate\Database\Query\Builder;
 /**
  * Event taking (Master Event, FACDBTF006): jenis taking satu periode dan data yang dihitung dashboard.
  *
- * - PRE    (Pre-Taking)            : semua book ditransfer, yang dihitung hanya part di SIM_INV_TAKING_EVENT_PART
+ * - PRE    (Pre-Taking)            : semua book ditransfer, yang dihitung hanya part di FACDBT_MSDEVENTPARTS
  * - TWH    (Taking TWH / Indirect) : hanya part yang PART_NO-nya mengandung "TW1" (huruf besar/kecil sama)
  * - DIRECT (Taking Besar / Direct) : semua part kecuali yang PART_NO-nya mengandung "TW1"
  * Periode tanpa event: semua data.
  */
 class TakingEvent
 {
-    public const TABLE = 'SIM_INV_TAKING_EVENT';
-    public const PART_TABLE = 'SIM_INV_TAKING_EVENT_PART';
+    public const TABLE = FacdbtTable::EVENTS;
+    public const PART_TABLE = FacdbtTable::EVENT_PARTS;
 
     public const PRE = 'PRE';
     public const TWH = 'TWH';
@@ -52,17 +52,17 @@ class TakingEvent
             return null;
         }
 
-        $row = $db->table(self::TABLE)
-            ->whereDate('TAKING_DATE', Carbon::parse($period->TAKING_DATE)->toDateString())
-            ->first(['IID', 'EVENT_TYPE']);
+        $row = FacdbtTable::active($db, self::TABLE)
+            ->whereDate('DTAKINGDATE', Carbon::parse($period->TAKING_DATE)->toDateString())
+            ->first(['IID', 'VEVENTTYPE']);
 
-        return $row && isset(self::TYPES[strtoupper((string) $row->EVENT_TYPE)])
-            ? new self((int) $row->IID, strtoupper((string) $row->EVENT_TYPE))
+        return $row && isset(self::TYPES[strtoupper((string) $row->VEVENTTYPE)])
+            ? new self((int) $row->IID, strtoupper((string) $row->VEVENTTYPE))
             : null;
     }
 
     /**
-     * Tabel event sudah dibuat (docs/FACDBT/sim_inv_taking_event.sql)? Sebelum dibuat, dashboard tetap
+     * Tabel event sudah dibuat (docs/FACDBT/facdbt_rename_tables.sql)? Sebelum dibuat, dashboard tetap
      * berjalan seperti tanpa event.
      */
     public static function installed(Connection $db): bool
@@ -83,8 +83,9 @@ class TakingEvent
             self::TWH    => $query->whereRaw("UPPER({$partColumn}) LIKE {$twh}"),
             self::DIRECT => $query->whereRaw("UPPER({$partColumn}) NOT LIKE {$twh}"),
             self::PRE    => $query->whereIn($partColumn, fn ($q) => $q->from(self::PART_TABLE)
-                ->select('PART_NO')
-                ->where('EVENT_ID', $event->id)),
+                ->select('VPARTNO')
+                ->where('IEVENTID', $event->id)
+                ->whereNull(FacdbtTable::DELETED_AT)),
             default      => $query,
         };
     }
@@ -99,10 +100,14 @@ class TakingEvent
             return 'none';
         }
 
+        // Daftar part aktif: jumlah, IID terbesar, dan waktu tambah / ubah terakhir (daftar yang diganti / dipulihkan)
         $parts = $event->type === self::PRE
-            ? $db->table(self::PART_TABLE)->where('EVENT_ID', $event->id)->selectRaw('COUNT(*) as n, MAX(IID) as last')->first()
+            ? FacdbtTable::active($db, self::PART_TABLE)
+                ->where('IEVENTID', $event->id)
+                ->selectRaw('COUNT(*) as n, MAX(IID) as last, MAX(COALESCE(DMODI, DCREA)) as changed')
+                ->first()
             : null;
 
-        return implode(':', [$event->id, $event->type, $parts->n ?? 0, $parts->last ?? 0]);
+        return implode(':', [$event->id, $event->type, $parts->n ?? 0, $parts->last ?? 0, $parts->changed ?? '']);
     }
 }

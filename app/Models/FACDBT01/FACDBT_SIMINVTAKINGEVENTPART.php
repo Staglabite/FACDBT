@@ -2,6 +2,7 @@
 
 namespace App\Models\FACDBT01;
 
+use App\Models\FACDBT01\Concerns\HasAuditColumns;
 use App\Services\FACDBT\TakingEvent;
 use Illuminate\Database\Eloquent\Model;
 
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class FACDBT_SIMINVTAKINGEVENTPART extends Model
 {
+    use HasAuditColumns;
+
     protected $connection = 'INV_TAKING';
     protected $table = TakingEvent::PART_TABLE;
 
@@ -20,12 +23,15 @@ class FACDBT_SIMINVTAKINGEVENTPART extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'EVENT_ID',
-        'PART_NO',
+        'IEVENTID',
+        'VPARTNO',
     ];
 
     protected $casts = [
         'IID' => 'integer',
-        'EVENT_ID' => 'integer',
+        'IEVENTID' => 'integer',
+        'DCREA' => 'datetime:Y-m-d H:i:s',
+        'DMODI' => 'datetime:Y-m-d H:i:s',
+        'DDELETE' => 'datetime:Y-m-d H:i:s',
     ];
 }

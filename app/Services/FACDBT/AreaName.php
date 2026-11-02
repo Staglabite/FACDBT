@@ -3,7 +3,7 @@
 namespace App\Services\FACDBT;
 
 /**
- * Nama area dari SIM_INV_GROUP_LOCATION.location_group, dengan beberapa group digabung menjadi satu area.
+ * Nama area dari Master Group Location (FACDBT_MSHGROUPLOCATIONS.VLOCGROUP), dengan beberapa group digabung menjadi satu area.
  * Dipakai semua dashboard FACDBT04 supaya area yang ditampilkan dan difilter selalu sama.
  */
 class AreaName

@@ -129,15 +129,15 @@ abstract class VarianceDashboardService
     }
 
     /**
-     * @return array<string, string> [part_no => inventory_part_description]
+     * @return array<string, string> [Part No => deskripsi part Master Part]
      */
     protected function partNames($db): array
     {
-        return $this->dashboardCache('FACDBT04:part-names:v1', function () use ($db) {
-            return $db->table('SIM_INV_PART_TEST')
-                ->select('part_no', 'inventory_part_description')
+        return $this->dashboardCache('FACDBT04:part-names:v2', function () use ($db) {
+            return FacdbtTable::active($db, FacdbtTable::PARTS)
+                ->select('VPARTNO', 'VPARTDESC')
                 ->get()
-                ->mapWithKeys(fn ($r) => [(string) $r->part_no => trim((string) $r->inventory_part_description) ?: 'UNKNOWN'])
+                ->mapWithKeys(fn ($r) => [(string) $r->VPARTNO => trim((string) $r->VPARTDESC) ?: 'UNKNOWN'])
                 ->all();
         });
     }

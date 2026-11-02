@@ -2,18 +2,21 @@
 
 namespace App\Models\FACDBT04;
 
-use App\Services\FACDBT\SchemaCheck;
+use App\Models\FACDBT01\Concerns\HasAuditColumns;
+use App\Services\FACDBT\FacdbtTable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * History hasil taking per (location_no, part_no, LOT_BATCH_NO) per periode taking.
+ * History hasil taking per (Location No, Part No, Lot Batch No) per periode taking (FACDBT_HISTAKINGDATAS).
  * Diisi oleh App\Services\FACDBT\TakingHistoryService saat periode taking ditutup.
  */
 class FACDBT_SIMINVTAKINGDATAHISTORY extends Model
 {
+    use HasAuditColumns;
+
     protected $connection = 'INV_TAKING';
-    protected $table = 'SIM_INV_TAKING_DATA_HISTORY';
+    protected $table = FacdbtTable::HISTORY;
 
     protected $primaryKey = 'IID';
     public $incrementing = true;
@@ -25,51 +28,43 @@ class FACDBT_SIMINVTAKINGDATAHISTORY extends Model
 
     protected $casts = [
         'IID' => 'integer',
-        'TAKING_DATE' => 'date:Y-m-d',
-        'CLOSE_DATE' => 'date:Y-m-d',
-        'MONTH' => 'integer',
-        'YEAR' => 'integer',
-        'time' => 'datetime:Y-m-d H:i:s',
-        'qty_book' => 'float',
-        'qty_taking' => 'float',
-        'qty_variance' => 'float',
-        'mat_cost' => 'float',
-        'lab_cost' => 'float',
-        'foh_cost' => 'float',
-        'amount_book' => 'float',
-        'amount_taking' => 'float',
-        'amount_variance' => 'float',
-        'item_book' => 'integer',
-        'item_taking' => 'integer',
-        'CREATED_DATETIME' => 'datetime:Y-m-d H:i:s',
+        'DTAKINGDATE' => 'date:Y-m-d',
+        'DCLOSEDATE' => 'date:Y-m-d',
+        'IMONTH' => 'integer',
+        'IYEAR' => 'integer',
+        'DTAKINGTIME' => 'datetime:Y-m-d H:i:s',
+        'NQTYBOOK' => 'float',
+        'NQTYTAKING' => 'float',
+        'NQTYVARIANCE' => 'float',
+        'MMATCOST' => 'float',
+        'MLABCOST' => 'float',
+        'MFOHCOST' => 'float',
+        'MAMOUNTBOOK' => 'float',
+        'MAMOUNTTAKING' => 'float',
+        'MAMOUNTVARIANCE' => 'float',
+        'DCREA' => 'datetime:Y-m-d H:i:s',
+        'DMODI' => 'datetime:Y-m-d H:i:s',
+        'DDELETE' => 'datetime:Y-m-d H:i:s',
     ];
 
     /**
-     * Filter periode Year -> Month -> Event (TAKING_DATE). Nilai kosong = tidak difilter.
+     * Filter periode Year -> Month -> Taking (DTAKINGDATE). Nilai kosong = tidak difilter.
      */
     public function scopeForPeriod(Builder $query, $year = null, $month = null, $takingDate = null): Builder
     {
         return $query
-            ->when($year, fn ($q) => $q->where('YEAR', (int) $year))
-            ->when($month, fn ($q) => $q->where('MONTH', (int) $month))
-            ->when($takingDate, fn ($q) => $q->whereDate('TAKING_DATE', $takingDate));
+            ->when($year, fn ($q) => $q->where('IYEAR', (int) $year))
+            ->when($month, fn ($q) => $q->where('IMONTH', (int) $month))
+            ->when($takingDate, fn ($q) => $q->whereDate('DTAKINGDATE', $takingDate));
     }
 
     /**
-     * Filter jenis event (Master Event, kolom EVENT_TYPE). Kosong / kolom belum ada = tidak difilter.
+     * Filter jenis event (Master Event, kolom VEVENTTYPE). Kosong = tidak difilter.
      */
     public function scopeForEvent(Builder $query, $eventType = null): Builder
     {
         $eventType = strtoupper(trim((string) $eventType));
 
-        return $query->when($eventType !== '' && $this->hasEventColumn(), fn ($q) => $q->where('EVENT_TYPE', $eventType));
-    }
-
-    /**
-     * Kolom EVENT_TYPE ditambahkan oleh docs/FACDBT/sim_inv_taking_event.sql.
-     */
-    public function hasEventColumn(): bool
-    {
-        return SchemaCheck::hasColumn($this->getConnection(), $this->getTable(), 'EVENT_TYPE');
+        return $query->when($eventType !== '', fn ($q) => $q->where('VEVENTTYPE', $eventType));
     }
 }

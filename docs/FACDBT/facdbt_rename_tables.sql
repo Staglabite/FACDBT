@@ -92,8 +92,14 @@ CREATE TABLE FACDBT_MSHUNITCOSTS (
     KEY idx_mshunitcosts_partno (VPARTNO)
 );
 
+-- Kolom angka lama bisa berupa teks (mis. on_hand_qty kosong / '1,234'): kosong -> NULL, koma ribuan dibuang
 INSERT INTO FACDBT_MSHUNITCOSTS (IID, VPARTNO, VPARTDESC, VUOM, VACCGROUP, NONHANDQTY, MMATCOST, MLABCOST, MFOHCOST, VCREA, DCREA)
-SELECT id, part_no, inventory_part_description, inventory_uom, accounting_group, on_hand_qty, mat_cost, lab_cost, foh_cost, 'MIGRASI', NOW()
+SELECT id, part_no, inventory_part_description, inventory_uom, accounting_group,
+       NULLIF(TRIM(REPLACE(on_hand_qty, ',', '')), ''),
+       NULLIF(TRIM(REPLACE(mat_cost, ',', '')), ''),
+       NULLIF(TRIM(REPLACE(lab_cost, ',', '')), ''),
+       NULLIF(TRIM(REPLACE(foh_cost, ',', '')), ''),
+       'MIGRASI', NOW()
 FROM SIM_INV_UNIT_COST_TEST;
 
 -- ---------------------------------------------------------------------

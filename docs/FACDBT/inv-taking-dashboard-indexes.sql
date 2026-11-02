@@ -7,14 +7,10 @@
 -- Cek dulu index yang sudah ada (bisa jadi kolomnya sudah ter-index dengan nama lain):
 --   SHOW INDEX FROM SIM_INV_TAKING_BOOK_TAB;
 --   SHOW INDEX FROM SIM_INV_TAKING_DATA_TAB;
---   SHOW INDEX FROM SIM_INV_UNIT_COST_TEST;
---   SHOW INDEX FROM SIM_INV_GROUP_LOCATION;
 --
 -- Rollback (bila perlu):
 --   ALTER TABLE SIM_INV_TAKING_BOOK_TAB DROP INDEX idx_book_invlist_created;
 --   ALTER TABLE SIM_INV_TAKING_DATA_TAB DROP INDEX idx_taking_created;
---   ALTER TABLE SIM_INV_UNIT_COST_TEST  DROP INDEX idx_unitcost_part;
---   ALTER TABLE SIM_INV_GROUP_LOCATION  DROP INDEX idx_grouploc_location;
 -- =====================================================================
 
 DROP PROCEDURE IF EXISTS facdbt_add_index_if_missing;
@@ -40,8 +36,6 @@ CALL facdbt_add_index_if_missing('SIM_INV_TAKING_BOOK_TAB', 'idx_book_invlist_cr
 -- Taking: semua dashboard memfilter rentang CREATED_DATETIME (kumulatif s/d jam slot)
 CALL facdbt_add_index_if_missing('SIM_INV_TAKING_DATA_TAB', 'idx_taking_created', '`CREATED_DATETIME`');
 
--- Master yang di-join / dikelompokkan per part & lokasi
-CALL facdbt_add_index_if_missing('SIM_INV_UNIT_COST_TEST', 'idx_unitcost_part', '`part_no`');
-CALL facdbt_add_index_if_missing('SIM_INV_GROUP_LOCATION', 'idx_grouploc_location', '`LOCATION_NO`');
+-- Index master (Part No / Location No) sudah dibuat bersama tabelnya di facdbt_rename_tables.sql
 
 DROP PROCEDURE IF EXISTS facdbt_add_index_if_missing;

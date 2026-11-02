@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
 use App\Services\FACDBT\AreaName;
+use App\Services\FACDBT\FacdbtTable;
 use App\Services\FACDBT\RunningTakingPeriod;
 use App\Services\FACDBT\TakingEvent;
 use App\Http\Controllers\Controller;
@@ -90,17 +91,17 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Subquery: 1 baris per part_no dengan flag is_oil (inventory_uom = ml).
+     * Subquery: 1 baris per Part No (alias part_no) dengan flag is_oil (VUOM Master Unit Cost = ml).
      * Di-group supaya join tidak menggandakan baris / SUM(QUANTITY).
      */
     private function oilPartsSub($db)
     {
-        return $db->table('SIM_INV_UNIT_COST_TEST')
+        return FacdbtTable::active($db, FacdbtTable::UNIT_COSTS)
             ->select(
-                'part_no',
-                DB::raw("MAX(CASE WHEN LOWER(inventory_uom) = 'ml' THEN 1 ELSE 0 END) as is_oil")
+                'VPARTNO as part_no',
+                DB::raw("MAX(CASE WHEN LOWER(VUOM) = 'ml' THEN 1 ELSE 0 END) as is_oil")
             )
-            ->groupBy('part_no');
+            ->groupBy('VPARTNO');
     }
 
     /**
@@ -122,7 +123,7 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * Pemetaan lokasi -> daftar area (location_group dari SIM_INV_GROUP_LOCATION).
+     * Pemetaan lokasi -> daftar area (VLOCGROUP dari Master Group Location).
      * Lokasi di lebih dari satu group masuk ke semua group-nya. Dikerjakan di PHP karena
      * join dengan TRIM() di SQL membuat index tidak terpakai.
      *
@@ -130,11 +131,11 @@ class FACDBTD001 extends Controller
      */
     private function locationAreaMap($db): array
     {
-        return $this->dashboardCache('FACDBTD001:location-area-map:v4', function () use ($db) {
+        return $this->dashboardCache('FACDBTD001:location-area-map:v5', function () use ($db) {
             $map = [];
-            foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->get() as $r) {
-                $loc   = trim((string) $r->LOCATION_NO);
-                $group = AreaName::of($r->location_group);
+            foreach (FacdbtTable::active($db, FacdbtTable::GROUP_LOCATIONS)->select('VLOCATIONNO', 'VLOCGROUP')->get() as $r) {
+                $loc   = trim((string) $r->VLOCATIONNO);
+                $group = AreaName::of($r->VLOCGROUP);
                 $map[$loc][$group === '' ? '' : $group] = $group === '' ? null : $group;
             }
 
@@ -144,7 +145,7 @@ class FACDBTD001 extends Controller
 
     /**
      * Label area untuk chart progress by area.
-     * - Part oil (inventory_uom = ml) di lokasi / group PPC  -> 'PPC-OIL'
+     * - Part oil (VUOM Master Unit Cost = ml) di lokasi / group PPC  -> 'PPC-OIL'
      * - Part oil lainnya                                     -> 'OIL <location_group>'
      * - Part non-oil                                         -> '<location_group>'
      * Lokasi tanpa group -> 'UNKNOWN'.
@@ -433,10 +434,10 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:area:v12:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:area:v13:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
         $result = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo) {
-            // 1 baris per (area, part). Part oil (inventory_uom = ml) dipisah per part ke area
+            // 1 baris per (area, part). Part oil (VUOM Master Unit Cost = ml) dipisah per part ke area
             // 'OIL <location_group>' / 'PPC-OIL' (lihat areaLabel), karena satu lokasi bisa berisi
             // part oil dan non-oil sekaligus.
             $bookRows = $this->bookPerAreaPart($db, $takingDate, $closeDate, $latestInvListNo);
@@ -477,10 +478,10 @@ class FACDBTD001 extends Controller
             $partsData = [];
             $oilData   = [];
 
-            // Daftar area diambil dari MASTER (SIM_INV_GROUP_LOCATION.location_group), bukan hanya dari
+            // Daftar area diambil dari MASTER (Master Group Location VLOCGROUP), bukan hanya dari
             // data book, supaya semua area tetap tampil (0% bila belum ada data book).
             $grouped      = $bookRows->groupBy('area_label');
-            $allAreaNames = AreaName::list($db->table('SIM_INV_GROUP_LOCATION')->distinct()->pluck('location_group'));
+            $allAreaNames = AreaName::list(FacdbtTable::active($db, FacdbtTable::GROUP_LOCATIONS)->distinct()->pluck('VLOCGROUP'));
             $areaNames = array_values(array_unique(array_merge($allAreaNames, $grouped->keys()->all())));
 
             foreach ($areaNames as $areaName) {
@@ -579,16 +580,16 @@ class FACDBTD001 extends Controller
     }
 
     /**
-     * @return array<string, float> [part_no => unit cost (mat + lab + foh)] dari SIM_INV_UNIT_COST_TEST.
+     * @return array<string, float> [part_no => unit cost (mat + lab + foh)] dari Master Unit Cost.
      * UNIT_COST di book tidak dipakai.
      */
     private function varianceUnitCosts($db): array
     {
-        return $this->dashboardCache('FACDBT04:unit-costs:v1', function () use ($db) {
-            return $db->table('SIM_INV_UNIT_COST_TEST')
-                ->groupBy('part_no')
-                ->select('part_no', DB::raw('MAX(COALESCE(mat_cost, 0) + COALESCE(lab_cost, 0) + COALESCE(foh_cost, 0)) as unit_cost'))
-                ->pluck('unit_cost', 'part_no')
+        return $this->dashboardCache('FACDBT04:unit-costs:v2', function () use ($db) {
+            return FacdbtTable::active($db, FacdbtTable::UNIT_COSTS)
+                ->groupBy('VPARTNO')
+                ->select('VPARTNO', DB::raw('MAX(COALESCE(MMATCOST, 0) + COALESCE(MLABCOST, 0) + COALESCE(MFOHCOST, 0)) as unit_cost'))
+                ->pluck('unit_cost', 'VPARTNO')
                 ->map(fn ($v) => (float) $v)
                 ->all();
         });
@@ -599,16 +600,16 @@ class FACDBTD001 extends Controller
      */
     private function variancePartGroups($db): array
     {
-        return $this->dashboardCache('FACDBTD001:part-groups:v3', function () use ($db) {
+        return $this->dashboardCache('FACDBTD001:part-groups:v4', function () use ($db) {
             $map = [];
-            foreach ($db->table('SIM_INV_PART_TEST')->select('part_no', 'seg', 'accounting_group')->get() as $r) {
-                $partGroup = strtoupper(trim((string) $r->seg));
-                $accGroup  = strtoupper(trim((string) $r->accounting_group));
+            foreach (FacdbtTable::active($db, FacdbtTable::PARTS)->select('VPARTNO', 'VSEG', 'VACCGROUP')->get() as $r) {
+                $partGroup = strtoupper(trim((string) $r->VSEG));
+                $accGroup  = strtoupper(trim((string) $r->VACCGROUP));
                 // WIP-M digabung ke WIP (kotak di dashboard hanya RM / WIP / FG)
                 if (str_starts_with($accGroup, 'WIP-')) {
                     $accGroup = 'WIP';
                 }
-                $map[$r->part_no] = [$partGroup !== '' ? $partGroup : 'OTHERS', $accGroup !== '' ? $accGroup : 'OTHERS'];
+                $map[$r->VPARTNO] = [$partGroup !== '' ? $partGroup : 'OTHERS', $accGroup !== '' ? $accGroup : 'OTHERS'];
             }
 
             return $map;
@@ -700,10 +701,10 @@ class FACDBTD001 extends Controller
     /**
      * Endpoint untuk Chart Variance (Nett & Absolute Variance).
      * Variance dihitung per (lokasi, part): amount = (qty taking - qty book) x unit cost,
-     * unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh); UNIT_COST di book tidak dipakai.
+     * unit cost dari Master Unit Cost (mat + lab + foh); UNIT_COST di book tidak dipakai.
      * - Nett variance     : jumlah amount
      * - Absolute variance : jumlah ABS(amount)
-     * Dikelompokkan per seg (4W / 2W) dan accounting_group (RM / WIP / FG) dari SIM_INV_PART_TEST.
+     * Dikelompokkan per seg (4W / 2W) dan accounting group (RM / WIP / FG) dari Master Part.
      * Taking hanya yang di-scan di rentang filter waktu (sama seperti chart progress by area).
      * Filter interaktif: `area`, `seg`, `acc` (lihat varianceSummary()).
      */
@@ -718,7 +719,7 @@ class FACDBTD001 extends Controller
 
         [$takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo] = $period;
 
-        $cacheKey = "FACDBTD001:variance:v8:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
+        $cacheKey = "FACDBTD001:variance:v9:{$takingDate}:{$closeDate}:{$latestInvListNo}:{$takingFrom}:{$takingTo}";
 
         // Baris dasar per (label area, seg, acc) supaya filter interaktif cukup dihitung di PHP
         $rows = $this->dashboardCache($cacheKey, function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo, $latestInvListNo) {

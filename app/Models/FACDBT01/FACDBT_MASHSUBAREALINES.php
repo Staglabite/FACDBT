@@ -70,7 +70,7 @@ class FACDBT_MASHSUBAREALINES extends BaseModel
 
     /**
      * Relasi ke model FACDBT_MSHLOCATION (Tabel Location Utama)
-     * Mengikat VLOCNO di tabel ini dengan location_no di tabel SIM_INV_LOCATION_TEST.
+     * Mengikat VLOCNO di tabel ini dengan VLOCATIONNO di tabel FACDBT_MSHLOCATIONS.
      */
     public function location()
     {

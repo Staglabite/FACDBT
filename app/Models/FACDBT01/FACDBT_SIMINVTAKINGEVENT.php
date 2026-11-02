@@ -2,14 +2,17 @@
 
 namespace App\Models\FACDBT01;
 
+use App\Models\FACDBT01\Concerns\HasAuditColumns;
 use App\Services\FACDBT\TakingEvent;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Master Event (FACDBTF006): jenis taking per periode (TAKING_DATE di SIM_INV_TAKING_CONCLUDING_TAB).
+ * Master Event (FACDBTF006): jenis taking per periode (DTAKINGDATE = TAKING_DATE di SIM_INV_TAKING_CONCLUDING_TAB).
  */
 class FACDBT_SIMINVTAKINGEVENT extends Model
 {
+    use HasAuditColumns;
+
     protected $connection = 'INV_TAKING';
     protected $table = TakingEvent::TABLE;
 
@@ -20,25 +23,24 @@ class FACDBT_SIMINVTAKINGEVENT extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'TAKING_DATE',
-        'EVENT_TYPE',
-        'DESCRIPTION',
-        'CREATED_BY',
-        'CREATED_DATETIME',
-        'MODIFIED_BY',
-        'MODIFIED_DATETIME',
+        'DTAKINGDATE',
+        'VEVENTTYPE',
+        'VDESC',
     ];
 
     protected $casts = [
         'IID' => 'integer',
-        'TAKING_DATE' => 'date:Y-m-d',
+        'DTAKINGDATE' => 'date:Y-m-d',
+        'DCREA' => 'datetime:Y-m-d H:i:s',
+        'DMODI' => 'datetime:Y-m-d H:i:s',
+        'DDELETE' => 'datetime:Y-m-d H:i:s',
     ];
 
     /**
-     * Daftar part Pre-Taking.
+     * Daftar part Pre-Taking (yang belum dihapus).
      */
     public function parts()
     {
-        return $this->hasMany(FACDBT_SIMINVTAKINGEVENTPART::class, 'EVENT_ID', 'IID');
+        return $this->hasMany(FACDBT_SIMINVTAKINGEVENTPART::class, 'IEVENTID', 'IID');
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
 use App\Http\Controllers\Controller;
+use App\Services\FACDBT\FacdbtTable;
 use App\Services\FACDBT\RunningTakingPeriod;
 use App\Services\FACDBT\TakingDataVersion;
 use App\Services\FACDBT\TakingEvent;
@@ -38,7 +39,7 @@ class DashboardDataVersion extends Controller
     public static function runningEvent(): array
     {
         return Cache::store(config('cache.dashboard_store', 'file'))
-            ->remember('FACDBT04:running-event:v2', TakingDataVersion::VERSION_TTL, function () {
+            ->remember('FACDBT04:running-event:v3', TakingDataVersion::VERSION_TTL, function () {
                 $db    = DB::connection('INV_TAKING');
                 $event = TakingEvent::forPeriod($db, RunningTakingPeriod::find($db));
 
@@ -46,7 +47,7 @@ class DashboardDataVersion extends Controller
                     'type'          => $event?->type,
                     'name'          => $event?->name(),
                     'missing_parts' => $event?->type === TakingEvent::PRE
-                        && !$db->table(TakingEvent::PART_TABLE)->where('EVENT_ID', $event->id)->exists(),
+                        && !FacdbtTable::active($db, TakingEvent::PART_TABLE)->where('IEVENTID', $event->id)->exists(),
                 ];
             });
     }

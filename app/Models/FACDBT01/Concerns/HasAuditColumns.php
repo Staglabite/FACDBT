@@ -76,6 +76,14 @@ trait HasAuditColumns
     }
 
     /**
+     * Catat perubahan (VMODI / DMODI) tanpa mengubah kolom lain, mis. saat daftar detailnya diganti.
+     */
+    public function touchAudit(): void
+    {
+        $this->forceFill(['VMODI' => FacdbtTable::user(), 'DMODI' => now()])->saveQuietly();
+    }
+
+    /**
      * Soft delete massal berdasarkan primary key.
      */
     public static function softDeleteKeys(array $keys): int

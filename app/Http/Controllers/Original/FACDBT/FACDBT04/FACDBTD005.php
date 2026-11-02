@@ -11,7 +11,7 @@ use App\Services\FACDBT\TakingHistoryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
-// History Taking: hasil taking periode yang sudah ditutup (SIM_INV_TAKING_DATA_HISTORY)
+// History Taking: hasil taking periode yang sudah ditutup (FACDBT_HISTAKINGDATAS)
 class FACDBTD005 extends Controller
 {
     public function index(FACDBTD005DataTable $dataTable, TakingHistoryService $history)
@@ -36,38 +36,35 @@ class FACDBTD005 extends Controller
 
     /**
      * Daftar periode di history untuk filter Year -> Month -> Taking, dan pilihan filter Event (Master Event).
-     * Taking = satu periode taking (TAKING_DATE); satu bulan bisa punya lebih dari satu taking.
+     * Taking = satu periode taking (DTAKINGDATE); satu bulan bisa punya lebih dari satu taking.
      */
     public function getFilters()
     {
-        $hasEvent = (new TakingHistory)->hasEventColumn();
-
         $periods = TakingHistory::query()
-            ->select('YEAR', 'MONTH', 'TAKING_DATE', 'CLOSE_DATE')
-            ->when($hasEvent, fn ($q) => $q->addSelect('EVENT_TYPE'))
+            ->select('IYEAR', 'IMONTH', 'DTAKINGDATE', 'DCLOSEDATE', 'VEVENTTYPE')
             ->distinct()
-            ->orderByDesc('YEAR')
-            ->orderByDesc('MONTH')
-            ->orderBy('TAKING_DATE')
+            ->orderByDesc('IYEAR')
+            ->orderByDesc('IMONTH')
+            ->orderBy('DTAKINGDATE')
             ->toBase()
             ->get();
 
         $events = [];
-        foreach ($periods->groupBy(fn ($p) => $p->YEAR . '-' . $p->MONTH) as $items) {
+        foreach ($periods->groupBy(fn ($p) => $p->IYEAR . '-' . $p->IMONTH) as $items) {
             foreach ($items->values() as $i => $p) {
-                $taking = Carbon::parse($p->TAKING_DATE);
-                $close  = Carbon::parse($p->CLOSE_DATE);
+                $taking = Carbon::parse($p->DTAKINGDATE);
+                $close  = Carbon::parse($p->DCLOSEDATE);
                 $range  = $taking->isSameDay($close)
                     ? $taking->format('j M')
                     : $taking->format('j') . '–' . $close->format('j M');
 
-                $event = TakingEvent::TYPES[$p->EVENT_TYPE ?? ''] ?? null;
+                $event = TakingEvent::TYPES[$p->VEVENTTYPE ?? ''] ?? null;
 
                 $events[] = [
-                    'year'        => (int) $p->YEAR,
-                    'month'       => (int) $p->MONTH,
+                    'year'        => (int) $p->IYEAR,
+                    'month'       => (int) $p->IMONTH,
                     'taking_date' => $taking->toDateString(),
-                    'event_type'  => $p->EVENT_TYPE ?? null,
+                    'event_type'  => $p->VEVENTTYPE ?? null,
                     'label'       => 'Taking ' . ($i + 1) . ' · ' . $range . ($event ? " · {$event}" : ''),
                 ];
             }
@@ -75,8 +72,7 @@ class FACDBTD005 extends Controller
 
         return response()->json([
             'events'      => $events,
-            // Filter Event hanya tampil bila kolom EVENT_TYPE sudah ada
-            'event_types' => $hasEvent ? TakingEvent::TYPES : [],
+            'event_types' => TakingEvent::TYPES,
         ]);
     }
 
@@ -94,11 +90,11 @@ class FACDBTD005 extends Controller
                 ->forPeriod($request->input('year'), $request->input('month'), $request->input('taking_date'))
                 ->forEvent($request->input('event_type'))
                 ->when($keyword !== '', fn ($q) => $q->whereAny([
-                    'location_no', 'location_group', 'area', 'warehouse', 'part_no', 'part_name', 'LOT_BATCH_NO',
+                    'VLOCATIONNO', 'VLOCGROUP', 'VAREA', 'VWAREHOUSE', 'VPARTNO', 'VPARTNAME', 'VLOTBATCHNO',
                 ], 'LIKE', "%{$keyword}%")))
-            ->orderByDesc('TAKING_DATE')
-            ->orderBy('location_no')
-            ->orderBy('part_no')
+            ->orderByDesc('DTAKINGDATE')
+            ->orderBy('VLOCATIONNO')
+            ->orderBy('VPARTNO')
             ->orderBy('IID');
 
         return Export::download($query);
