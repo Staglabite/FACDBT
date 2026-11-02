@@ -33,12 +33,12 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
         'location_group',
     ];
 
-    // Mapping kolom Excel ke kolom tabel SIM_INV_GROUP_LOCATION
+    // Mapping kolom Excel ke kolom tabel FACDBT_MSHGROUPLOCATIONS
     protected $columnMap = [
-        'location_no' => 'LOCATION_NO',
-        'id_loc' => 'ID_LOC',
-        'location_group' => 'location_group',
-        'stream' => 'stream',
+        'location_no' => 'VLOCATIONNO',
+        'id_loc' => 'VIDLOC',
+        'location_group' => 'VLOCGROUP',
+        'stream' => 'VSTREAM',
     ];
 
     public function startRow(): int
@@ -95,7 +95,7 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
                 return $data;
             })
             // Baris berulang disimpan sekali; stream memakai baris terakhir
-            ->keyBy(fn ($data) => mb_strtolower(implode('|', [$data['LOCATION_NO'], $data['ID_LOC'], $data['location_group']])))
+            ->keyBy(fn ($data) => mb_strtolower(implode('|', [$data['VLOCATIONNO'], $data['VIDLOC'], $data['VLOCGROUP']])))
             ->values()
             ->toArray();
     }

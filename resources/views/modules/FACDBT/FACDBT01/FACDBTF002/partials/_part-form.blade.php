@@ -20,21 +20,21 @@
 
                             <!-- Part No -->
                             <div class="mb-3">
-                                <label for="part_no" class="form-label">Part No</label>
-                                <input type="text" class="form-control" id="part_no" name="part_no" required
+                                <label for="VPARTNO" class="form-label">Part No</label>
+                                <input type="text" class="form-control" id="VPARTNO" name="VPARTNO" required
                                     aria-required="true" autofocus>
                             </div>
 
                             <!-- Inventory Part Description -->
                             <div class="mb-3">
-                                <label for="inventory_part_description" class="form-label">Inventory Part Description</label>
-                                <input type="text" class="form-control" id="inventory_part_description" name="inventory_part_description">
+                                <label for="VPARTDESC" class="form-label">Inventory Part Description</label>
+                                <input type="text" class="form-control" id="VPARTDESC" name="VPARTDESC">
                             </div>
 
                             <!-- Accounting Group -->
                             <div class="mb-3">
-                                <label for="accounting_group" class="form-label">Accounting Group</label>
-                                <input type="text" class="form-control" id="accounting_group" name="accounting_group">
+                                <label for="VACCGROUP" class="form-label">Accounting Group</label>
+                                <input type="text" class="form-control" id="VACCGROUP" name="VACCGROUP">
                             </div>
 
                         </div>
@@ -44,20 +44,20 @@
 
                             <!-- Seg -->
                             <div class="mb-3">
-                                <label for="seg" class="form-label">Seg</label>
-                                <input type="text" class="form-control" id="seg" name="seg">
+                                <label for="VSEG" class="form-label">Seg</label>
+                                <input type="text" class="form-control" id="VSEG" name="VSEG">
                             </div>
 
                             <!-- Prod Group -->
                             <div class="mb-3">
-                                <label for="prod_group" class="form-label">Prod Group</label>
-                                <input type="text" class="form-control" id="prod_group" name="prod_group">
+                                <label for="VPRODGROUP" class="form-label">Prod Group</label>
+                                <input type="text" class="form-control" id="VPRODGROUP" name="VPRODGROUP">
                             </div>
 
                             <!-- Part Group -->
                             <div class="mb-3">
-                                <label for="part_group" class="form-label">Part Group</label>
-                                <input type="text" class="form-control" id="part_group" name="part_group">
+                                <label for="VPARTGROUP" class="form-label">Part Group</label>
+                                <input type="text" class="form-control" id="VPARTGROUP" name="VPARTGROUP">
                             </div>
 
                         </div>

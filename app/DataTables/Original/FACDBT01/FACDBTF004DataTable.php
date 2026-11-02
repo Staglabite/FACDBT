@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Original\FACDBT01;
 
+use App\Services\FACDBT\FacdbtTable;
 use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_SIMINVTAKINGBOOKTAB as TakingBook; // Mengambil model Taking Book
 use App\Traits\DataTableTrait;
@@ -40,12 +41,12 @@ class FACDBTF004DataTable extends DataTable
                     // Pencarian teks disesuaikan dengan kolom-kolom utama pada Taking Book
                     $query->whereAny([
                         'b.PART_NO',
-                        'p.inventory_part_description',
+                        'p.VPARTDESC',
                         'b.LOCATION_NO',
-                        'l.location_description',
+                        'l.VLOCDESC',
                         'b.LOT_BATCH_NO',
                         'b.WAREHOUSE',
-                        'l.location_group',
+                        'l.VLOCGROUP',
                     ], 'LIKE', "%{$keyword}%");
                 }
             });
@@ -69,23 +70,23 @@ class FACDBTF004DataTable extends DataTable
         }
 
         // 2. Filter query DataTable hanya untuk INV_LIST_NO terbaru tersebut.
-        //    Deskripsi part dari SIM_INV_PART_TEST, nama & group lokasi dari SIM_INV_LOCATION_TEST.
+        //    Deskripsi part dari Master Part, nama & group lokasi dari Master Location (yang belum dihapus).
         return $model->newQuery()
             ->from('SIM_INV_TAKING_BOOK_TAB as b')
-            ->leftJoin('SIM_INV_PART_TEST as p', 'p.part_no', '=', 'b.PART_NO')
-            ->leftJoin('SIM_INV_LOCATION_TEST as l', 'l.location_no', '=', 'b.LOCATION_NO')
+            ->leftJoin(FacdbtTable::PARTS . ' as p', fn ($join) => $join->on('p.VPARTNO', '=', 'b.PART_NO')->whereNull('p.DDELETE'))
+            ->leftJoin(FacdbtTable::LOCATIONS . ' as l', fn ($join) => $join->on('l.VLOCATIONNO', '=', 'b.LOCATION_NO')->whereNull('l.DDELETE'))
             ->where('b.INV_LIST_NO', $latestInvListNo)
             ->select($select);
     }
 
     // Kolom dari tabel Part (p) dan Location (l): alias => kolom
     private const JOINED_COLUMNS = [
-        'part_description' => 'p.inventory_part_description',
-        'location_name' => 'l.location_description',
-        'accounting_group' => 'p.accounting_group',
-        'location_group' => 'l.location_group',
-        'location_group_desc' => 'l.location_group_description',
-        'product_family' => 'p.prod_group',
+        'part_description' => 'p.VPARTDESC',
+        'location_name' => 'l.VLOCDESC',
+        'accounting_group' => 'p.VACCGROUP',
+        'location_group' => 'l.VLOCGROUP',
+        'location_group_desc' => 'l.VLOCGROUPDESC',
+        'product_family' => 'p.VPRODGROUP',
     ];
 
     /**

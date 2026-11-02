@@ -22,21 +22,36 @@ class FACDBTF003 extends Controller
 
     // Kolom export CSV [kolom tabel => judul]; judul yang sama dipakai template import
     private const EXPORT_COLUMNS = [
-        'part_no' => 'Part No',
-        'inventory_part_description' => 'Description',
-        'inventory_uom' => 'UOM',
-        'accounting_group' => 'Accounting Group',
-        'on_hand_qty' => 'On Hand Qty',
-        'mat_cost' => 'Material Cost',
-        'lab_cost' => 'Labor Cost',
-        'foh_cost' => 'FOH Cost',
+        'VPARTNO' => 'Part No',
+        'VPARTDESC' => 'Description',
+        'VUOM' => 'UOM',
+        'VACCGROUP' => 'Accounting Group',
+        'NONHANDQTY' => 'On Hand Qty',
+        'MMATCOST' => 'Material Cost',
+        'MLABCOST' => 'Labor Cost',
+        'MFOHCOST' => 'FOH Cost',
+    ];
+
+    // Kolom form yang disimpan (tabel FACDBT_MSHUNITCOSTS)
+    private const FIELDS = ['VPARTNO', 'VPARTDESC', 'VUOM', 'VACCGROUP', 'NONHANDQTY', 'MMATCOST', 'MLABCOST', 'MFOHCOST'];
+
+    // Kolom hasil import (slug judul kolom Excel) => kolom tabel
+    private const IMPORT_COLUMNS = [
+        'part_no' => 'VPARTNO',
+        'inventory_part_description' => 'VPARTDESC',
+        'inventory_uom' => 'VUOM',
+        'accounting_group' => 'VACCGROUP',
+        'on_hand_qty' => 'NONHANDQTY',
+        'mat_cost' => 'MMATCOST',
+        'lab_cost' => 'MLABCOST',
+        'foh_cost' => 'MFOHCOST',
     ];
 
     public function index(FACDBTF003DataTable $dataTable)
     {
         // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
         if (request()->boolean('ids_only')) {
-            return response()->json(['ids' => $dataTable->filteredKeys('part_no')]);
+            return response()->json(['ids' => $dataTable->filteredKeys('IID')]);
         }
 
         return $dataTable->render('modules.FACDBT.FACDBT01.FACDBTF003.FACDBTF003');
@@ -44,31 +59,15 @@ class FACDBTF003 extends Controller
 
     public function store(UnitCostRequest $request)
     {
-        UnitCost::create([
-            'part_no'                    => $request->part_no,
-            'inventory_part_description' => $request->inventory_part_description,
-            'inventory_uom'              => $request->inventory_uom,
-            'accounting_group'           => $request->accounting_group,
-            'on_hand_qty'                => $request->on_hand_qty,
-            'mat_cost'                   => $request->mat_cost,
-            'lab_cost'                   => $request->lab_cost,
-            'foh_cost'                   => $request->foh_cost,
-        ]);
+        // Part No yang pernah dihapus dipulihkan dengan data baru
+        UnitCost::saveRestoring(['VPARTNO' => $request->VPARTNO], $request->only(self::FIELDS));
 
         return Response::success(message: 'Unit Cost created successfully');
     }
     
     public function show($id)
     {
-        if ($id === 'undefined' || empty($id)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid ID provided'
-            ], 400);
-        }
-
-        // Gunakan part_no sebagai acuan pencarian
-        $unitCost = UnitCost::where('part_no', $id)->first();
+        $unitCost = UnitCost::find($id);
 
         if (!$unitCost) {
             return response()->json([
@@ -85,15 +84,7 @@ class FACDBTF003 extends Controller
 
     public function update(UnitCostRequest $request, UnitCost $unitcost)
     {
-        $unitcost->update([
-            'inventory_part_description' => $request->inventory_part_description,
-            'inventory_uom'              => $request->inventory_uom,
-            'accounting_group'           => $request->accounting_group,
-            'on_hand_qty'                => $request->on_hand_qty,
-            'mat_cost'                   => $request->mat_cost,
-            'lab_cost'                   => $request->lab_cost,
-            'foh_cost'                   => $request->foh_cost,
-        ]);
+        $unitcost->update($request->only(self::FIELDS));
 
         return Response::success(message: 'Unit Cost updated successfully');
     }
@@ -113,11 +104,10 @@ class FACDBTF003 extends Controller
 
     public function destroyMultiple(Request $request)
     {
-        $ids = $request->ids;
+        $ids = (array) $request->ids;
 
         try {
-            // Asumsi menghapus berdasarkan part_no
-            UnitCost::whereIn('part_no', $ids)->delete();
+            UnitCost::softDeleteKeys($ids);
 
             return Response::success(message: 'Selected unit costs deleted successfully');
         } catch (\Throwable $th) {
@@ -133,8 +123,8 @@ class FACDBTF003 extends Controller
         $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
 
         $query = UnitCost::query()
-            ->when(!empty($ids), fn ($q) => $q->whereIn('part_no', $ids))
-            ->orderBy('part_no')->orderBy('id');
+            ->when(!empty($ids), fn ($q) => $q->whereKey($ids))
+            ->orderBy('VPARTNO')->orderBy('IID');
 
         return (new MasterDataExport($query, self::EXPORT_COLUMNS))->download('Master_Unit_Cost-' . date('YmdHis') . '.csv');
     }
@@ -169,7 +159,10 @@ class FACDBTF003 extends Controller
                 ], 400);
             }
 
-            $cleaned = $import->store();
+            $cleaned = array_map(
+                fn ($row) => array_combine(array_values(self::IMPORT_COLUMNS), array_map(fn ($column) => $row[$column] ?? null, array_keys(self::IMPORT_COLUMNS))),
+                $import->store()
+            );
             if (empty($cleaned)) {
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
@@ -179,8 +172,8 @@ class FACDBTF003 extends Controller
             $db->beginTransaction();
 
             try {
-                // part_no sudah ada -> ditimpa, belum ada -> dibuat baru
-                [$insertedCount, $updatedCount] = $this->saveImportRows(new UnitCost, $cleaned, ['part_no']);
+                // Part No sudah ada (termasuk yang pernah dihapus) -> ditimpa, belum ada -> dibuat baru
+                [$insertedCount, $updatedCount] = $this->saveImportRows(new UnitCost, $cleaned, ['VPARTNO']);
 
                 $db->commit();
 

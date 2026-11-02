@@ -2,63 +2,59 @@
 
 namespace App\Models\FACDBT01;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\FACDBT01\Concerns\HasAuditColumns;
+use App\Services\FACDBT\FacdbtTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Master Location (FACDBTF001).
+ */
 class FACDBT_MSHLOCATION extends Model
 {
     use HasFactory;
+    use HasAuditColumns;
 
     protected $connection = 'INV_TAKING';
-    protected $table = 'SIM_INV_LOCATION_TEST';
+    protected $table = FacdbtTable::LOCATIONS;
 
-    protected $primaryKey = 'location_no';
-    public $incrementing = false;
-    protected $keyType = 'string';
+    protected $primaryKey = 'IID';
+    public $incrementing = true;
+    protected $keyType = 'int';
 
     public $timestamps = false;
 
     protected $fillable = [
-        'location_no',
-        'location_group',
-        'site',
-        'warehouse',
-        'location_description',
-        'location_group_description',
+        'VLOCATIONNO',
+        'VLOCGROUP',
+        'VSITE',
+        'VWAREHOUSE',
+        'VLOCDESC',
+        'VLOCGROUPDESC',
     ];
 
     protected $casts = [
-        'location_no' => 'string',
-        'location_group' => 'string',
-        'site' => 'string',
-        'warehouse' => 'string',
-        'location_description' => 'string',
-        'location_group_description' => 'string',
+        'IID' => 'integer',
+        'DCREA' => 'datetime:Y-m-d H:i:s',
+        'DMODI' => 'datetime:Y-m-d H:i:s',
+        'DDELETE' => 'datetime:Y-m-d H:i:s',
     ];
-
-/**
-     * Alias atribut 'id' untuk menyesuaikan dengan trait Datatable bawaan
-     */
-    public function getIdAttribute()
-    {
-        return $this->location_no;
-    }
 
     /**
      * Relasi ke model FACDBT_MASHSUBAREALINES
      */
     public function lines()
     {
-        return $this->hasMany(FACDBT_MASHSUBAREALINES::class, 'VLOCNO', 'location_no');
+        return $this->hasMany(FACDBT_MASHSUBAREALINES::class, 'VLOCNO', 'VLOCATIONNO');
     }
 
     /**
      * Relasi balik ke model FACDBT_SIMINVTAKINGBOOKTAB (One to Many)
-     * 1 Location bisa digunakan di banyak transaksi Book Tab berdasarkan location_no.
+     * 1 Location bisa digunakan di banyak transaksi Book Tab berdasarkan Location No.
      */
     public function books()
     {
-        return $this->hasMany(FACDBT_SIMINVTAKINGBOOKTAB::class, 'LOCATION_NO', 'location_no');
+        return $this->hasMany(FACDBT_SIMINVTAKINGBOOKTAB::class, 'LOCATION_NO', 'VLOCATIONNO');
     }
 
     /**
@@ -66,7 +62,7 @@ class FACDBT_MSHLOCATION extends Model
      */
     public function revisions()
     {
-        return $this->hasMany(FACDBT_SIMINVTAKINGDATAREVISIONTAB::class, 'LOCATION_NO', 'location_no');
+        return $this->hasMany(FACDBT_SIMINVTAKINGDATAREVISIONTAB::class, 'LOCATION_NO', 'VLOCATIONNO');
     }
 
     /**
@@ -74,15 +70,15 @@ class FACDBT_MSHLOCATION extends Model
      */
     public function takingData()
     {
-        return $this->hasMany(FACDBT_SIMINVTAKINGDATATAB::class, 'LOCATION_NO', 'location_no');
+        return $this->hasMany(FACDBT_SIMINVTAKINGDATATAB::class, 'LOCATION_NO', 'VLOCATIONNO');
     }
 
     /**
      * Relasi balik ke model FACDBT_SIMINVGROUPLOCATION (One to Many)
-     * 1 Location bisa terdaftar di banyak Group Location berdasarkan location_no.
+     * 1 Location bisa terdaftar di banyak Group Location berdasarkan Location No.
      */
     public function groupLocations()
     {
-        return $this->hasMany(FACDBT_SIMINVGROUPLOCATION::class, 'LOCATION_NO', 'location_no');
+        return $this->hasMany(FACDBT_SIMINVGROUPLOCATION::class, 'VLOCATIONNO', 'VLOCATIONNO');
     }
 }

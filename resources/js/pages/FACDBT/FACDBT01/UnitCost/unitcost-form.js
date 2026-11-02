@@ -3,7 +3,7 @@ import { _formToJson, _showInvalidError, toast } from '../../../../helpers';
 
 export default class UnitCostForm {
     // global variables
-    #unitCostId = null; // using part_no as the primary identifier
+    #unitCostId = null; // IID
     #unitCostModal = new window.bootstrap.Modal(document.getElementById('unitcost-modal'));
     #unitCostForm = document.getElementById('unitcost-form');
     #onSuccessCallback = null;
@@ -25,12 +25,12 @@ export default class UnitCostForm {
         if (unitCostId === null) {
             // New Unit Cost
             $('#unitcost-title').text('Add Unit Cost');
-            $('#part_no').prop('readonly', false); // Allow editing part_no on create
+            $('#VPARTNO').prop('readonly', false); // Part No bisa diisi saat tambah
             this.#unitCostModal.show();
         } else {
             // Edit Unit Cost
             $('#unitcost-title').text('Edit Unit Cost');
-            $('#part_no').prop('readonly', true); // Prevent editing primary key on update
+            $('#VPARTNO').prop('readonly', true); // Location No / Part No tidak diubah saat edit
             this.#getUnitCostData();
             this.#unitCostModal.show();
         }
@@ -50,14 +50,14 @@ export default class UnitCostForm {
                 const data = response.data.data;
                 
                 // Map the form IDs to the data keys returned from UnitCost Model
-                $('#part_no').val(data.part_no);
-                $('#inventory_part_description').val(data.inventory_part_description);
-                $('#inventory_uom').val(data.inventory_uom);
-                $('#accounting_group').val(data.accounting_group);
-                $('#on_hand_qty').val(data.on_hand_qty);
-                $('#mat_cost').val(data.mat_cost);
-                $('#lab_cost').val(data.lab_cost);
-                $('#foh_cost').val(data.foh_cost);
+                $('#VPARTNO').val(data.VPARTNO);
+                $('#VPARTDESC').val(data.VPARTDESC);
+                $('#VUOM').val(data.VUOM);
+                $('#VACCGROUP').val(data.VACCGROUP);
+                $('#NONHANDQTY').val(data.NONHANDQTY);
+                $('#MMATCOST').val(data.MMATCOST);
+                $('#MLABCOST').val(data.MLABCOST);
+                $('#MFOHCOST').val(data.MFOHCOST);
             })
             .catch(error => {
                 toast.error('Failed to fetch unit cost data');

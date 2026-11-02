@@ -29,24 +29,24 @@ class FACDBTF002DataTable extends DataTable
     {
         return (new EloquentDataTable($query))
             ->addColumn('checkbox', function ($row) {
-                // Menggunakan part_no sebagai value dari checkbox
-                return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->part_no . '">';
+                // IID sebagai value dari checkbox
+                return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->IID . '">';
             })
             ->addColumn('action', fn($data) => $this->getActionButton($data))
             ->rawColumns(['checkbox', 'action'])
-            ->setRowId('part_no') // Menggunakan part_no sebagai Row ID
+            ->setRowId('IID') // IID sebagai Row ID
             ->filter(function ($query) {
                 $keyword = request('keyword');
 
                 if (! empty($keyword)) {
                     // Menggunakan LIKE (atau ILIKE jika database mendukungnya) untuk pencarian teks
                     $query->whereAny([
-                        'part_no', 
-                        'inventory_part_description', 
-                        'accounting_group', 
-                        'seg', 
-                        'prod_group', 
-                        'part_group'
+                        'VPARTNO', 
+                        'VPARTDESC', 
+                        'VACCGROUP', 
+                        'VSEG', 
+                        'VPRODGROUP', 
+                        'VPARTGROUP'
                     ], 'LIKE', "%{$keyword}%");
                 }
             });
@@ -65,11 +65,11 @@ class FACDBTF002DataTable extends DataTable
         if (request()->has('selected_ids') && !empty(request('selected_ids'))) {
             // Memecah string ID menjadi array dan melakukan filter
             $selectedIds = explode(',', request('selected_ids'));
-            $query->whereIn('part_no', $selectedIds);
+            $query->whereIn('IID', $selectedIds);
         }
 
         // Urutan bawaan; klik judul kolom menggantikannya
-        return $query->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('part_no', 'asc'));
+        return $query->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('VPARTNO', 'asc'));
     }
 
     /**
@@ -128,12 +128,12 @@ class FACDBTF002DataTable extends DataTable
                 ->searchable(false)
                 ->width(30)
                 ->addClass('text-center'),
-            Column::make('part_no')->title('Part No'),
-            Column::make('inventory_part_description')->title('Description'),
-            Column::make('accounting_group')->title('Accounting Group'),
-            Column::make('seg')->title('Seg'),
-            Column::make('prod_group')->title('Prod Group'),
-            Column::make('part_group')->title('Part Group'),
+            Column::make('VPARTNO')->title('Part No'),
+            Column::make('VPARTDESC')->title('Description'),
+            Column::make('VACCGROUP')->title('Accounting Group'),
+            Column::make('VSEG')->title('Seg'),
+            Column::make('VPRODGROUP')->title('Prod Group'),
+            Column::make('VPARTGROUP')->title('Part Group'),
             Column::computed('action')
                 ->exportable(false)
                 ->printable(false)
@@ -158,7 +158,7 @@ class FACDBTF002DataTable extends DataTable
                 'service' => $this->masterService('002', 'Update'), // Disesuaikan dengan penamaan service Part
                 'icon' => 'pencil',
                 'class' => 'edit-part',
-                'id' => $data->part_no, // Menggunakan part_no sebagai ID
+                'id' => $data->IID, // IID sebagai ID
             ],
             [
                 'action' => 'delete',
@@ -166,7 +166,7 @@ class FACDBTF002DataTable extends DataTable
                 'icon' => 'trash',
                 'class' => 'delete-part',
                 'title' => 'Delete part',
-                'id' => $data->part_no,
+                'id' => $data->IID,
             ],
         ];
 

@@ -74,6 +74,6 @@ class FACDBT_MASHSUBAREALINES extends BaseModel
      */
     public function location()
     {
-        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'VLOCNO', 'location_no');
+        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'VLOCNO', 'VLOCATIONNO');
     }
 }

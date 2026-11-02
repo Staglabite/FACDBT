@@ -19,7 +19,7 @@ class FACDBTF002 implements ToCollection, WithHeadingRow, WithStartRow
 
     protected $createdBy = null;
 
-    // Disesuaikan dengan field tabel SIM_INV_PART_TEST
+    // Slug judul kolom Excel; dipetakan ke kolom FACDBT_MSHPARTS di FACDBTF002::IMPORT_COLUMNS
     protected $columns = [
         'part_no',
         'inventory_part_description',

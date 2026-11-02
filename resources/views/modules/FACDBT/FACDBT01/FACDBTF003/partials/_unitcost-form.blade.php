@@ -20,27 +20,27 @@
 
                             <!-- Part No -->
                             <div class="mb-3">
-                                <label for="part_no" class="form-label">Part No</label>
-                                <input type="text" class="form-control" id="part_no" name="part_no" required
+                                <label for="VPARTNO" class="form-label">Part No</label>
+                                <input type="text" class="form-control" id="VPARTNO" name="VPARTNO" required
                                     aria-required="true" autofocus>
                             </div>
 
                             <!-- Inventory Part Description -->
                             <div class="mb-3">
-                                <label for="inventory_part_description" class="form-label">Description</label>
-                                <input type="text" class="form-control" id="inventory_part_description" name="inventory_part_description">
+                                <label for="VPARTDESC" class="form-label">Description</label>
+                                <input type="text" class="form-control" id="VPARTDESC" name="VPARTDESC">
                             </div>
 
                             <!-- Inventory UOM -->
                             <div class="mb-3">
-                                <label for="inventory_uom" class="form-label">UOM</label>
-                                <input type="text" class="form-control" id="inventory_uom" name="inventory_uom">
+                                <label for="VUOM" class="form-label">UOM</label>
+                                <input type="text" class="form-control" id="VUOM" name="VUOM">
                             </div>
 
                             <!-- Accounting Group -->
                             <div class="mb-3">
-                                <label for="accounting_group" class="form-label">Accounting Group</label>
-                                <input type="text" class="form-control" id="accounting_group" name="accounting_group">
+                                <label for="VACCGROUP" class="form-label">Accounting Group</label>
+                                <input type="text" class="form-control" id="VACCGROUP" name="VACCGROUP">
                             </div>
 
                         </div>
@@ -50,27 +50,27 @@
 
                             <!-- On Hand Qty -->
                             <div class="mb-3">
-                                <label for="on_hand_qty" class="form-label">On Hand Qty</label>
+                                <label for="NONHANDQTY" class="form-label">On Hand Qty</label>
                                 <!-- Menggunakan type number untuk kolom qty/angka -->
-                                <input type="number" step="any" class="form-control" id="on_hand_qty" name="on_hand_qty">
+                                <input type="number" step="any" class="form-control" id="NONHANDQTY" name="NONHANDQTY">
                             </div>
 
                             <!-- Material Cost -->
                             <div class="mb-3">
-                                <label for="mat_cost" class="form-label">Material Cost</label>
-                                <input type="number" step="any" class="form-control" id="mat_cost" name="mat_cost">
+                                <label for="MMATCOST" class="form-label">Material Cost</label>
+                                <input type="number" step="any" class="form-control" id="MMATCOST" name="MMATCOST">
                             </div>
 
                             <!-- Labor Cost -->
                             <div class="mb-3">
-                                <label for="lab_cost" class="form-label">Labor Cost</label>
-                                <input type="number" step="any" class="form-control" id="lab_cost" name="lab_cost">
+                                <label for="MLABCOST" class="form-label">Labor Cost</label>
+                                <input type="number" step="any" class="form-control" id="MLABCOST" name="MLABCOST">
                             </div>
 
                             <!-- FOH Cost -->
                             <div class="mb-3">
-                                <label for="foh_cost" class="form-label">FOH Cost</label>
-                                <input type="number" step="any" class="form-control" id="foh_cost" name="foh_cost">
+                                <label for="MFOHCOST" class="form-label">FOH Cost</label>
+                                <input type="number" step="any" class="form-control" id="MFOHCOST" name="MFOHCOST">
                             </div>
 
                         </div>

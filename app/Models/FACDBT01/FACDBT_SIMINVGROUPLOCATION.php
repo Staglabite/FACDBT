@@ -2,15 +2,21 @@
 
 namespace App\Models\FACDBT01;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\FACDBT01\Concerns\HasAuditColumns;
+use App\Services\FACDBT\FacdbtTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Master Group Location (FACDBTF005): area dashboard (VLOCGROUP) per lokasi.
+ */
 class FACDBT_SIMINVGROUPLOCATION extends Model
 {
     use HasFactory;
+    use HasAuditColumns;
 
     protected $connection = 'INV_TAKING';
-    protected $table = 'SIM_INV_GROUP_LOCATION';
+    protected $table = FacdbtTable::GROUP_LOCATIONS;
 
     protected $primaryKey = 'IID';
     public $incrementing = true;
@@ -19,26 +25,24 @@ class FACDBT_SIMINVGROUPLOCATION extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'LOCATION_NO',
-        'ID_LOC',
-        'location_group',
-        'stream',
+        'VLOCATIONNO',
+        'VIDLOC',
+        'VLOCGROUP',
+        'VSTREAM',
     ];
 
     protected $casts = [
         'IID' => 'integer',
-        'LOCATION_NO' => 'string',
-        'ID_LOC' => 'string',
-        'location_group' => 'string',
-        'stream' => 'string',
+        'DCREA' => 'datetime:Y-m-d H:i:s',
+        'DMODI' => 'datetime:Y-m-d H:i:s',
+        'DDELETE' => 'datetime:Y-m-d H:i:s',
     ];
 
     /**
-     * Relasi ke model FACDBT_MSHLOCATION
-     * Mengikat LOCATION_NO di tabel ini dengan location_no di tabel Location.
+     * Relasi ke model FACDBT_MSHLOCATION berdasarkan Location No.
      */
     public function location()
     {
-        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'LOCATION_NO', 'location_no');
+        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'VLOCATIONNO', 'VLOCATIONNO');
     }
 }

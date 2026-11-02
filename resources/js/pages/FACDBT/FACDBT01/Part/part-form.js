@@ -3,7 +3,7 @@ import { _formToJson, _showInvalidError, toast } from '../../../../helpers';
 
 export default class PartForm {
     // global variables
-    #partId = null; // using part_no
+    #partId = null; // IID
     #partModal = new window.bootstrap.Modal(document.getElementById('part-modal'));
     #partForm = document.getElementById('part-form');
     #onSuccessCallback = null;
@@ -25,12 +25,12 @@ export default class PartForm {
         if (partId === null) {
             // New part
             $('#part-title').text('Add Part');
-            $('#part_no').prop('readonly', false); // Allow editing part_no on create
+            $('#VPARTNO').prop('readonly', false); // Part No bisa diisi saat tambah
             this.#partModal.show();
         } else {
             // Edit part
             $('#part-title').text('Edit Part');
-            $('#part_no').prop('readonly', true); // Prevent editing primary key on update
+            $('#VPARTNO').prop('readonly', true); // Location No / Part No tidak diubah saat edit
             this.#getPartData();
             this.#partModal.show();
         }
@@ -50,12 +50,12 @@ export default class PartForm {
                 const data = response.data.data;
                 
                 // Map the form IDs to the data keys returned from Part Model
-                $('#part_no').val(data.part_no);
-                $('#inventory_part_description').val(data.inventory_part_description);
-                $('#accounting_group').val(data.accounting_group);
-                $('#seg').val(data.seg);
-                $('#prod_group').val(data.prod_group);
-                $('#part_group').val(data.part_group);
+                $('#VPARTNO').val(data.VPARTNO);
+                $('#VPARTDESC').val(data.VPARTDESC);
+                $('#VACCGROUP').val(data.VACCGROUP);
+                $('#VSEG').val(data.VSEG);
+                $('#VPRODGROUP').val(data.VPRODGROUP);
+                $('#VPARTGROUP').val(data.VPARTGROUP);
             })
             .catch(error => {
                 toast.error('Failed to fetch part data');

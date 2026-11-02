@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
+use App\Services\FACDBT\FacdbtTable;
 use App\DataTables\Original\FACDBT01\FACDBTF004DataTable;
 use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF004 as Template;
 use App\Helpers\Response;
@@ -90,8 +91,8 @@ class FACDBTF004 extends Controller
         }
 
         $result = DB::connection($this->connection)->table('SIM_INV_TAKING_BOOK_TAB as ITB')
-            ->leftJoin('SIM_INV_LOCATION_TEST as IL', 'ITB.LOCATION_NO', '=', 'IL.location_no')
-            ->leftJoin('SIM_INV_PART_TEST as IP', 'ITB.PART_NO', '=', 'IP.part_no')
+            ->leftJoin(FacdbtTable::LOCATIONS . ' as IL', fn ($join) => $join->on('ITB.LOCATION_NO', '=', 'IL.VLOCATIONNO')->whereNull('IL.DDELETE'))
+            ->leftJoin(FacdbtTable::PARTS . ' as IP', fn ($join) => $join->on('ITB.PART_NO', '=', 'IP.VPARTNO')->whereNull('IP.DDELETE'))
             ->where('ITB.QUANTITY', '>', 0)
             ->where('ITB.INV_LIST_NO', $invListNo)
             ->whereExists(function ($sub) {
@@ -115,9 +116,9 @@ class FACDBTF004 extends Controller
                 'ITB.WDR',
                 'ITB.HANDLING_UNIT_TYPE_ID',
                 'IL.warehouse_id',
-                'IL.location_group',
-                'IL.location_group_description',
-                'IP.accounting_group',
+                'IL.VLOCGROUP as location_group',
+                'IL.VLOCGROUPDESC as location_group_description',
+                'IP.VACCGROUP as accounting_group',
                 'IP.accounting_group_desc',
                 'IP.part_product_family',
                 'IP.part_product_family_desc',

@@ -29,24 +29,24 @@ class FACDBTF001DataTable extends DataTable
     {
         return (new EloquentDataTable($query))
             ->addColumn('checkbox', function ($row) {
-                // Menggunakan location_no sebagai value dari checkbox
-                return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->location_no . '">';
+                // IID sebagai value dari checkbox
+                return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->IID . '">';
             })
             ->addColumn('action', fn($data) => $this->getActionButton($data))
             ->rawColumns(['checkbox', 'action'])
-            ->setRowId('location_no') // Menggunakan location_no sebagai Row ID
+            ->setRowId('IID') // IID sebagai Row ID
             ->filter(function ($query) {
                 $keyword = request('keyword');
 
                 if (! empty($keyword)) {
                     // Menggunakan LIKE (atau ILIKE jika database mendukungnya) untuk pencarian teks
                     $query->whereAny([
-                        'location_no', 
-                        'location_group', 
-                        'site', 
-                        'warehouse', 
-                        'location_description', 
-                        'location_group_description'
+                        'VLOCATIONNO', 
+                        'VLOCGROUP', 
+                        'VSITE', 
+                        'VWAREHOUSE', 
+                        'VLOCDESC', 
+                        'VLOCGROUPDESC'
                     ], 'LIKE', "%{$keyword}%");
                 }
             });
@@ -65,11 +65,11 @@ class FACDBTF001DataTable extends DataTable
         if (request()->has('selected_ids') && !empty(request('selected_ids'))) {
             // Memecah string ID menjadi array dan melakukan filter
             $selectedIds = explode(',', request('selected_ids'));
-            $query->whereIn('location_no', $selectedIds);
+            $query->whereIn('IID', $selectedIds);
         }
 
         // Urutan bawaan; klik judul kolom menggantikannya
-        return $query->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('location_no', 'asc'));
+        return $query->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('VLOCATIONNO', 'asc'));
     }
 
     /**
@@ -128,12 +128,12 @@ class FACDBTF001DataTable extends DataTable
                 ->searchable(false)
                 ->width(30)
                 ->addClass('text-center'),
-            Column::make('location_no')->title('Location No'),
-            Column::make('location_group')->title('Location Group'),
-            Column::make('site')->title('Site'),
-            Column::make('warehouse')->title('Warehouse'),
-            Column::make('location_description')->title('Description'),
-            Column::make('location_group_description')->title('Group Description'),
+            Column::make('VLOCATIONNO')->title('Location No'),
+            Column::make('VLOCGROUP')->title('Location Group'),
+            Column::make('VSITE')->title('Site'),
+            Column::make('VWAREHOUSE')->title('Warehouse'),
+            Column::make('VLOCDESC')->title('Description'),
+            Column::make('VLOCGROUPDESC')->title('Group Description'),
             Column::computed('action')
                 ->exportable(false)
                 ->printable(false)
@@ -158,7 +158,7 @@ class FACDBTF001DataTable extends DataTable
                 'service' => $this->masterService('001', 'Update'),
                 'icon' => 'pencil',
                 'class' => 'edit-location',
-                'id' => $data->location_no, // <-- Tambahkan baris ini
+                'id' => $data->IID, 
             ],
             [
                 'action' => 'delete',
@@ -166,7 +166,7 @@ class FACDBTF001DataTable extends DataTable
                 'icon' => 'trash',
                 'class' => 'delete-location',
                 'title' => 'Delete location',
-                'id' => $data->location_no, // <-- Tambahkan baris ini juga
+                'id' => $data->IID, 
             ],
         ];
 
