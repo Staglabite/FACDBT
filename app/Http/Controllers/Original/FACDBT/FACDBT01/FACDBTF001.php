@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF001DataTable;
-use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF001 as Template;
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
@@ -24,7 +23,7 @@ class FACDBTF001 extends Controller
     // Kolom form / tabel FACDBT_MSHLOCATIONS
     private const FIELDS = ['VLOCATIONNO', 'VLOCGROUP', 'VSITE', 'VWAREHOUSE', 'VLOCDESC', 'VLOCGROUPDESC'];
 
-    // Kolom export CSV [kolom tabel => judul]
+    // Kolom export CSV [kolom tabel => judul]; judul yang sama dipakai template import
     private const EXPORT_COLUMNS = [
         'VLOCATIONNO' => 'Location No',
         'VLOCGROUP' => 'Location Group',
@@ -149,7 +148,8 @@ class FACDBTF001 extends Controller
 
     public function downloadTemplate()
     {
-        return FacadesExcel::download(new Template, 'Master_Location_Template.xlsx');
+        // Template CSV (judul kolom sama dengan export); template yang diisi / file export bisa langsung di-import
+        return MasterDataExport::template(array_values(self::EXPORT_COLUMNS), 'Master_Location_Template.csv');
     }
 
     public function import(LocationImportRequest $request)

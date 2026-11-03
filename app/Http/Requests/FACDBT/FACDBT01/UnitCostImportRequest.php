@@ -2,17 +2,14 @@
 
 namespace App\Http\Requests\FACDBT\FACDBT01;
 
+use App\Http\Requests\FACDBT\FACDBT01\Concerns\ImportFileRules;
+
 class UnitCostImportRequest extends UnitCostRequest
 {
+    use ImportFileRules;
+
     public function authorize(): bool
     {
         return true;
-    }
-
-    public function rules(): array
-    {
-        return [
-            'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
-        ];
     }
 }
