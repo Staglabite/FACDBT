@@ -68,7 +68,11 @@ class PartImport {
             if (error.response && error.response.status === 400) {
                 this.#openImportErrorModal(error.response.data.data);
             } else {
-                toast.error(error.response?.data?.message ?? 'Failed to import part data.');
+                // Tanpa pesan dari server (mis. PHP kehabisan memori / waktu, atau tidak ada respons): tampilkan kode HTTP
+                toast.error(error.response?.data?.message
+                    ?? (error.response
+                        ? `Failed to import part data (HTTP ${error.response.status}).`
+                        : 'Failed to import part data: no response from server.'));
                 this.#partFormImport.reset();
             }
         });

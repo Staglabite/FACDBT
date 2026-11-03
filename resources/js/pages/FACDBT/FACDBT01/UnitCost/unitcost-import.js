@@ -70,7 +70,11 @@ class UnitCostImport {
             if (error.response && error.response.status === 400) {
                 this.#openImportErrorModal(error.response.data.data);
             } else {
-                toast.error(error.response?.data?.message ?? 'Failed to import unit cost data.');
+                // Tanpa pesan dari server (mis. PHP kehabisan memori / waktu, atau tidak ada respons): tampilkan kode HTTP
+                toast.error(error.response?.data?.message
+                    ?? (error.response
+                        ? `Failed to import unit cost data (HTTP ${error.response.status}).`
+                        : 'Failed to import unit cost data: no response from server.'));
                 this.#unitCostFormImport.reset();
             }
         });

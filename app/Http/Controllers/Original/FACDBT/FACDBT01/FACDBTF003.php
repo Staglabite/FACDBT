@@ -168,6 +168,8 @@ class FACDBTF003 extends Controller
             if (empty($cleaned)) {
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
+            // Hasil baca file (semua baris + log validasi) tidak dipakai lagi; lepas dari memori sebelum menyimpan
+            unset($import, $result);
 
             // Transaksi di koneksi FACDBT (tempat data master disimpan)
             $db = DB::connection('FACDBT');
