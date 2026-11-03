@@ -63,23 +63,13 @@
         <div class="card-datatable">
             <div class="d-flex justify-content-between align-items-center my-5 flex-column flex-xl-row px-6">
                 <div class="d-flex align-items-center gap-2 justify-content-center">
-                    
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3"
-                            id="download-template">
-                            <i class="icon-base ti tabler-download"></i> Download Template
-                        </button>
-                    </div>
-
-                    @serve('FACDBTF004-Delete')
-                        <button type="button" class="btn btn-primary waves-effect waves-effect d-none"
-                            id="btn-delete-selected">
-                            <i class="icon-base ti tabler-trash"></i>
-                            <span>Delete</span>
-                        </button>
-                    @endserve
+                    {{-- Hanya lihat & export: data book INV_LIST_NO terbaru --}}
+                    <button type="button" class="btn btn-primary d-flex align-items-center gap-2 py-2 px-3"
+                        id="export-excel">
+                        <i class="icon-base ti tabler-upload"></i> Export
+                    </button>
                 </div>
-                
+
                 <div class="d-flex gap-2 align-items-center flex-column flex-lg-row mt-2 mt-xxl-0">
                     <div class="d-flex align-items-center gap-1 justify-content-center">
                         <select class="form-select form-select-sm mx-2" id="entries"
@@ -105,14 +95,9 @@
         </div>
     </div>
 
-    {{-- Path include disesuaikan ke folder FACDBT01/FACDBT004 --}}
-    @include('modules.FACDBT.FACDBT01.FACDBTF004.partials._takingbook-form')
 @endsection
 
 @section('page-script')
     {{ $dataTable->scripts(attributes: ['type' => 'module']) }}
-    {{-- Path vite disesuaikan ke folder js takingbook --}}
-    @vite([
-        'resources/js/pages/facdbt/facdbt01/takingbook/takingbook.js'
-    ])
+    @vite(['resources/js/pages/FACDBT/FACDBT01/TakingBook/takingbook.js'])
 @endsection
