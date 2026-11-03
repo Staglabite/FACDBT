@@ -4,19 +4,26 @@ namespace App\Imports\FACDBT\FACDBT01;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithStartRow;
 use PhpOffice\PhpSpreadsheet\Exception as SpreadsheetException;
 
-class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
+/**
+ * File dibaca per CHUNK_SIZE baris (WithChunkReading) supaya file besar tidak menghabiskan memori PHP;
+ * collection() dipanggil sekali per chunk, nomor baris Excel dilanjutkan lewat $nextRow.
+ */
+class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow, WithChunkReading
 {
+    private const CHUNK_SIZE = 1000;
+
+    // Nomor baris Excel berikutnya (null = chunk pertama)
+    protected ?int $nextRow = null;
+
     protected $logs = [];
 
     protected $totalError = 0;
-
-    protected $createdBy = null;
 
     // Kolom hasil heading row Excel (slug dari heading template)
     protected $columns = [
@@ -46,14 +53,18 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
         return 2;
     }
 
+    public function chunkSize(): int
+    {
+        return self::CHUNK_SIZE;
+    }
+
     public function collection(Collection $collection): void
     {
-        if ($collection === null || $collection->isEmpty()) {
+        if ($this->nextRow === null && ($collection === null || $collection->isEmpty())) {
             throw new SpreadsheetException('The file is empty', 422);
         }
 
-        $this->createdBy = "'" . Auth::user()->VUSERNAME . "'";
-        $currentRowIndex = $this->startRow();
+        $currentRowIndex = $this->nextRow ?? $this->startRow();
 
         foreach ($collection as $row) {
             // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
@@ -79,6 +90,8 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
 
             $currentRowIndex++;
         }
+
+        $this->nextRow = $currentRowIndex;
     }
 
     public function store()
@@ -126,9 +139,6 @@ class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow
                 'row' => $unique,
                 'error_count' => 0,
                 'errors' => [],
-                'created_by' => $this->createdBy,
-                'created_at' => now(),
-                'updated_at' => now(),
             ]);
         }
 

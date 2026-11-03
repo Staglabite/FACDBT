@@ -124,6 +124,8 @@ class FACDBTF005 extends Controller
     {
         // File besar butuh waktu lebih dari batas default PHP (30 detik)
         set_time_limit(300);
+        // File besar: daftar baris & hasil validasi disimpan di memori sampai seluruh file selesai dibaca
+        ini_set('memory_limit', '512M');
 
         try {
             $import = new Import;

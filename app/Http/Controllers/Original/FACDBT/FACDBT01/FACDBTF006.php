@@ -134,6 +134,7 @@ class FACDBTF006 extends Controller
     public function importParts(TakingEventPartImportRequest $request, TakingEventModel $event)
     {
         set_time_limit(300);
+        ini_set('memory_limit', '512M');
 
         try {
             $import = new Import;
