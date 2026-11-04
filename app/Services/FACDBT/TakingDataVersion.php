@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  */
 class TakingDataVersion
 {
-    private const CONN = 'INV_TAKING';
+    private const CONN = 'FACDBT';
 
     // Jarak minimal antar perhitungan ulang dashboard (detik)
     public const VERSION_TTL = 5;

@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Data yang dihitung dashboard per event (Master Event): Pre-Taking = part di daftar event,
- * TWH = lokasi mengandung "TWH" (huruf besar / kecil sama), Direct = selain TWH, tanpa event = semua.
+ * TWH = PART_NO mengandung "TW1" (huruf besar / kecil sama), Direct = selain itu, tanpa event = semua.
  */
 class TakingEventScopeTest extends TestCase
 {
@@ -22,21 +22,25 @@ class TakingEventScopeTest extends TestCase
         $db->statement('CREATE TABLE SIM_INV_TAKING_DATA_TAB (LOCATION_NO TEXT, PART_NO TEXT)');
         $db->table('SIM_INV_TAKING_DATA_TAB')->insert([
             ['LOCATION_NO' => 'TWH-01', 'PART_NO' => 'P1'],
-            ['LOCATION_NO' => 'a-twh-02', 'PART_NO' => 'P2'],
+            ['LOCATION_NO' => 'L-02', 'PART_NO' => 'ab-tw1-9'],
             ['LOCATION_NO' => 'PROD-1A', 'PART_NO' => 'P1'],
-            ['LOCATION_NO' => 'QA-01', 'PART_NO' => 'P3'],
+            ['LOCATION_NO' => 'QA-01', 'PART_NO' => 'TW1-55'],
         ]);
 
         if ($withEventTables) {
-            $db->statement('CREATE TABLE SIM_INV_TAKING_EVENT (IID INTEGER PRIMARY KEY, TAKING_DATE TEXT, EVENT_TYPE TEXT)');
-            $db->statement('CREATE TABLE SIM_INV_TAKING_EVENT_PART (IID INTEGER PRIMARY KEY, EVENT_ID INTEGER, PART_NO TEXT)');
-            $db->table('SIM_INV_TAKING_EVENT')->insert([
-                ['IID' => 1, 'TAKING_DATE' => '2026-03-02', 'EVENT_TYPE' => 'PRE'],
-                ['IID' => 2, 'TAKING_DATE' => '2026-03-05', 'EVENT_TYPE' => 'twh'],
+            $audit = 'VCREA TEXT, DCREA TEXT, VMODI TEXT, DMODI TEXT, VDELETE TEXT, DDELETE TEXT';
+            $db->statement("CREATE TABLE FACDBT_MSHEVENTS (IID INTEGER PRIMARY KEY, DTAKINGDATE TEXT, VEVENTTYPE TEXT, {$audit})");
+            $db->statement("CREATE TABLE FACDBT_MSDEVENTPARTS (IID INTEGER PRIMARY KEY, IEVENTID INTEGER, VPARTNO TEXT, {$audit})");
+            $db->table('FACDBT_MSHEVENTS')->insert([
+                ['IID' => 1, 'DTAKINGDATE' => '2026-03-02', 'VEVENTTYPE' => 'PRE', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
+                ['IID' => 2, 'DTAKINGDATE' => '2026-03-05', 'VEVENTTYPE' => 'twh', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
+                // Event yang sudah dihapus (soft delete) tidak dipakai
+                ['IID' => 3, 'DTAKINGDATE' => '2026-04-01', 'VEVENTTYPE' => 'TWH', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => '2026-03-20 10:00:00'],
             ]);
-            $db->table('SIM_INV_TAKING_EVENT_PART')->insert([
-                ['EVENT_ID' => 1, 'PART_NO' => 'P1'],
-                ['EVENT_ID' => 2, 'PART_NO' => 'P3'],
+            $db->table('FACDBT_MSDEVENTPARTS')->insert([
+                ['IEVENTID' => 1, 'VPARTNO' => 'P1', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
+                ['IEVENTID' => 1, 'VPARTNO' => 'TW1-55', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => '2026-03-01 09:00:00'],
+                ['IEVENTID' => 2, 'VPARTNO' => 'P3', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
             ]);
         }
 
@@ -56,10 +60,11 @@ class TakingEventScopeTest extends TestCase
     {
         $db = $this->db('event_scope');
 
-        $this->assertSame(['PROD-1A/P1', 'QA-01/P3', 'TWH-01/P1', 'a-twh-02/P2'], $this->rows($db, null));
-        $this->assertSame(['TWH-01/P1', 'a-twh-02/P2'], $this->rows($db, new TakingEvent(2, TakingEvent::TWH)));
-        $this->assertSame(['PROD-1A/P1', 'QA-01/P3'], $this->rows($db, new TakingEvent(2, TakingEvent::DIRECT)));
-        // Hanya part di daftar event 1
+        $this->assertSame(['L-02/ab-tw1-9', 'PROD-1A/P1', 'QA-01/TW1-55', 'TWH-01/P1'], $this->rows($db, null));
+        // Lokasi "TWH" tidak berpengaruh; yang dilihat PART_NO
+        $this->assertSame(['L-02/ab-tw1-9', 'QA-01/TW1-55'], $this->rows($db, new TakingEvent(2, TakingEvent::TWH)));
+        $this->assertSame(['PROD-1A/P1', 'TWH-01/P1'], $this->rows($db, new TakingEvent(2, TakingEvent::DIRECT)));
+        // Hanya part aktif di daftar event 1 (TW1-55 sudah dihapus dari daftar)
         $this->assertSame(['PROD-1A/P1', 'TWH-01/P1'], $this->rows($db, new TakingEvent(1, TakingEvent::PRE)));
     }
 
@@ -72,10 +77,11 @@ class TakingEventScopeTest extends TestCase
 
         // Kode event disimpan huruf kecil tetap dikenali
         $this->assertSame(TakingEvent::TWH, TakingEvent::forPeriod($db, (object) ['TAKING_DATE' => '2026-03-05'])->type);
+        // Event periode 2026-04-01 sudah dihapus
         $this->assertNull(TakingEvent::forPeriod($db, (object) ['TAKING_DATE' => '2026-04-01']));
         $this->assertNull(TakingEvent::forPeriod($db, null));
 
-        $this->assertSame('1:PRE:1:1', TakingEvent::signature($db, (object) ['TAKING_DATE' => '2026-03-02']));
+        $this->assertSame('1:PRE:1:1:2026-03-01 08:00:00', TakingEvent::signature($db, (object) ['TAKING_DATE' => '2026-03-02']));
         $this->assertSame('none', TakingEvent::signature($db, (object) ['TAKING_DATE' => '2026-04-01']));
     }
 

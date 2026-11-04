@@ -19,21 +19,21 @@
 
                             <!-- Location No -->
                             <div class="mb-3">
-                                <label for="location_no" class="form-label">Location No</label>
-                                <input type="text" class="form-control" id="location_no" name="location_no" required
+                                <label for="VLOCATIONNO" class="form-label">Location No</label>
+                                <input type="text" class="form-control" id="VLOCATIONNO" name="VLOCATIONNO" required
                                     aria-required="true" autofocus>
                             </div>
 
                             <!-- Location Group -->
                             <div class="mb-3">
-                                <label for="location_group" class="form-label">Location Group</label>
-                                <input type="text" class="form-control" id="location_group" name="location_group">
+                                <label for="VLOCGROUP" class="form-label">Location Group</label>
+                                <input type="text" class="form-control" id="VLOCGROUP" name="VLOCGROUP">
                             </div>
 
                             <!-- Site -->
                             <div class="mb-3">
-                                <label for="site" class="form-label">Site</label>
-                                <input type="text" class="form-control" id="site" name="site">
+                                <label for="VSITE" class="form-label">Site</label>
+                                <input type="text" class="form-control" id="VSITE" name="VSITE">
                             </div>
 
                         </div>
@@ -42,20 +42,20 @@
 
                             <!-- Warehouse -->
                             <div class="mb-3">
-                                <label for="warehouse" class="form-label">Warehouse</label>
-                                <input type="text" class="form-control" id="warehouse" name="warehouse">
+                                <label for="VWAREHOUSE" class="form-label">Warehouse</label>
+                                <input type="text" class="form-control" id="VWAREHOUSE" name="VWAREHOUSE">
                             </div>
 
                             <!-- Location Description -->
                             <div class="mb-3">
-                                <label for="location_description" class="form-label">Location Description</label>
-                                <input type="text" class="form-control" id="location_description" name="location_description">
+                                <label for="VLOCDESC" class="form-label">Location Description</label>
+                                <input type="text" class="form-control" id="VLOCDESC" name="VLOCDESC">
                             </div>
 
                             <!-- Location Group Description -->
                             <div class="mb-3">
-                                <label for="location_group_description" class="form-label">Location Group Description</label>
-                                <input type="text" class="form-control" id="location_group_description" name="location_group_description">
+                                <label for="VLOCGROUPDESC" class="form-label">Location Group Description</label>
+                                <input type="text" class="form-control" id="VLOCGROUPDESC" name="VLOCGROUPDESC">
                             </div>
 
                         </div>

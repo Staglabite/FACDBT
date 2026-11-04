@@ -2,37 +2,57 @@
 
 namespace App\DataTables\Original\FACDBT01;
 
-use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
-use App\Models\FACDBT01\FACDBT_SIMINVTAKINGBOOKTAB as TakingBook; // Mengambil model Taking Book
+use App\Models\FACDBT01\FACDBT_SIMINVTAKINGBOOKTAB as TakingBook;
+use App\Services\FACDBT\FacdbtTable;
 use App\Traits\DataTableTrait;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
+use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\EloquentDataTable;
 use Yajra\DataTables\Html\Builder as HtmlBuilder;
 use Yajra\DataTables\Html\Column;
 use Yajra\DataTables\Services\DataTable;
 
-// Taking Book Datatable
+// Taking Book Datatable (hanya lihat; data book milik sistem taking / scanner)
 class FACDBTF004DataTable extends DataTable
 {
     use DataTableTrait;
-    use MasterServiceName;
 
     /**
-     * Build the DataTable class.
-     *
+     * Kolom tabel & file export: [alias => [kolom SQL, judul]]. Kolom b dari book, p dari Master Part,
+     * l dari Master Location.
+     */
+    public const COLUMNS = [
+        'MONTH' => ['b.MONTH', 'Month'],
+        'YEAR' => ['b.YEAR', 'Year'],
+        'PART_NO' => ['b.PART_NO', 'Part No'],
+        'part_description' => ['p.VPARTDESC', 'Part Description'],
+        'LOCATION_NO' => ['b.LOCATION_NO', 'Location No'],
+        'location_name' => ['l.VLOCDESC', 'Location Name'],
+        'HANDLING_UNIT_TYPE_ID' => ['b.HANDLING_UNIT_TYPE_ID', 'Handling Unit Type Id'],
+        'QUANTITY' => ['b.QUANTITY', 'On Hand Qty'],
+        'UNIT_MEAS' => ['b.UNIT_MEAS', 'UoM'],
+        'LOT_BATCH_NO' => ['b.LOT_BATCH_NO', 'Lot Batch No'],
+        'WDR' => ['b.WDR', 'WDR'],
+        'WAREHOUSE' => ['b.WAREHOUSE', 'Warehouse'],
+        'BAY_NO' => ['b.BAY_NO', 'Bay'],
+        'ROW_NO' => ['b.ROW_NO', 'Row'],
+        'TIER_NO' => ['b.TIER_NO', 'Tier'],
+        'BIN_NO' => ['b.BIN_NO', 'Bin'],
+        'AVAILABILITY_CONTROL_ID' => ['b.AVAILABILITY_CONTROL_ID', 'Availability Control Id'],
+        'AVAILABILITY_CONTROL_DESC' => ['b.AVAILABILITY_CONTROL_DESC', 'Availability Control Description'],
+        'accounting_group' => ['p.VACCGROUP', 'Accounting Group'],
+        'location_group' => ['l.VLOCGROUP', 'Location Group'],
+        'location_group_desc' => ['l.VLOCGROUPDESC', 'Location Group Desc'],
+        'product_family' => ['p.VPRODGROUP', 'Product Family'],
+    ];
+
+    /**
      * @param  QueryBuilder<TakingBook>  $query  Results from query() method.
      */
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
-            ->addColumn('checkbox', function ($row) {
-                // Menggunakan INV_LIST_NO sebagai value dari checkbox (Sesuaikan jika butuh composite key)
-                return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->INV_LIST_NO . '">';
-            })
-            ->addColumn('action', fn($data) => $this->getActionButton($data))
-            ->rawColumns(['checkbox', 'action'])
-            ->setRowId('INV_LIST_NO') // Menggunakan INV_LIST_NO sebagai Row ID
+            ->addIndexColumn()
             ->filter(function ($query) {
                 $keyword = request('keyword');
 
@@ -40,61 +60,55 @@ class FACDBTF004DataTable extends DataTable
                     // Pencarian teks disesuaikan dengan kolom-kolom utama pada Taking Book
                     $query->whereAny([
                         'b.PART_NO',
-                        'p.inventory_part_description',
+                        'p.VPARTDESC',
                         'b.LOCATION_NO',
-                        'l.location_description',
+                        'l.VLOCDESC',
                         'b.LOT_BATCH_NO',
                         'b.WAREHOUSE',
-                        'l.location_group',
+                        'l.VLOCGROUP',
                     ], 'LIKE', "%{$keyword}%");
                 }
             });
     }
 
     /**
-     * Get the query source of dataTable.
-     *
      * @return QueryBuilder<TakingBook>
      */
     public function query(TakingBook $model): QueryBuilder
     {
-        // 1. Ambil nilai INV_LIST_NO terbesar (paling baru)
-        $latestInvListNo = DB::connection('INV_TAKING')
+        $select = ['b.*'];
+        foreach (self::COLUMNS as $alias => [$column]) {
+            if (! str_starts_with($column, 'b.')) {
+                $select[] = "{$column} as {$alias}";
+            }
+        }
+
+        return self::latestBook($model)->select($select);
+    }
+
+    /**
+     * Book INV_LIST_NO terbaru, dengan deskripsi part dari Master Part serta nama & group lokasi dari
+     * Master Location (yang belum dihapus). Dipakai tabel dan export.
+     *
+     * @return QueryBuilder<TakingBook>
+     */
+    public static function latestBook(TakingBook $model): QueryBuilder
+    {
+        $latestInvListNo = DB::connection('FACDBT')
             ->table('SIM_INV_TAKING_BOOK_TAB')
             ->max(DB::raw('CAST(INV_LIST_NO AS UNSIGNED)'));
 
-        $select = ['b.*'];
-        foreach (self::JOINED_COLUMNS as $alias => $column) {
-            $select[] = "{$column} as {$alias}";
-        }
-
-        // 2. Filter query DataTable hanya untuk INV_LIST_NO terbaru tersebut.
-        //    Deskripsi part dari SIM_INV_PART_TEST, nama & group lokasi dari SIM_INV_LOCATION_TEST.
         return $model->newQuery()
             ->from('SIM_INV_TAKING_BOOK_TAB as b')
-            ->leftJoin('SIM_INV_PART_TEST as p', 'p.part_no', '=', 'b.PART_NO')
-            ->leftJoin('SIM_INV_LOCATION_TEST as l', 'l.location_no', '=', 'b.LOCATION_NO')
-            ->where('b.INV_LIST_NO', $latestInvListNo)
-            ->select($select);
+            ->leftJoin(FacdbtTable::PARTS . ' as p', fn ($join) => $join->on('p.VPARTNO', '=', 'b.PART_NO')->whereNull('p.DDELETE'))
+            ->leftJoin(FacdbtTable::LOCATIONS . ' as l', fn ($join) => $join->on('l.VLOCATIONNO', '=', 'b.LOCATION_NO')->whereNull('l.DDELETE'))
+            ->where('b.INV_LIST_NO', $latestInvListNo);
     }
 
-    // Kolom dari tabel Part (p) dan Location (l): alias => kolom
-    private const JOINED_COLUMNS = [
-        'part_description' => 'p.inventory_part_description',
-        'location_name' => 'l.location_description',
-        'accounting_group' => 'p.accounting_group',
-        'location_group' => 'l.location_group',
-        'location_group_desc' => 'l.location_group_description',
-        'product_family' => 'p.prod_group',
-    ];
-
-    /**
-     * Optional method if you want to use the html builder.
-     */
     public function html(): HtmlBuilder
     {
         return $this->builder()
-            ->setTableId('facdbtf004-table') // ID Table disesuaikan ke FACDBT004
+            ->setTableId('facdbtf004-table')
             ->columns($this->getColumns())
             ->minifiedAjax()
             ->parameters([
@@ -102,117 +116,33 @@ class FACDBTF004DataTable extends DataTable
                 'serverSide' => true,
                 'processing' => false,
                 'orderCellsTop' => true,
-                'buttons' => [
-                    [
-                        'extend' => 'excel',
-                        'className' => 'd-none',
-                        'filename' => $this->filename(),
-                        'exportOptions' => [
-                            'columns' => ':visible:not(:first-child):not(:last-child)',
-                        ],
-                    ],
-                ],
+                'order' => [],
                 'initComplete' => '
                     function () {
                         var table = this.api();
-                        ' . $this->getScriptForSearchRow() . '
+                        ' . $this->getScriptForSearchRow(false) . '
                     }
                 ',
                 'dom' => 'r' .
                     "<'table-responsive border-top'tr>" .
                     "<'d-flex align-items-center justify-content-center justify-content-lg-between flex-wrap gap-2 text-center px-6 mt-6'ip>",
-                'drawCallback' => '
-                    function() {
-                        $("#select-all").off("click").on("click", function(){
-                            var checked = this.checked;
-                            $("input[name=\'selected[]\']").prop("checked", checked).trigger("change");
-                        });
-
-                        $("input[name=\'selected[]\']").off("change").on("change", function(){
-                            var anyChecked = $("input[name=\'selected[]\']:checked").length > 0;
-                            $("#btn-delete-selected").toggleClass("d-none", !anyChecked);
-
-                            var allChecked = $("input[name=\'selected[]\']").length === $("input[name=\'selected[]\']:checked").length;
-                            $("#select-all").prop("checked", allChecked);
-                        });
-                    }
-                ',
             ]);
     }
 
-    /**
-     * Get the dataTable columns definition.
-     */
     public function getColumns(): array
     {
-        // Sesuaikan kolom yang ingin ditampilkan ke tabel HTML
-        return [
-            Column::computed('checkbox')
-                ->title('<input type="checkbox" class="form-check-input" id="select-all">')
-                ->exportable(false)
-                ->printable(false)
-                ->orderable(false)
-                ->searchable(false)
-                ->width(30)
-                ->addClass('text-center'),
-            Column::make('MONTH')->name('b.MONTH')->title('Month'),
-            Column::make('YEAR')->name('b.YEAR')->title('Year'),
-            Column::make('PART_NO')->name('b.PART_NO')->title('Part No'),
-            Column::make('part_description')->name(self::JOINED_COLUMNS['part_description'])->title('Part Description'),
-            Column::make('LOCATION_NO')->name('b.LOCATION_NO')->title('Location No'),
-            Column::make('location_name')->name(self::JOINED_COLUMNS['location_name'])->title('Location Name'),
-            Column::make('HANDLING_UNIT_TYPE_ID')->name('b.HANDLING_UNIT_TYPE_ID')->title('Handling Unit Type Id'),
-            Column::make('QUANTITY')->name('b.QUANTITY')->title('On Hand Qty'),
-            Column::make('UNIT_MEAS')->name('b.UNIT_MEAS')->title('UoM'),
-            Column::make('LOT_BATCH_NO')->name('b.LOT_BATCH_NO')->title('Lot Batch No'),
-            Column::make('WDR')->name('b.WDR')->title('WDR'),
-            Column::make('WAREHOUSE')->name('b.WAREHOUSE')->title('Warehouse'),
-            Column::make('BAY_NO')->name('b.BAY_NO')->title('Bay'),
-            Column::make('ROW_NO')->name('b.ROW_NO')->title('Row'),
-            Column::make('TIER_NO')->name('b.TIER_NO')->title('Tier'),
-            Column::make('BIN_NO')->name('b.BIN_NO')->title('Bin'),
-            Column::make('AVAILABILITY_CONTROL_ID')->name('b.AVAILABILITY_CONTROL_ID')->title('Availability Control Id'),
-            Column::make('AVAILABILITY_CONTROL_DESC')->name('b.AVAILABILITY_CONTROL_DESC')->title('Availability Control Description'),
-            Column::make('accounting_group')->name(self::JOINED_COLUMNS['accounting_group'])->title('Accounting Group'),
-            Column::make('location_group')->name(self::JOINED_COLUMNS['location_group'])->title('Location Group'),
-            Column::make('location_group_desc')->name(self::JOINED_COLUMNS['location_group_desc'])->title('Location Group Desc'),
-            Column::make('product_family')->name(self::JOINED_COLUMNS['product_family'])->title('Product Family'),
-            Column::computed('action')
-                ->exportable(false)
-                ->printable(false)
-                ->width(60)
-                ->addClass('text-center'),
+        $columns = [
+            Column::make('DT_RowIndex')->title('No')->orderable(false)->searchable(false)->width(30)->addClass('text-center'),
         ];
+        foreach (self::COLUMNS as $alias => [$column, $title]) {
+            $columns[] = Column::make($alias)->name($column)->title($title);
+        }
+
+        return $columns;
     }
 
-    /**
-     * Get the filename for export.
-     */
     protected function filename(): string
     {
         return 'Taking_Book-' . date('YmdHis');
-    }
-
-    private function getActionButton($data): string
-    {
-        $buttons = [
-            [
-                'action' => 'edit',
-                'service' => $this->masterService('004', 'Update'), // Disesuaikan untuk Taking Book
-                'icon' => 'pencil',
-                'class' => 'edit-takingbook', // Class tombol edit
-                'id' => $data->INV_LIST_NO, 
-            ],
-            [
-                'action' => 'delete',
-                'service' => $this->masterService('004', 'Delete'),
-                'icon' => 'trash',
-                'class' => 'delete-takingbook', // Class tombol delete
-                'title' => 'Delete taking book',
-                'id' => $data->INV_LIST_NO,
-            ],
-        ];
-
-        return $this->actionButtons($data, $buttons);
     }
 }

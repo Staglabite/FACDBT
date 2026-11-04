@@ -65,18 +65,10 @@ Route::group(['prefix' => 'bd', 'middleware' => 'auth'], function () {
         Route::delete('/{unitcost}', 'destroy')->name('facdbtf003.destroy');
     });
 
-    // Route untuk Taking Book (FACDBT004)
+    // Route untuk Taking Book (FACDBT004): hanya lihat & export (data book milik sistem taking / scanner)
     Route::group(['prefix' => 'master-takingbook', 'controller' => FACDBTF004::class], function () {
         Route::get('/', 'index')->name('facdbtf004.index');
-        Route::post('/', 'store')->name('facdbtf004.store');
-        
-        Route::get('/download-template', 'downloadTemplate')->name('facdbtf004.download-template');
-        Route::post('/import', 'import')->name('facdbtf004.import');
-        Route::post('/delete-multiple', 'destroyMultiple')->name('facdbtf004.delete-multiple');
-        
-        Route::get('/{id}', 'show')->name('facdbtf004.show');
-        Route::put('/{id}', 'update')->name('facdbtf004.update');
-        Route::delete('/{id}', 'destroy')->name('facdbtf004.destroy');
+        Route::get('/export', 'export')->name('facdbtf004.export');
     });
 
     // Route untuk Master Group Location (FACDBT005)

@@ -8,18 +8,21 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Menyimpan hasil taking periode yang sudah ditutup ke SIM_INV_TAKING_DATA_HISTORY.
+ * Menyimpan hasil taking periode yang sudah ditutup ke FACDBT_HISTAKINGDATAS.
  *
  * Satu baris history = satu (location_no, part_no, LOT_BATCH_NO):
  * - book   : SIM_INV_TAKING_BOOK_TAB, INV_LIST_NO terbaru di rentang TAKING_DATE s/d CLOSE_DATE
  * - taking : SIM_INV_TAKING_DATA_TAB, CREATED_DATETIME di rentang yang sama (tanggal scan)
  * - master (lokasi, area, part, unit cost) disalin saat snapshot supaya history tidak ikut berubah.
- * - event periode (Master Event) membatasi book & taking seperti di dashboard; jenisnya disimpan di EVENT_TYPE.
+ * - event periode (Master Event) membatasi book & taking seperti di dashboard; jenisnya disimpan di VEVENTTYPE.
+ *   Pre-Taking: hanya part di daftar part event; setelah history periode tertutup tersimpan, daftar part
+ *   event (FACDBT_MSDEVENTPARTS) dihapus (soft delete).
+ * - history periode yang dibuat ulang menggantikan history lama (dihapus permanen, bukan soft delete).
  */
 class TakingHistoryService
 {
-    private const CONN = 'INV_TAKING';
-    private const TABLE = 'SIM_INV_TAKING_DATA_HISTORY';
+    private const CONN = 'FACDBT';
+    private const TABLE = FacdbtTable::HISTORY;
 
     // ROWSTATE periode di SIM_INV_TAKING_CONCLUDING_TAB berubah dari Started menjadi Closed saat taking ditutup
     private const CLOSED_ROWSTATE = 'Closed';
@@ -40,9 +43,10 @@ class TakingHistoryService
             ->whereNotNull('c.TAKING_DATE')
             ->whereNotExists(fn ($q) => $q->select(DB::raw(1))
                 ->from(self::TABLE . ' as h')
-                ->whereRaw('h.TAKING_DATE = DATE(c.TAKING_DATE)'))
+                ->whereRaw('h.DTAKINGDATE = DATE(c.TAKING_DATE)')
+                ->whereNull('h.DDELETE'))
             ->orderBy('c.TAKING_DATE')
-            ->get(['c.MONTH', 'c.YEAR', 'c.TAKING_DATE', 'c.CLOSE_DATE'])
+            ->get(['c.MONTH', 'c.YEAR', 'c.TAKING_DATE', 'c.CLOSE_DATE', 'c.ROWSTATE'])
             ->all();
     }
 
@@ -50,7 +54,7 @@ class TakingHistoryService
     {
         return $this->db()->table('SIM_INV_TAKING_CONCLUDING_TAB')
             ->whereDate('TAKING_DATE', Carbon::parse($takingDate)->toDateString())
-            ->first(['MONTH', 'YEAR', 'TAKING_DATE', 'CLOSE_DATE']);
+            ->first(['MONTH', 'YEAR', 'TAKING_DATE', 'CLOSE_DATE', 'ROWSTATE']);
     }
 
     /**
@@ -73,17 +77,115 @@ class TakingHistoryService
             ->orderByRaw('CAST(INV_LIST_NO AS UNSIGNED) DESC')
             ->value('INV_LIST_NO');
 
-        $rows = $this->buildRows($period, $takingDate, $closeDate, $invListNo, $createdBy);
+        $event = TakingEvent::forPeriod($db, $period);
+        $isPre = $event?->type === TakingEvent::PRE;
+        $createdBy ??= FacdbtTable::user();
+        if ($isPre) {
+            $this->restoreEventParts($event, $takingDay, $createdBy);
+        }
 
-        $db->transaction(function () use ($db, $takingDay, $rows) {
-            $db->table(self::TABLE)->whereDate('TAKING_DATE', $takingDay->toDateString())->delete();
+        $rows = $this->buildRows($period, $event, $takingDate, $closeDate, $invListNo, $createdBy);
+
+        $closed = strcasecmp(trim((string) ($period->ROWSTATE ?? '')), self::CLOSED_ROWSTATE) === 0;
+
+        $db->transaction(function () use ($db, $takingDay, $rows, $isPre, $closed, $event, $createdBy) {
+            // History lama periode ini diganti (hapus permanen)
+            $db->table(self::TABLE)->whereDate('DTAKINGDATE', $takingDay->toDateString())->delete();
 
             foreach (array_chunk($rows, 1000) as $chunk) {
                 $db->table(self::TABLE)->insert($chunk);
             }
+
+            // Pre-Taking selesai: daftar part event tidak dipakai lagi (part-nya sudah tercatat di history)
+            if ($isPre && $closed) {
+                FacdbtTable::active($db, TakingEvent::PART_TABLE)
+                    ->where('IEVENTID', $event->id)
+                    ->update(FacdbtTable::deleteValues($createdBy));
+            }
         });
 
         return count($rows);
+    }
+
+    /**
+     * History periode Pre-Taking dibuat ulang (command --taking-date) setelah daftar part event dihapus:
+     * part di history periode itu dipulihkan (atau ditambahkan) di daftar part event supaya hasilnya tetap sama.
+     */
+    private function restoreEventParts(TakingEvent $event, Carbon $takingDay, string $user): void
+    {
+        $db = $this->db();
+        if (FacdbtTable::active($db, TakingEvent::PART_TABLE)->where('IEVENTID', $event->id)->exists()) {
+            return;
+        }
+
+        $key = fn ($part) => mb_strtolower(rtrim((string) $part));
+        $parts = [];
+        foreach (FacdbtTable::active($db, self::TABLE)->whereDate('DTAKINGDATE', $takingDay->toDateString())->distinct()->pluck('VPARTNO') as $part) {
+            if (trim((string) $part) !== '') {
+                $parts[$key($part)] ??= trim((string) $part);
+            }
+        }
+        if (empty($parts)) {
+            return;
+        }
+
+        $now = now()->format('Y-m-d H:i:s');
+
+        // Baris part yang pernah dihapus dipulihkan; part yang belum pernah ada ditambahkan
+        $deleted = [];
+        foreach ($db->table(TakingEvent::PART_TABLE)->where('IEVENTID', $event->id)->get(['IID', 'VPARTNO']) as $row) {
+            $deleted[$key($row->VPARTNO)] = $row->IID;
+        }
+
+        $restore = array_values(array_intersect_key($deleted, $parts));
+        foreach (array_chunk($restore, 1000) as $ids) {
+            $db->table(TakingEvent::PART_TABLE)->whereIn('IID', $ids)->update([
+                FacdbtTable::DELETED_AT => null,
+                FacdbtTable::DELETED_BY => null,
+                'VMODI' => $user,
+                'DMODI' => $now,
+            ]);
+        }
+
+        $new = array_values(array_diff_key($parts, $deleted));
+        foreach (array_chunk($new, 1000) as $chunk) {
+            $db->table(TakingEvent::PART_TABLE)->insert(array_map(fn ($part) => [
+                'IEVENTID' => $event->id,
+                'VPARTNO' => $part,
+                'VCREA' => $user,
+                'DCREA' => $now,
+            ], $chunk));
+        }
+    }
+
+    /**
+     * Hapus (soft delete) daftar part event Pre-Taking yang periodenya sudah ditutup dan sudah ada di history
+     * (mis. history disimpan sebelum aturan ini ada).
+     *
+     * @return int jumlah baris part yang dihapus
+     */
+    public function clearFinishedEventParts(): int
+    {
+        $db = $this->db();
+        if (!TakingEvent::installed($db)) {
+            return 0;
+        }
+
+        $eventIds = FacdbtTable::active($db, TakingEvent::TABLE, 'e')
+            ->where('e.VEVENTTYPE', TakingEvent::PRE)
+            ->whereExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('SIM_INV_TAKING_CONCLUDING_TAB as c')
+                ->whereRaw('DATE(c.TAKING_DATE) = e.DTAKINGDATE')
+                ->where('c.ROWSTATE', self::CLOSED_ROWSTATE))
+            ->whereExists(fn ($q) => $q->select(DB::raw(1))
+                ->from(self::TABLE . ' as h')
+                ->whereRaw('h.DTAKINGDATE = e.DTAKINGDATE')
+                ->whereNull('h.DDELETE'))
+            ->pluck('e.IID');
+
+        return $eventIds->isEmpty() ? 0 : FacdbtTable::active($db, TakingEvent::PART_TABLE)
+            ->whereIn('IEVENTID', $eventIds)
+            ->update(FacdbtTable::deleteValues());
     }
 
     /**
@@ -112,26 +214,26 @@ class TakingHistoryService
     public function snapshotPending(?string $createdBy = null): int
     {
         $periods = $this->pendingPeriods();
-        if (empty($periods)) {
-            return 0;
-        }
 
         return Cache::lock('FACDBTD005:snapshot', 600)->get(function () use ($periods, $createdBy) {
-            set_time_limit(600);
-            ini_set('memory_limit', '1024M');
+            if (!empty($periods)) {
+                set_time_limit(600);
+                ini_set('memory_limit', '1024M');
+            }
 
             foreach ($periods as $period) {
                 $this->snapshot($period, $createdBy);
             }
 
+            $this->clearFinishedEventParts();
+
             return count($periods);
         }) ?: 0;
     }
 
-    private function buildRows(object $period, string $takingDate, string $closeDate, $invListNo, ?string $createdBy): array
+    private function buildRows(object $period, ?TakingEvent $event, string $takingDate, string $closeDate, $invListNo, ?string $createdBy): array
     {
-        $db    = $this->db();
-        $event = TakingEvent::forPeriod($db, $period);
+        $db = $this->db();
 
         // [lokasi|part|lot => data] dari book & taking, diagregasi di database tanpa join
         $lines = [];
@@ -218,8 +320,6 @@ class TakingHistoryService
         $parts     = $this->parts();
         $costs     = $this->unitCosts();
         $now       = now()->format('Y-m-d H:i:s');
-        // Kolom EVENT_TYPE ditambahkan oleh docs/FACDBT/sim_inv_taking_event.sql
-        $withEvent = $db->getSchemaBuilder()->hasColumn(self::TABLE, 'EVENT_TYPE');
 
         $rows = [];
         foreach ($lines as $line) {
@@ -229,46 +329,44 @@ class TakingHistoryService
             $unitCost = $cost['mat'] + $cost['lab'] + $cost['foh'];
             $variance = $line['qty_taking'] - $line['qty_book'];
 
-            $row = [
-                'INV_LIST_NO'          => (string) ($invListNo ?? ''),
-                'TAKING_DATE'          => Carbon::parse($period->TAKING_DATE)->toDateString(),
-                'CLOSE_DATE'           => Carbon::parse($period->CLOSE_DATE)->toDateString(),
-                'MONTH'                => (int) $period->MONTH,
-                'YEAR'                 => (int) $period->YEAR,
-                'time'                 => $line['time'] ?? $line['book_time'],
-                'site'                 => $location->site ?? null,
-                'warehouse'            => $this->filled($location->warehouse ?? null) ?? $line['warehouse'],
-                'location_group'       => $location->location_group ?? null,
-                'location_no'          => $line['location_no'],
-                'area'                 => $areas[$line['location_no']] ?? null,
-                'product_family'       => $part->prod_group ?? null,
-                'accounting_group'     => $part->accounting_group ?? null,
-                'part_no'              => $line['part_no'],
-                'part_name'            => $part->inventory_part_description ?? null,
-                'seg'                  => $part->seg ?? null,
-                'part_group'           => $part->part_group ?? null,
-                'uom'                  => $line['uom'],
-                'LOT_BATCH_NO'         => $line['lot'] !== '' ? $line['lot'] : null,
-                'qty_book'             => $line['qty_book'],
-                'qty_taking'           => $line['qty_taking'],
-                'qty_variance'         => $variance,
-                'mat_cost'             => $cost['mat'],
-                'lab_cost'             => $cost['lab'],
-                'foh_cost'             => $cost['foh'],
-                'amount_book'          => round($line['qty_book'] * $unitCost, 2),
-                'amount_taking'        => round($line['qty_taking'] * $unitCost, 2),
-                'amount_variance'      => round($variance * $unitCost, 2),
-                'item_book'            => $line['item_book'],
-                'item_taking'          => $line['item_taking'],
-                'remark_part_location' => self::remark($varPartLocation[$line['location_no'] . '|' . $line['part_no']]),
-                'remark_part_no'       => self::remark($varPart[$line['part_no']]),
-                'CREATED_DATETIME'     => $now,
-                'CREATED_BY'           => $createdBy,
+            $rows[] = [
+                'VINVLISTNO'      => (string) ($invListNo ?? ''),
+                'DTAKINGDATE'     => Carbon::parse($period->TAKING_DATE)->toDateString(),
+                'DCLOSEDATE'      => Carbon::parse($period->CLOSE_DATE)->toDateString(),
+                'VEVENTTYPE'      => $event?->type,
+                'IMONTH'          => (int) $period->MONTH,
+                'IYEAR'           => (int) $period->YEAR,
+                'DTAKINGTIME'     => $line['time'] ?? $line['book_time'],
+                'VSITE'           => $location->VSITE ?? null,
+                'VWAREHOUSE'      => $this->filled($location->VWAREHOUSE ?? null) ?? $line['warehouse'],
+                'VLOCGROUP'       => $location->VLOCGROUP ?? null,
+                'VLOCATIONNO'     => $line['location_no'],
+                'VAREA'           => $areas[$line['location_no']] ?? null,
+                'VPRODFAMILY'     => $part->VPRODGROUP ?? null,
+                'VACCGROUP'       => $part->VACCGROUP ?? null,
+                'VPARTNO'         => $line['part_no'],
+                'VPARTNAME'       => $part->VPARTDESC ?? null,
+                'VSEG'            => $part->VSEG ?? null,
+                'VPARTGROUP'      => $part->VPARTGROUP ?? null,
+                'VUOM'            => $line['uom'],
+                'VLOTBATCHNO'     => $line['lot'] !== '' ? $line['lot'] : null,
+                'NQTYBOOK'        => $line['qty_book'],
+                'NQTYTAKING'      => $line['qty_taking'],
+                'NQTYVARIANCE'    => $variance,
+                'MMATCOST'        => $cost['mat'],
+                'MLABCOST'        => $cost['lab'],
+                'MFOHCOST'        => $cost['foh'],
+                'MAMOUNTBOOK'     => round($line['qty_book'] * $unitCost, 2),
+                'MAMOUNTTAKING'   => round($line['qty_taking'] * $unitCost, 2),
+                'MAMOUNTVARIANCE' => round($variance * $unitCost, 2),
+                // Boolean varchar(1): '1' = baris ada di book / taking
+                'BITEMBOOK'       => $line['item_book'] ? '1' : '0',
+                'BITEMTAKING'     => $line['item_taking'] ? '1' : '0',
+                'VREMARKPARTLOC'  => self::remark($varPartLocation[$line['location_no'] . '|' . $line['part_no']]),
+                'VREMARKPARTNO'   => self::remark($varPart[$line['part_no']]),
+                'VCREA'           => $createdBy,
+                'DCREA'           => $now,
             ];
-            if ($withEvent) {
-                $row['EVENT_TYPE'] = $event?->type;
-            }
-            $rows[] = $row;
         }
 
         return $rows;
@@ -292,27 +390,27 @@ class TakingHistoryService
     }
 
     /**
-     * @return array<string, object> [location_no => {site, warehouse, location_group}]
+     * @return array<string, object> [Location No => {VSITE, VWAREHOUSE, VLOCGROUP}] dari Master Location
      */
     private function locations(): array
     {
         $map = [];
-        foreach ($this->db()->table('SIM_INV_LOCATION_TEST')->get(['location_no', 'site', 'warehouse', 'location_group']) as $r) {
-            $map[trim((string) $r->location_no)] = $r;
+        foreach (FacdbtTable::active($this->db(), FacdbtTable::LOCATIONS)->get(['VLOCATIONNO', 'VSITE', 'VWAREHOUSE', 'VLOCGROUP']) as $r) {
+            $map[trim((string) $r->VLOCATIONNO)] = $r;
         }
 
         return $map;
     }
 
     /**
-     * @return array<string, string> [location_no => area (SIM_INV_GROUP_LOCATION.location_group)]; lokasi di beberapa area memakai area pertama
+     * @return array<string, string> [Location No => area (Master Group Location VLOCGROUP)]; lokasi di beberapa area memakai area pertama
      */
     private function areas(): array
     {
         $map = [];
-        foreach ($this->db()->table('SIM_INV_GROUP_LOCATION')->orderBy('IID')->get(['LOCATION_NO', 'location_group']) as $r) {
-            $loc   = trim((string) $r->LOCATION_NO);
-            $group = AreaName::of($r->location_group);
+        foreach (FacdbtTable::active($this->db(), FacdbtTable::GROUP_LOCATIONS)->orderBy('IID')->get(['VLOCATIONNO', 'VLOCGROUP']) as $r) {
+            $loc   = trim((string) $r->VLOCATIONNO);
+            $group = AreaName::of($r->VLOCGROUP);
             if ($group !== '' && !isset($map[$loc])) {
                 $map[$loc] = $group;
             }
@@ -322,29 +420,29 @@ class TakingHistoryService
     }
 
     /**
-     * @return array<string, object> [part_no => {prod_group, accounting_group, inventory_part_description, seg, part_group}]
+     * @return array<string, object> [Part No => {VPRODGROUP, VACCGROUP, VPARTDESC, VSEG, VPARTGROUP}] dari Master Part
      */
     private function parts(): array
     {
         $map = [];
-        foreach ($this->db()->table('SIM_INV_PART_TEST')->get(['part_no', 'prod_group', 'accounting_group', 'inventory_part_description', 'seg', 'part_group']) as $r) {
-            $map[trim((string) $r->part_no)] = $r;
+        foreach (FacdbtTable::active($this->db(), FacdbtTable::PARTS)->get(['VPARTNO', 'VPRODGROUP', 'VACCGROUP', 'VPARTDESC', 'VSEG', 'VPARTGROUP']) as $r) {
+            $map[trim((string) $r->VPARTNO)] = $r;
         }
 
         return $map;
     }
 
     /**
-     * @return array<string, array{mat: float, lab: float, foh: float}>
+     * @return array<string, array{mat: float, lab: float, foh: float}> dari Master Unit Cost
      */
     private function unitCosts(): array
     {
         $map = [];
-        foreach ($this->db()->table('SIM_INV_UNIT_COST_TEST')->get(['part_no', 'mat_cost', 'lab_cost', 'foh_cost']) as $r) {
-            $map[trim((string) $r->part_no)] = [
-                'mat' => (float) $r->mat_cost,
-                'lab' => (float) $r->lab_cost,
-                'foh' => (float) $r->foh_cost,
+        foreach (FacdbtTable::active($this->db(), FacdbtTable::UNIT_COSTS)->get(['VPARTNO', 'MMATCOST', 'MLABCOST', 'MFOHCOST']) as $r) {
+            $map[trim((string) $r->VPARTNO)] = [
+                'mat' => (float) $r->MMATCOST,
+                'lab' => (float) $r->MLABCOST,
+                'foh' => (float) $r->MFOHCOST,
             ];
         }
 

@@ -22,11 +22,14 @@ class FACDBTF005 extends Controller
 
     // Kolom export CSV [kolom tabel => judul]; judul yang sama dipakai template import
     private const EXPORT_COLUMNS = [
-        'LOCATION_NO' => 'Location No',
-        'ID_LOC' => 'ID Loc',
-        'location_group' => 'Location Group',
-        'stream' => 'Stream',
+        'VLOCATIONNO' => 'Location No',
+        'VIDLOC' => 'ID Loc',
+        'VLOCGROUP' => 'Location Group',
+        'VSTREAM' => 'Stream',
     ];
+
+    // Kolom form yang disimpan (tabel FACDBT_MSHGROUPLOCATIONS)
+    private const FIELDS = ['VLOCATIONNO', 'VIDLOC', 'VLOCGROUP', 'VSTREAM'];
 
     public function index(FACDBTF005DataTable $dataTable)
     {
@@ -40,27 +43,18 @@ class FACDBTF005 extends Controller
 
     public function store(GroupLocationRequest $request)
     {
-        GroupLocation::create([
-            'LOCATION_NO' => $request->LOCATION_NO,
-            'ID_LOC' => $request->ID_LOC,
-            'location_group' => $request->location_group,
-            'stream' => $request->stream,
-        ]);
+        // Kombinasi Location No, ID Loc & Location Group yang pernah dihapus dipulihkan dengan data baru
+        GroupLocation::saveRestoring(
+            $request->only(['VLOCATIONNO', 'VIDLOC', 'VLOCGROUP']),
+            $request->only(self::FIELDS)
+        );
 
         return Response::success(message: 'Group Location created successfully');
     }
 
     public function show($id)
     {
-        // Cegah pencarian jika ID yang dikirim JS adalah string 'undefined'
-        if ($id === 'undefined' || empty($id)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid ID provided'
-            ], 400);
-        }
-
-        $groupLocation = GroupLocation::where('IID', $id)->first();
+        $groupLocation = GroupLocation::find($id);
 
         if (!$groupLocation) {
             return response()->json([
@@ -77,12 +71,7 @@ class FACDBTF005 extends Controller
 
     public function update(GroupLocationRequest $request, GroupLocation $grouplocation)
     {
-        $grouplocation->update([
-            'LOCATION_NO' => $request->LOCATION_NO,
-            'ID_LOC' => $request->ID_LOC,
-            'location_group' => $request->location_group,
-            'stream' => $request->stream,
-        ]);
+        $grouplocation->update($request->only(self::FIELDS));
 
         return Response::success(message: 'Group Location updated successfully');
     }
@@ -100,10 +89,10 @@ class FACDBTF005 extends Controller
 
     public function destroyMultiple(Request $request)
     {
-        $ids = $request->ids;
+        $ids = (array) $request->ids;
 
         try {
-            GroupLocation::whereIn('IID', $ids)->delete();
+            GroupLocation::softDeleteKeys($ids);
 
             return Response::success(message: 'Selected group locations deleted successfully');
         } catch (\Throwable $th) {
@@ -119,8 +108,8 @@ class FACDBTF005 extends Controller
         $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
 
         $query = GroupLocation::query()
-            ->when(!empty($ids), fn ($q) => $q->whereIn('IID', $ids))
-            ->orderBy('location_group')->orderBy('LOCATION_NO')->orderBy('IID');
+            ->when(!empty($ids), fn ($q) => $q->whereKey($ids))
+            ->orderBy('VLOCGROUP')->orderBy('VLOCATIONNO')->orderBy('IID');
 
         return (new MasterDataExport($query, self::EXPORT_COLUMNS))->download('Master_Group_Location-' . date('YmdHis') . '.csv');
     }
@@ -135,6 +124,8 @@ class FACDBTF005 extends Controller
     {
         // File besar butuh waktu lebih dari batas default PHP (30 detik)
         set_time_limit(300);
+        // File besar: daftar baris & hasil validasi disimpan di memori sampai seluruh file selesai dibaca
+        ini_set('memory_limit', '512M');
 
         try {
             $import = new Import;
@@ -159,19 +150,21 @@ class FACDBTF005 extends Controller
             if (empty($cleaned)) {
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
+            // Hasil baca file (semua baris + log validasi) tidak dipakai lagi; lepas dari memori sebelum menyimpan
+            unset($import, $result);
 
-            DB::connection('INV_TAKING')->beginTransaction();
+            DB::connection('FACDBT')->beginTransaction();
 
             try {
-                // Kombinasi LOCATION_NO, ID_LOC & location_group yang sudah ada tidak ditambah lagi,
-                // hanya stream-nya yang ditimpa; kombinasi baru dibuat sebagai baris baru.
+                // Kombinasi Location No, ID Loc & Location Group yang sudah ada (termasuk yang pernah dihapus)
+                // tidak ditambah lagi, hanya stream-nya yang ditimpa; kombinasi baru dibuat sebagai baris baru.
                 [$insertedCount, $updatedCount] = $this->saveImportRows(
                     new GroupLocation,
                     $cleaned,
-                    ['LOCATION_NO', 'ID_LOC', 'location_group']
+                    ['VLOCATIONNO', 'VIDLOC', 'VLOCGROUP']
                 );
 
-                DB::connection('INV_TAKING')->commit();
+                DB::connection('FACDBT')->commit();
 
                 return response()->json([
                     'success' => true,
@@ -183,7 +176,7 @@ class FACDBTF005 extends Controller
                     ],
                 ], 200);
             } catch (\Exception $e) {
-                DB::connection('INV_TAKING')->rollBack();
+                DB::connection('FACDBT')->rollBack();
 
                 return response()->json([
                     'success' => false,

@@ -15,6 +15,11 @@ let lastUpdated = null;
 let statusEl = null;
 // Nama event periode berjalan (Master Event), dari endpoint versi data
 let eventName = null;
+// Peringatan data event (mis. Pre-Taking tanpa daftar part)
+let eventWarning = null;
+let warningEl = null;
+// Dipanggil dengan kode event (PRE / TWH / DIRECT / null) setiap kali versi data dicek
+const eventTypeListeners = [];
 
 function ensureStatusElement() {
     if (statusEl) return statusEl;
@@ -66,12 +71,42 @@ function render() {
     }
 }
 
-function setEvent(name) {
-    name = name || null;
+// Kotak peringatan di bawah baris status; disembunyikan bila tidak ada peringatan
+function renderWarning() {
+    if (!warningEl) {
+        if (!eventWarning) return;
+        warningEl = document.createElement('div');
+        warningEl.className = 'alert alert-warning d-flex align-items-center gap-2 py-2 mb-3';
+        warningEl.setAttribute('role', 'alert');
+        ensureStatusElement().insertAdjacentElement('afterend', warningEl);
+    }
+
+    warningEl.classList.toggle('d-none', !eventWarning);
+    warningEl.innerHTML = '<i class="icon-base ti tabler-alert-triangle"></i><span></span>';
+    warningEl.querySelector('span').textContent = eventWarning || '';
+}
+
+function setEvent(data) {
+    const warning = data?.warning || null;
+    if (warning !== eventWarning) {
+        eventWarning = warning;
+        renderWarning();
+    }
+
+    const name = data?.event || null;
     if (name !== eventName) {
         eventName = name;
         render();
     }
+    eventTypeListeners.forEach(listener => listener(data?.event_type || null));
+}
+
+/**
+ * Pantau kode event periode berjalan (dicek bersama versi data oleh autoRefresh), mis. supaya Main Dashboard
+ * berpindah ke tampilan TWH saat event diganti.
+ */
+export function onEventType(listener) {
+    eventTypeListeners.push(listener);
 }
 
 /**
@@ -113,7 +148,7 @@ export function autoRefresh(callback, interval = REFRESH_INTERVAL) {
         try {
             const res = await axios.get(VERSION_URL, { timeout: 15000 });
             const latest = res.data?.version ?? null;
-            setEvent(res.data?.event);
+            setEvent(res.data);
 
             if (version !== null && latest !== version) {
                 callback();
@@ -132,7 +167,7 @@ export function autoRefresh(callback, interval = REFRESH_INTERVAL) {
     // Versi awal (data yang baru dimuat saat halaman dibuka)
     axios.get(VERSION_URL).then(res => {
         version = res.data?.version ?? null;
-        setEvent(res.data?.event);
+        setEvent(res.data);
     }).catch(() => {});
 
     setInterval(check, CHECK_INTERVAL);

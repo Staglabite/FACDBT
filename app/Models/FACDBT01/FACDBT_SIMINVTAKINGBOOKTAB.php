@@ -10,7 +10,7 @@ class FACDBT_SIMINVTAKINGBOOKTAB extends Model
     use HasFactory;
 
     // Mengarahkan ke koneksi MySQL eksternal
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
 
     // Nama tabel di database berdasarkan dump SQL
     protected $table = 'SIM_INV_TAKING_BOOK_TAB';
@@ -93,7 +93,7 @@ class FACDBT_SIMINVTAKINGBOOKTAB extends Model
      */
     public function part()
     {
-        return $this->belongsTo(FACDBT_MSHPART::class, 'PART_NO', 'part_no');
+        return $this->belongsTo(FACDBT_MSHPART::class, 'PART_NO', 'VPARTNO');
     }
 
     /**
@@ -101,6 +101,6 @@ class FACDBT_SIMINVTAKINGBOOKTAB extends Model
      */
     public function location()
     {
-        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'LOCATION_NO', 'location_no');
+        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'LOCATION_NO', 'VLOCATIONNO');
     }
 }

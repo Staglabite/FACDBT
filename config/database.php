@@ -142,17 +142,19 @@ return [
             'sslmode' => 'prefer',
         ],
 
-        'INV_TAKING' => [
+        // Koneksi aplikasi FACDBT (database dbportal): tabel FACDBT_* dan tabel sistem taking SIM_INV_TAKING_*.
+        // Env DB_FACDBT_*; bila belum diisi memakai env lama DB_INV_TAKING_* supaya .env lama tetap berjalan.
+        'FACDBT' => [
             'driver' => 'mysql', // Driver wajib 'mysql'
-            'url' => env('DB_INV_TAKING_URL'),
-            'host' => env('DB_INV_TAKING_HOST', '127.0.0.1'),
-            'port' => env('DB_INV_TAKING_PORT', '3306'), // Default MySQL 3306
-            'database' => env('DB_INV_TAKING_DATABASE', 'laravel'),
-            'username' => env('DB_INV_TAKING_USERNAME', 'root'),
-            'password' => env('DB_INV_TAKING_PASSWORD', ''),
-            'unix_socket' => env('DB_INV_TAKING_SOCKET', ''),
-            'charset' => env('DB_INV_TAKING_CHARSET', 'utf8mb4'),
-            'collation' => env('DB_INV_TAKING_COLLATION', 'utf8mb4_unicode_ci'),
+            'url' => env('DB_FACDBT_URL', env('DB_INV_TAKING_URL')),
+            'host' => env('DB_FACDBT_HOST', env('DB_INV_TAKING_HOST', '127.0.0.1')),
+            'port' => env('DB_FACDBT_PORT', env('DB_INV_TAKING_PORT', '3306')), // Default MySQL 3306
+            'database' => env('DB_FACDBT_DATABASE', env('DB_INV_TAKING_DATABASE', 'laravel')),
+            'username' => env('DB_FACDBT_USERNAME', env('DB_INV_TAKING_USERNAME', 'root')),
+            'password' => env('DB_FACDBT_PASSWORD', env('DB_INV_TAKING_PASSWORD', '')),
+            'unix_socket' => env('DB_FACDBT_SOCKET', env('DB_INV_TAKING_SOCKET', '')),
+            'charset' => env('DB_FACDBT_CHARSET', env('DB_INV_TAKING_CHARSET', 'utf8mb4')),
+            'collation' => env('DB_FACDBT_COLLATION', env('DB_INV_TAKING_COLLATION', 'utf8mb4_unicode_ci')),
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,

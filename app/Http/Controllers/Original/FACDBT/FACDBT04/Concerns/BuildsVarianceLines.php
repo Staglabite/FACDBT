@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns;
 
+use App\Services\FACDBT\FacdbtTable;
 use App\Services\FACDBT\AreaName;
 use App\Services\FACDBT\RunningTakingPeriod;
 use Carbon\Carbon;
@@ -57,7 +58,7 @@ trait BuildsVarianceLines
      * Taking hanya yang di-scan di rentang $takingFrom s/d $takingTo; book tetap penuh periode.
      * Tabel besar diagregasi tanpa join; pemetaan unit cost di PHP karena join dengan TRIM()
      * membuat index tidak terpakai.
-     * Unit cost dari SIM_INV_UNIT_COST_TEST (mat + lab + foh); UNIT_COST di book tidak dipakai.
+     * Unit cost dari Master Unit Cost (mat + lab + foh); UNIT_COST di book tidak dipakai.
      *
      * @return array<int, array{0: string, 1: string, 2: float, 3: float, 4: float}>
      *         [[location_no, part_no, qty_book, qty_taking, unit_cost], ...]
@@ -110,11 +111,11 @@ trait BuildsVarianceLines
      */
     private function locationAreas($db): array
     {
-        return $this->dashboardCache('FACDBT04:location-areas:v4', function () use ($db) {
+        return $this->dashboardCache('FACDBT04:location-areas:v5', function () use ($db) {
             $map = [];
-            foreach ($db->table('SIM_INV_GROUP_LOCATION')->select('LOCATION_NO', 'location_group')->orderBy('IID')->get() as $r) {
-                $loc   = trim((string) $r->LOCATION_NO);
-                $group = AreaName::of($r->location_group);
+            foreach (FacdbtTable::active($db, FacdbtTable::GROUP_LOCATIONS)->select('VLOCATIONNO', 'VLOCGROUP')->orderBy('IID')->get() as $r) {
+                $loc   = trim((string) $r->VLOCATIONNO);
+                $group = AreaName::of($r->VLOCGROUP);
                 if ($group !== '' && !isset($map[$loc])) {
                     $map[$loc] = $group;
                 }
@@ -129,11 +130,11 @@ trait BuildsVarianceLines
      */
     private function masterUnitCosts($db): array
     {
-        return $this->dashboardCache('FACDBT04:unit-costs:v1', function () use ($db) {
-            return $db->table('SIM_INV_UNIT_COST_TEST')
-                ->groupBy('part_no')
-                ->select('part_no', DB::raw('MAX(COALESCE(mat_cost, 0) + COALESCE(lab_cost, 0) + COALESCE(foh_cost, 0)) as unit_cost'))
-                ->pluck('unit_cost', 'part_no')
+        return $this->dashboardCache('FACDBT04:unit-costs:v2', function () use ($db) {
+            return FacdbtTable::active($db, FacdbtTable::UNIT_COSTS)
+                ->groupBy('VPARTNO')
+                ->select('VPARTNO', DB::raw('MAX(COALESCE(MMATCOST, 0) + COALESCE(MLABCOST, 0) + COALESCE(MFOHCOST, 0)) as unit_cost'))
+                ->pluck('unit_cost', 'VPARTNO')
                 ->map(fn ($v) => (float) $v)
                 ->all();
         });

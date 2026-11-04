@@ -3,7 +3,7 @@ import { _formToJson, _showInvalidError, toast } from '../../../../helpers';
 
 export default class LocationForm {
     // global variables
-    #locationId = null; // using location_no
+    #locationId = null; // IID
     #locationModal = new bootstrap.Modal(document.getElementById('location-modal'));
     #locationForm = document.getElementById('location-form');
     #onSuccessCallback = null;
@@ -25,12 +25,12 @@ export default class LocationForm {
         if (locationId === null) {
             // New location
             $('#location-title').text('Add Location');
-            $('#location_no').prop('readonly', false); // Allow editing location_no on create
+            $('#VLOCATIONNO').prop('readonly', false); // Location No bisa diisi saat tambah
             this.#locationModal.show();
         } else {
             // Edit location
             $('#location-title').text('Edit Location');
-            $('#location_no').prop('readonly', true); // Prevent editing primary key on update
+            $('#VLOCATIONNO').prop('readonly', true); // Location No / Part No tidak diubah saat edit
             this.#getLocationData();
             this.#locationModal.show();
         }
@@ -50,12 +50,12 @@ export default class LocationForm {
                 const data = response.data.data;
                 
                 // Map the form IDs to the data keys returned from LocationResource
-                $('#location_no').val(data.location_no);
-                $('#location_group').val(data.location_group);
-                $('#site').val(data.site);
-                $('#warehouse').val(data.warehouse);
-                $('#location_description').val(data.location_description);
-                $('#location_group_description').val(data.location_group_description);
+                $('#VLOCATIONNO').val(data.VLOCATIONNO);
+                $('#VLOCGROUP').val(data.VLOCGROUP);
+                $('#VSITE').val(data.VSITE);
+                $('#VWAREHOUSE').val(data.VWAREHOUSE);
+                $('#VLOCDESC').val(data.VLOCDESC);
+                $('#VLOCGROUPDESC').val(data.VLOCGROUPDESC);
             })
             .catch(error => {
                 toast.error('Failed to fetch location data');

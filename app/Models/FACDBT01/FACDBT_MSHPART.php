@@ -2,38 +2,42 @@
 
 namespace App\Models\FACDBT01;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\FACDBT01\Concerns\HasAuditColumns;
+use App\Services\FACDBT\FacdbtTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Master Part (FACDBTF002).
+ */
 class FACDBT_MSHPART extends Model
 {
     use HasFactory;
+    use HasAuditColumns;
 
-    protected $connection = 'INV_TAKING';
-    protected $table = 'SIM_INV_PART_TEST';
+    protected $connection = 'FACDBT';
+    protected $table = FacdbtTable::PARTS;
 
-    protected $primaryKey = 'part_no';
-    public $incrementing = false;
-    protected $keyType = 'string';
+    protected $primaryKey = 'IID';
+    public $incrementing = true;
+    protected $keyType = 'int';
 
     public $timestamps = false;
 
     protected $fillable = [
-        'part_no',
-        'inventory_part_description',
-        'accounting_group',
-        'seg',
-        'prod_group',
-        'part_group',
+        'VPARTNO',
+        'VPARTDESC',
+        'VACCGROUP',
+        'VSEG',
+        'VPRODGROUP',
+        'VPARTGROUP',
     ];
 
     protected $casts = [
-        'part_no' => 'string',
-        'inventory_part_description' => 'string',
-        'accounting_group' => 'string',
-        'seg' => 'string',
-        'prod_group' => 'string',
-        'part_group' => 'string',
+        'IID' => 'integer',
+        'DCREA' => 'datetime:Y-m-d H:i:s',
+        'DMODI' => 'datetime:Y-m-d H:i:s',
+        'DDELETE' => 'datetime:Y-m-d H:i:s',
     ];
 
     /**
@@ -41,16 +45,16 @@ class FACDBT_MSHPART extends Model
      */
     public function unitCost()
     {
-        return $this->hasOne(FACDBT_MSHUNITCOST::class, 'part_no', 'part_no');
+        return $this->hasOne(FACDBT_MSHUNITCOST::class, 'VPARTNO', 'VPARTNO');
     }
 
     /**
      * Relasi balik ke model FACDBT_SIMINVTAKINGBOOKTAB (One to Many)
-     * 1 Part bisa berada di banyak transaksi Book Tab berdasarkan part_no.
+     * 1 Part bisa berada di banyak transaksi Book Tab berdasarkan Part No.
      */
     public function books()
     {
-        return $this->hasMany(FACDBT_SIMINVTAKINGBOOKTAB::class, 'PART_NO', 'part_no');
+        return $this->hasMany(FACDBT_SIMINVTAKINGBOOKTAB::class, 'PART_NO', 'VPARTNO');
     }
 
     /**
@@ -58,7 +62,7 @@ class FACDBT_MSHPART extends Model
      */
     public function revisions()
     {
-        return $this->hasMany(FACDBT_SIMINVTAKINGDATAREVISIONTAB::class, 'PART_NO', 'part_no');
+        return $this->hasMany(FACDBT_SIMINVTAKINGDATAREVISIONTAB::class, 'PART_NO', 'VPARTNO');
     }
 
     /**
@@ -66,6 +70,6 @@ class FACDBT_MSHPART extends Model
      */
     public function takingData()
     {
-        return $this->hasMany(FACDBT_SIMINVTAKINGDATATAB::class, 'PART_NO', 'part_no');
+        return $this->hasMany(FACDBT_SIMINVTAKINGDATATAB::class, 'PART_NO', 'VPARTNO');
     }
 }

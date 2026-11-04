@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\CachesDashboard;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\FiltersTakingRange;
 use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\UsesTakingEvent;
+use App\Services\FACDBT\FacdbtTable;
 use App\Services\FACDBT\RunningTakingPeriod;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\DB;
  * - Taking Data Revision : per area, Item Book (jumlah baris book) dan % Area (jumlah revisi di area / Item Book area x 100)
  * - Reason Revision      : porsi revisi per REASON_REVISION
  * - Revision Performance : % Revision per MODIFIED_BY (jumlah revisi / Item Book x 100; Item Book area terpilih bila difilter)
- * Area = SIM_INV_GROUP_LOCATION.location_group dari LOCATION_NO. Filter dengan klik chart (lihat getData()).
+ * Area = Master Group Location (VLOCGROUP) dari LOCATION_NO. Filter dengan klik chart (lihat getData()).
  */
 class FACDBTD006 extends Controller
 {
@@ -27,7 +28,7 @@ class FACDBTD006 extends Controller
     use FiltersTakingRange;
     use UsesTakingEvent;
 
-    private const CONN = 'INV_TAKING';
+    private const CONN = 'FACDBT';
     private const CACHE_TTL = 60;
 
     private const UNKNOWN = 'UNKNOWN';
@@ -130,7 +131,7 @@ class FACDBTD006 extends Controller
         $closeDate  = Carbon::parse($period->CLOSE_DATE)->endOfDay()->format('Y-m-d H:i:s');
         [$takingFrom, $takingTo] = $this->takingRange($request, $takingDate, $closeDate);
 
-        return $this->dashboardCache("FACDBTD006:source:v6:{$takingDate}:{$closeDate}:{$takingFrom}:{$takingTo}", function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo) {
+        return $this->dashboardCache("FACDBTD006:source:v7:{$takingDate}:{$closeDate}:{$takingFrom}:{$takingTo}", function () use ($db, $takingDate, $closeDate, $takingFrom, $takingTo) {
             $areaOf = $this->locationAreas($db);
             $area   = fn ($loc) => $areaOf[trim((string) $loc)] ?? self::UNKNOWN;
 
@@ -181,12 +182,12 @@ class FACDBTD006 extends Controller
 
     /**
      * Data contoh untuk presentasi (halaman dibuka dengan ?demo=1): bentuknya sama dengan source(), tidak
-     * membaca / menulis data taking dan tidak ditandai di halaman. Area dari master SIM_INV_GROUP_LOCATION;
+     * membaca / menulis data taking dan tidak ditandai di halaman. Area dari Master Group Location;
      * angka acak tetapi selalu sama.
      */
     private function demoSource(): array
     {
-        $areas = AreaName::list(DB::connection(self::CONN)->table('SIM_INV_GROUP_LOCATION')->distinct()->pluck('location_group'))
+        $areas = AreaName::list(FacdbtTable::active(DB::connection(self::CONN), FacdbtTable::GROUP_LOCATIONS)->distinct()->pluck('VLOCGROUP'))
             ?: ['PPC OIL', 'PPC-D', 'PPC-E', 'PPC-F', 'PROD-1A', 'PROD-1B', 'PROD-2A', 'PROD-2B', 'QA', 'SUPPLIER'];
         $modifiers = [
             'ARIF SUDARMAJI' => 30, 'ALFI IBRAHIM YAHYA' => 10, 'YOHANES ENDI ROSARI' => 7, 'DEMITRIS' => 6,
@@ -236,9 +237,9 @@ class FACDBTD006 extends Controller
     private function locationAreas($db): array
     {
         $map = [];
-        foreach ($db->table('SIM_INV_GROUP_LOCATION')->orderBy('IID')->get(['LOCATION_NO', 'location_group']) as $r) {
-            $loc   = trim((string) $r->LOCATION_NO);
-            $group = AreaName::of($r->location_group);
+        foreach (FacdbtTable::active($db, FacdbtTable::GROUP_LOCATIONS)->orderBy('IID')->get(['VLOCATIONNO', 'VLOCGROUP']) as $r) {
+            $loc   = trim((string) $r->VLOCATIONNO);
+            $group = AreaName::of($r->VLOCGROUP);
             if ($group !== '' && !isset($map[$loc])) {
                 $map[$loc] = $group;
             }

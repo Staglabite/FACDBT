@@ -15,7 +15,7 @@ class FACDBTD004 extends Controller
 {
     use BuildsVarianceLines;
 
-    private const CONN = 'INV_TAKING';
+    private const CONN = 'FACDBT';
     private const CACHE_TTL = 60;
 
     public function index(FACDBTD004PositiveDataTable $positive, FACDBTD004NegativeDataTable $negative)

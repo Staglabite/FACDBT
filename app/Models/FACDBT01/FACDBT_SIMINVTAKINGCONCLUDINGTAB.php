@@ -9,7 +9,7 @@ class FACDBT_SIMINVTAKINGCONCLUDINGTAB extends Model
 {
     use HasFactory;
 
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
     protected $table = 'SIM_INV_TAKING_CONCLUDING_TAB';
 
     protected $primaryKey = ['MONTH', 'YEAR', 'TAKING_DATE'];

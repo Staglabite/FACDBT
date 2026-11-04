@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Original\FACDBT04;
 
+use App\DataTables\Original\FACDBT01\Concerns\AppliesDefaultOrder;
 use App\Exports\FACDBT\FACDBT04\FACDBTD005 as Export;
 use App\Models\FACDBT04\FACDBT_SIMINVTAKINGDATAHISTORY as TakingHistory;
 use App\Services\FACDBT\TakingEvent;
@@ -15,11 +16,14 @@ use Yajra\DataTables\Services\DataTable;
 // History Taking Datatable (tanpa action button)
 class FACDBTD005DataTable extends DataTable
 {
+    use AppliesDefaultOrder;
     use DataTableTrait;
 
     // Kolom angka yang ditampilkan dengan pemisah ribuan
-    private const QTY_COLUMNS = ['qty_book', 'qty_taking', 'qty_variance'];
-    private const AMOUNT_COLUMNS = ['mat_cost', 'lab_cost', 'foh_cost', 'amount_book', 'amount_taking', 'amount_variance'];
+    private const QTY_COLUMNS = ['NQTYBOOK', 'NQTYTAKING', 'NQTYVARIANCE'];
+    private const AMOUNT_COLUMNS = ['MMATCOST', 'MLABCOST', 'MFOHCOST', 'MAMOUNTBOOK', 'MAMOUNTTAKING', 'MAMOUNTVARIANCE'];
+    // Kolom angka lain yang rata kanan (boolean item 0 / 1, progress)
+    private const RIGHT_COLUMNS = ['BITEMBOOK', 'BITEMTAKING', 'progress'];
 
     /**
      * Build the DataTable class.
@@ -32,13 +36,15 @@ class FACDBTD005DataTable extends DataTable
             ->addColumn('checkbox', function ($row) {
                 return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->IID . '">';
             })
-            ->editColumn('time', fn ($row) => $row->time?->format('Y-m-d H:i:s'))
-            ->addColumn('event', fn ($row) => TakingEvent::TYPES[$row->EVENT_TYPE ?? ''] ?? '-')
+            ->editColumn('DTAKINGTIME', fn ($row) => $row->DTAKINGTIME?->format('Y-m-d H:i:s'))
+            ->addColumn('event', fn ($row) => TakingEvent::TYPES[$row->VEVENTTYPE ?? ''] ?? '-')
             // Progress % = qty taking / qty book x 100; "-" bila qty book 0
-            ->addColumn('progress', fn ($row) => (float) $row->qty_book != 0.0
-                ? self::number(round((float) $row->qty_taking / (float) $row->qty_book * 100, 2), 2) . '%'
+            ->addColumn('progress', fn ($row) => (float) $row->NQTYBOOK != 0.0
+                ? self::number(round((float) $row->NQTYTAKING / (float) $row->NQTYBOOK * 100, 2), 2) . '%'
                 : '-')
             ->orderColumn('progress', Export::PROGRESS_SQL . ' $1')
+            // Diurutkan menurut nama event
+            ->orderColumn('event', Export::eventSql() . ' $1')
             ->rawColumns(['checkbox'])
             ->setRowId('IID')
             ->filter(function ($query) {
@@ -46,13 +52,13 @@ class FACDBTD005DataTable extends DataTable
 
                 if (! empty($keyword)) {
                     $query->whereAny([
-                        'location_no',
-                        'location_group',
-                        'area',
-                        'warehouse',
-                        'part_no',
-                        'part_name',
-                        'LOT_BATCH_NO',
+                        'VLOCATIONNO',
+                        'VLOCGROUP',
+                        'VAREA',
+                        'VWAREHOUSE',
+                        'VPARTNO',
+                        'VPARTNAME',
+                        'VLOTBATCHNO',
                     ], 'LIKE', "%{$keyword}%");
                 }
             });
@@ -77,9 +83,11 @@ class FACDBTD005DataTable extends DataTable
         return $model->newQuery()
             ->forPeriod(request('year'), request('month'), request('taking_date'))
             ->forEvent(request('event_type'))
-            ->orderByDesc('TAKING_DATE')
-            ->orderBy('location_no')
-            ->orderBy('part_no');
+            // Urutan bawaan; klik judul kolom menggantikannya
+            ->when(!$this->hasColumnOrder(), fn ($q) => $q
+                ->orderByDesc('DTAKINGDATE')
+                ->orderBy('VLOCATIONNO')
+                ->orderBy('VPARTNO'));
     }
 
     /**
@@ -128,10 +136,10 @@ class FACDBTD005DataTable extends DataTable
         foreach (Export::COLUMNS as $column => $title) {
             $col = match ($column) {
                 'progress' => Column::computed('progress')->title($title)->orderable(true)->searchable(false)->addClass('text-nowrap'),
-                'event'    => Column::computed('event')->title($title)->orderable(false)->searchable(false)->addClass('text-nowrap'),
+                'event'    => Column::computed('event')->title($title)->orderable(true)->searchable(false)->addClass('text-nowrap'),
                 default    => Column::make($column)->title($title)->addClass('text-nowrap'),
             };
-            if (in_array($column, [...self::QTY_COLUMNS, ...self::AMOUNT_COLUMNS, 'item_book', 'item_taking', 'progress'], true)) {
+            if (in_array($column, [...self::QTY_COLUMNS, ...self::AMOUNT_COLUMNS, ...self::RIGHT_COLUMNS], true)) {
                 $col->addClass('text-end');
             }
             $columns[] = $col;

@@ -11,7 +11,9 @@ use App\Http\Requests\FACDBT\FACDBT01\TakingEventRequest;
 use App\Imports\FACDBT\FACDBT01\FACDBTF006 as Import;
 use App\Models\FACDBT01\FACDBT_SIMINVTAKINGEVENT as TakingEventModel;
 use App\Models\FACDBT01\FACDBT_SIMINVTAKINGEVENTPART as TakingEventPart;
+use App\Services\FACDBT\FacdbtTable;
 use App\Services\FACDBT\TakingEvent;
+use App\Services\FACDBT\TakingHistoryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,12 +25,21 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
  */
 class FACDBTF006 extends Controller
 {
-    private const CONN = 'INV_TAKING';
+    private const CONN = 'FACDBT';
 
     private const PART_TITLE = 'Part No';
 
-    public function index(FACDBTF006DataTable $dataTable)
+    public function index(FACDBTF006DataTable $dataTable, TakingHistoryService $history)
     {
+        // Daftar part Pre-Taking yang periodenya sudah ditutup & tersimpan di history dikosongkan
+        if (!request()->ajax()) {
+            try {
+                $history->clearFinishedEventParts();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         if (request()->boolean('ids_only')) {
             return response()->json(['ids' => $dataTable->filteredKeys('IID')]);
         }
@@ -43,7 +54,7 @@ class FACDBTF006 extends Controller
      */
     public function periods()
     {
-        $events = TakingEventModel::query()->pluck('IID', 'TAKING_DATE')
+        $events = TakingEventModel::query()->pluck('IID', 'DTAKINGDATE')
             ->mapWithKeys(fn ($id, $date) => [Carbon::parse($date)->toDateString() => $id]);
 
         $periods = DB::connection(self::CONN)->table('SIM_INV_TAKING_CONCLUDING_TAB')
@@ -71,11 +82,8 @@ class FACDBTF006 extends Controller
 
     public function store(TakingEventRequest $request)
     {
-        TakingEventModel::create([
-            ...$this->fields($request),
-            'CREATED_BY' => auth()->user()->VUSERNAME ?? 'SYSTEM',
-            'CREATED_DATETIME' => now(),
-        ]);
+        // Periode yang event-nya pernah dihapus: baris lama dipulihkan dengan data baru
+        TakingEventModel::saveRestoring(['DTAKINGDATE' => $request->DTAKINGDATE], $this->fields($request));
 
         return Response::success(message: 'Event created successfully');
     }
@@ -93,11 +101,7 @@ class FACDBTF006 extends Controller
 
     public function update(TakingEventRequest $request, TakingEventModel $event)
     {
-        $event->update([
-            ...$this->fields($request),
-            'MODIFIED_BY' => auth()->user()->VUSERNAME ?? 'SYSTEM',
-            'MODIFIED_DATETIME' => now(),
-        ]);
+        $event->update($this->fields($request));
 
         return Response::success(message: 'Event updated successfully');
     }
@@ -130,6 +134,7 @@ class FACDBTF006 extends Controller
     public function importParts(TakingEventPartImportRequest $request, TakingEventModel $event)
     {
         set_time_limit(300);
+        ini_set('memory_limit', '512M');
 
         try {
             $import = new Import;
@@ -154,25 +159,9 @@ class FACDBTF006 extends Controller
             return response()->json(['success' => false, 'message' => 'No part found in the file.'], 422);
         }
 
-        $user = auth()->user()->VUSERNAME ?? 'SYSTEM';
-        $now  = now();
+        $count = $this->replaceParts($event, $parts);
 
-        DB::connection(self::CONN)->transaction(function () use ($event, $parts, $user, $now) {
-            TakingEventPart::where('EVENT_ID', $event->IID)->delete();
-
-            foreach (array_chunk($parts, 1000) as $chunk) {
-                TakingEventPart::insert(array_map(fn ($part) => [
-                    'EVENT_ID' => $event->IID,
-                    'PART_NO' => $part,
-                    'CREATED_BY' => $user,
-                    'CREATED_DATETIME' => $now,
-                ], $chunk));
-            }
-
-            $event->update(['MODIFIED_BY' => $user, 'MODIFIED_DATETIME' => $now]);
-        });
-
-        return Response::success(message: 'Part list replaced with ' . number_format(count($parts)) . ' part(s)');
+        return Response::success(message: 'Part list replaced with ' . number_format($count) . ' part(s)');
     }
 
     /**
@@ -180,10 +169,10 @@ class FACDBTF006 extends Controller
      */
     public function exportParts(TakingEventModel $event)
     {
-        $query = TakingEventPart::query()->where('EVENT_ID', $event->IID)->orderBy('PART_NO');
+        $query = TakingEventPart::query()->where('IEVENTID', $event->IID)->orderBy('VPARTNO');
 
-        return (new MasterDataExport($query, ['PART_NO' => self::PART_TITLE]))
-            ->download('Event_Part_' . Carbon::parse($event->TAKING_DATE)->format('Ymd') . '.csv');
+        return (new MasterDataExport($query, ['VPARTNO' => self::PART_TITLE]))
+            ->download('Event_Part_' . Carbon::parse($event->DTAKINGDATE)->format('Ymd') . '.csv');
     }
 
     public function downloadTemplate()
@@ -193,18 +182,85 @@ class FACDBTF006 extends Controller
 
     private function fields(Request $request): array
     {
-        return [
-            'TAKING_DATE' => $request->TAKING_DATE,
-            'EVENT_TYPE' => $request->EVENT_TYPE,
-            'DESCRIPTION' => $request->DESCRIPTION,
-        ];
+        return $request->only(['DTAKINGDATE', 'VEVENTTYPE', 'VDESC']);
     }
 
+    /**
+     * Ganti daftar part event (soft delete): part yang tidak ada di file dihapus, part yang pernah dihapus
+     * dan ada lagi di file dipulihkan, part baru ditambahkan.
+     *
+     * @param  array<int, string>  $parts
+     * @return int jumlah part aktif
+     */
+    private function replaceParts(TakingEventModel $event, array $parts): int
+    {
+        // Sama seperti MySQL: Part No dibandingkan tanpa beda huruf besar / kecil & spasi di belakang
+        $key = fn ($part) => mb_strtolower(rtrim((string) $part));
+        $wanted = [];
+        foreach ($parts as $part) {
+            $wanted[$key($part)] ??= $part;
+        }
+
+        DB::connection(self::CONN)->transaction(function () use ($event, $wanted, $key) {
+            $table = fn () => DB::connection(self::CONN)->table(TakingEvent::PART_TABLE)->where('IEVENTID', $event->IID);
+            $user  = FacdbtTable::user();
+            $now   = now()->format('Y-m-d H:i:s');
+
+            // [part => [IID, sudah dihapus?]] termasuk baris yang sudah dihapus
+            $existing = [];
+            foreach ($table()->get(['IID', 'VPARTNO', 'DDELETE']) as $row) {
+                $existing[$key($row->VPARTNO)] = [$row->IID, $row->DDELETE !== null];
+            }
+
+            $remove  = [];
+            $restore = [];
+            foreach ($existing as $part => [$id, $deleted]) {
+                if (!isset($wanted[$part]) && !$deleted) {
+                    $remove[] = $id;
+                } elseif (isset($wanted[$part]) && $deleted) {
+                    $restore[] = $id;
+                }
+            }
+
+            foreach (array_chunk($remove, 1000) as $ids) {
+                $table()->whereIn('IID', $ids)->update(FacdbtTable::deleteValues($user));
+            }
+            foreach (array_chunk($restore, 1000) as $ids) {
+                $table()->whereIn('IID', $ids)->update([
+                    FacdbtTable::DELETED_AT => null,
+                    FacdbtTable::DELETED_BY => null,
+                    'VMODI' => $user,
+                    'DMODI' => $now,
+                ]);
+            }
+
+            $new = array_diff_key($wanted, $existing);
+            foreach (array_chunk(array_values($new), 1000) as $chunk) {
+                DB::connection(self::CONN)->table(TakingEvent::PART_TABLE)->insert(array_map(fn ($part) => [
+                    'IEVENTID' => $event->IID,
+                    'VPARTNO' => $part,
+                    'VCREA' => $user,
+                    'DCREA' => $now,
+                ], $chunk));
+            }
+
+            $event->touchAudit();
+        });
+
+        return count($wanted);
+    }
+
+    /**
+     * Soft delete event beserta daftar part-nya.
+     */
     private function deleteEvents(array $ids): void
     {
         DB::connection(self::CONN)->transaction(function () use ($ids) {
-            TakingEventPart::whereIn('EVENT_ID', $ids)->delete();
-            TakingEventModel::whereIn('IID', $ids)->delete();
+            DB::connection(self::CONN)->table(TakingEvent::PART_TABLE)
+                ->whereIn('IEVENTID', $ids)
+                ->whereNull(FacdbtTable::DELETED_AT)
+                ->update(FacdbtTable::deleteValues());
+            TakingEventModel::softDeleteKeys($ids);
         });
     }
 }

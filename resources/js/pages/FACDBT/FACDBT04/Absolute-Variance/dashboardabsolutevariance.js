@@ -68,13 +68,14 @@ class DashboardAbsoluteVariance {
             chip.classList.toggle('d-none', this.selectedAreas.size === 0);
             chip.querySelector('span').textContent = same ? '' : `Area ${area}`;
         }
-        this.loadData();
+        // Tabel kembali ke urutan awal (variance terbesar dulu) untuk area yang dipilih
+        this.loadData({ resetOrder: true });
     }
 
     // -------------------------------------------------------------
     // Data
     // -------------------------------------------------------------
-    loadData({ keepTablePage = false } = {}) {
+    loadData({ keepTablePage = false, resetOrder = false } = {}) {
         const params = this.timeFilter.params();
         if (this.selectedAreas.size > 0) {
             params.areas = Array.from(this.selectedAreas);
@@ -88,7 +89,7 @@ class DashboardAbsoluteVariance {
         this.dataRequest = controller;
 
         track(axios.get(`${ENDPOINT}/data`, { params, signal: controller.signal, timeout: 60000 }))
-            .then(res => this.render(res.data || {}, keepTablePage))
+            .then(res => this.render(res.data || {}, keepTablePage, resetOrder))
             .catch(err => {
                 if (axios.isCancel(err)) return;
                 console.error('Error load absolute variance:', err);
@@ -100,7 +101,7 @@ class DashboardAbsoluteVariance {
             });
     }
 
-    render(data, keepTablePage = false) {
+    render(data, keepTablePage = false, resetOrder = false) {
         const positive = data.positive || {};
         const negative = data.negative || {};
 
@@ -115,7 +116,7 @@ class DashboardAbsoluteVariance {
         this.renderNett(Number(positive.amount || 0), Number(negative.amount || 0));
         this.renderAreaWaterfall(data.by_area || []);
         // Tabel dimuat setelah ringkasan selesai supaya memakai hasil perhitungan yang sudah di-cache
-        this.reloadTables(!keepTablePage);
+        this.reloadTables(!keepTablePage, resetOrder);
     }
 
     setText(id, text, fit = false) {
@@ -123,18 +124,35 @@ class DashboardAbsoluteVariance {
         if (!el) return;
 
         el.textContent = text;
-        if (fit) this.fitText(el);
+        if (fit) {
+            this.fitText(el);
+            this.watchFit(el);
+        }
     }
 
-    // Satu baris: ukuran huruf diperkecil bertahap sampai angka muat di lebar card
+    // Satu baris: ukuran huruf diperkecil bertahap sampai angka muat di lebar card.
+    // Class fs-3 Bootstrap memakai !important, jadi ukuran inline juga harus !important supaya berlaku.
     fitText(el) {
         el.style.whiteSpace = 'nowrap';
-        el.style.fontSize = '';
+        el.style.removeProperty('font-size');
         let size = parseFloat(getComputedStyle(el).fontSize);
         while (el.scrollWidth > el.clientWidth && size > 12) {
             size -= 1;
-            el.style.fontSize = `${size}px`;
+            el.style.setProperty('font-size', `${size}px`, 'important');
         }
+    }
+
+    // Sesuaikan lagi saat lebar card berubah (resize window, sidebar dibuka / ditutup)
+    watchFit(el) {
+        if (el.dataset.fitWatched || typeof ResizeObserver === 'undefined') return;
+        el.dataset.fitWatched = '1';
+
+        let width = el.parentElement.clientWidth;
+        new ResizeObserver(() => {
+            if (el.parentElement.clientWidth === width) return;
+            width = el.parentElement.clientWidth;
+            this.fitText(el);
+        }).observe(el.parentElement);
     }
 
     // Contoh: -57123456 -> "-57M" ("+ 0" supaya nilai kecil negatif tidak tampil "-0M")
@@ -332,15 +350,21 @@ class DashboardAbsoluteVariance {
         return params;
     }
 
-    reloadTable({ id, url }, resetPaging = true) {
+    // resetOrder: kembali ke urutan awal tabel; selain itu urutan yang dipilih lewat judul kolom dipertahankan
+    reloadTable({ id, url }, resetPaging = true, resetOrder = false) {
         if (!$.fn.dataTable.isDataTable(`#${id}`)) return;
 
+        const table = $(`#${id}`).DataTable();
+        if (resetOrder) {
+            table.order(table.init().order || []);
+        }
+
         const query = this.tableParams(id).toString();
-        $(`#${id}`).DataTable().ajax.url(query ? `${url}?${query}` : url).load(null, resetPaging);
+        table.ajax.url(query ? `${url}?${query}` : url).load(null, resetPaging);
     }
 
-    reloadTables(resetPaging = true) {
-        Object.values(TABLES).forEach(table => this.reloadTable(table, resetPaging));
+    reloadTables(resetPaging = true, resetOrder = false) {
+        Object.values(TABLES).forEach(table => this.reloadTable(table, resetPaging, resetOrder));
     }
 
     bindTableControls() {

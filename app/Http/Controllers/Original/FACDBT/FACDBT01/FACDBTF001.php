@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Original\FACDBT\FACDBT01;
 
 use App\DataTables\Original\FACDBT01\FACDBTF001DataTable;
-use App\Exports\Templates\FACDBT\FACDBT01\FACDBTF001 as Template;
 use App\Exports\FACDBT\FACDBT01\MasterDataExport;
 use App\Helpers\Response;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Original\FACDBT\FACDBT01\Concerns\SavesImportRows;
 use App\Http\Requests\FACDBT\FACDBT01\LocationImportRequest;
 use App\Http\Requests\FACDBT\FACDBT01\LocationRequest;
 use App\Imports\FACDBT\FACDBT01\FACDBTF001 as Import;
@@ -18,11 +18,36 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 // Location controller
 class FACDBTF001 extends Controller
 {
+    use SavesImportRows;
+
+    // Kolom form / tabel FACDBT_MSHLOCATIONS
+    private const FIELDS = ['VLOCATIONNO', 'VLOCGROUP', 'VSITE', 'VWAREHOUSE', 'VLOCDESC', 'VLOCGROUPDESC'];
+
+    // Kolom export CSV [kolom tabel => judul]; judul yang sama dipakai template import
+    private const EXPORT_COLUMNS = [
+        'VLOCATIONNO' => 'Location No',
+        'VLOCGROUP' => 'Location Group',
+        'VSITE' => 'Site',
+        'VWAREHOUSE' => 'Warehouse',
+        'VLOCDESC' => 'Location Description',
+        'VLOCGROUPDESC' => 'Location Group Description',
+    ];
+
+    // Kolom hasil import (slug judul kolom Excel) => kolom tabel
+    private const IMPORT_COLUMNS = [
+        'location_no' => 'VLOCATIONNO',
+        'location_group' => 'VLOCGROUP',
+        'site' => 'VSITE',
+        'warehouse' => 'VWAREHOUSE',
+        'location_description' => 'VLOCDESC',
+        'location_group_description' => 'VLOCGROUPDESC',
+    ];
+
     public function index(FACDBTF001DataTable $dataTable)
     {
         // "Centang semua": cukup kirim ID baris yang lolos filter, bukan seluruh isi tabel
         if (request()->boolean('ids_only')) {
-            return response()->json(['ids' => $dataTable->filteredKeys('location_no')]);
+            return response()->json(['ids' => $dataTable->filteredKeys('IID')]);
         }
 
         return $dataTable->render('modules.FACDBT.FACDBT01.FACDBTF001.FACDBTF001');
@@ -30,30 +55,15 @@ class FACDBTF001 extends Controller
 
     public function store(LocationRequest $request)
     {
-        Location::create([
-            'location_no' => $request->location_no,
-            'location_group' => $request->location_group,
-            'site' => $request->site,
-            'warehouse' => $request->warehouse,
-            'location_description' => $request->location_description,
-            'location_group_description' => $request->location_group_description,
-        ]);
+        // Location No yang pernah dihapus dipulihkan dengan data baru
+        Location::saveRestoring(['VLOCATIONNO' => $request->VLOCATIONNO], $request->only(self::FIELDS));
 
         return Response::success(message: 'Location created successfully');
     }
-    
+
     public function show($id)
     {
-        // Cegah pencarian jika ID yang dikirim JS adalah string 'undefined'
-        if ($id === 'undefined' || empty($id)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid ID provided'
-            ], 400);
-        }
-
-        // Gunakan where secara eksplisit untuk primary key string
-        $location = Location::where('location_no', $id)->first();
+        $location = Location::find($id);
 
         if (!$location) {
             return response()->json([
@@ -70,14 +80,7 @@ class FACDBTF001 extends Controller
 
     public function update(LocationRequest $request, Location $location)
     {
-        $location->update([
-            'location_no' => $request->location_no,
-            'location_group' => $request->location_group,
-            'site' => $request->site,
-            'warehouse' => $request->warehouse,
-            'location_description' => $request->location_description,
-            'location_group_description' => $request->location_group_description,
-        ]);
+        $location->update($request->only(self::FIELDS));
 
         return Response::success(message: 'Location updated successfully');
     }
@@ -85,11 +88,9 @@ class FACDBTF001 extends Controller
     public function destroy(Location $location)
     {
         // Mengecek relasi dengan 'lines' (FACDBT_MASHSUBAREALINES) sebelum menghapus
-        $lineCount = $location->lines()->count();
-
-        if ($lineCount > 0) {
+        if ($location->lines()->count() > 0) {
             return Response::error(
-                message: "Location {$location->location_description} can't be deleted because it still has related sub area lines.",
+                message: "Location {$location->VLOCDESC} can't be deleted because it still has related sub area lines.",
                 status: 422
             );
         }
@@ -105,15 +106,15 @@ class FACDBTF001 extends Controller
 
     public function destroyMultiple(Request $request)
     {
-        $ids = $request->ids;
+        $ids = (array) $request->ids;
 
         // Pengecekan relasi lines untuk multiple delete
         $relatedLocations = Location::query()
             ->withCount('lines')
-            ->whereIn('location_no', $ids) // Menggunakan location_no sebagai identifier
+            ->whereKey($ids)
             ->get()
-            ->filter(fn($location) => ($location->lines_count ?? 0) > 0)
-            ->pluck('location_description'); // Mengambil nama deskripsi untuk pesan error
+            ->filter(fn ($location) => ($location->lines_count ?? 0) > 0)
+            ->pluck('VLOCDESC');
 
         if ($relatedLocations->isNotEmpty()) {
             return Response::error(
@@ -123,7 +124,7 @@ class FACDBTF001 extends Controller
         }
 
         try {
-            Location::whereIn('location_no', $ids)->delete();
+            Location::softDeleteKeys($ids);
 
             return Response::success(message: 'Selected locations deleted successfully');
         } catch (\Throwable $th) {
@@ -139,28 +140,27 @@ class FACDBTF001 extends Controller
         $ids = array_values(array_filter((array) $request->input('ids', []), fn ($id) => $id !== null && $id !== ''));
 
         $query = Location::query()
-            ->when(!empty($ids), fn ($q) => $q->whereIn('location_no', $ids))
-            ->orderBy('location_no');
+            ->when(!empty($ids), fn ($q) => $q->whereKey($ids))
+            ->orderBy('VLOCATIONNO');
 
-        return (new MasterDataExport($query, [
-            'location_no' => 'Location No',
-            'location_group' => 'Location Group',
-            'site' => 'Site',
-            'warehouse' => 'Warehouse',
-            'location_description' => 'Location Description',
-            'location_group_description' => 'Location Group Description',
-        ]))->download('Master_Location-' . date('YmdHis') . '.csv');
+        return (new MasterDataExport($query, self::EXPORT_COLUMNS))->download('Master_Location-' . date('YmdHis') . '.csv');
     }
 
     public function downloadTemplate()
     {
-        return FacadesExcel::download(new Template, 'Master_Location_Template.xlsx');
+        // Template CSV (judul kolom sama dengan export); template yang diisi / file export bisa langsung di-import
+        return MasterDataExport::template(array_values(self::EXPORT_COLUMNS), 'Master_Location_Template.csv');
     }
 
     public function import(LocationImportRequest $request)
     {
+        // File besar butuh waktu lebih dari batas default PHP (30 detik)
+        set_time_limit(300);
+        // File besar: daftar baris & hasil validasi disimpan di memori sampai seluruh file selesai dibaca
+        ini_set('memory_limit', '512M');
+
         try {
-            $import = new Import; // Pastikan class import Anda benar
+            $import = new Import;
             // Jenis file (xlsx / xls / csv) dideteksi dari ekstensi file yang diupload
             FacadesExcel::import($import, $request->file('file'));
 
@@ -178,42 +178,36 @@ class FACDBTF001 extends Controller
                 ], 400);
             }
 
-            $cleaned = $import->store();
+            $cleaned = array_map(
+                fn ($row) => array_combine(array_values(self::IMPORT_COLUMNS), array_map(fn ($column) => $row[$column] ?? null, array_keys(self::IMPORT_COLUMNS))),
+                $import->store()
+            );
             if (empty($cleaned)) {
                 return response()->json(['success' => false, 'message' => 'No valid data to import.'], 400);
             }
+            // Hasil baca file (semua baris + log validasi) tidak dipakai lagi; lepas dari memori sebelum menyimpan
+            unset($import, $result);
 
-            DB::beginTransaction();
+            $db = DB::connection('FACDBT');
+            $db->beginTransaction();
 
             try {
-                // MENGGANTI FOREACH DAN CREATE MENJADI UPSERT
-                Location::upsert(
-                    $cleaned, // 1. Array data yang akan di-insert/update
-                    ['location_no'], // 2. Primary Key / Kolom Unik sebagai acuan pengecekan
-                    [ // 3. Kolom apa saja yang di-update jika location_no sudah ada di database
-                        'location_group', 
-                        'site', 
-                        'warehouse', 
-                        'location_description', 
-                        'location_group_description'
-                    ]
-                );
+                // Location No sudah ada (termasuk yang pernah dihapus) -> ditimpa, belum ada -> dibuat baru
+                [$insertedCount, $updatedCount] = $this->saveImportRows(new Location, $cleaned, ['VLOCATIONNO']);
 
-                // Menghitung jumlah data yang diproses (karena kita tidak pakai loop lagi)
-                $insertedCount = count($cleaned);
-
-                DB::commit();
+                $db->commit();
 
                 return response()->json([
                     'success' => true,
-                    'message' => "Successfully imported and/or updated {$insertedCount} location(s).",
+                    'message' => "Successfully imported {$insertedCount} new and updated {$updatedCount} existing location(s).",
                     'data' => [
                         'total_imported' => $insertedCount,
+                        'total_updated' => $updatedCount,
                         'total_processed' => count($cleaned),
                     ],
                 ], 200);
             } catch (\Exception $e) {
-                DB::rollBack();
+                $db->rollBack();
 
                 return response()->json([
                     'success' => false,

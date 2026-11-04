@@ -10,7 +10,7 @@ class FACDBT_MSHAREAS extends BaseModel
     use HasFactory;
 
     // Mengarahkan ke koneksi MySQL eksternal
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
 
     // Nama tabel di database berdasarkan dump SQL
     protected $table = 'PPCSOI_MSHAREAS';

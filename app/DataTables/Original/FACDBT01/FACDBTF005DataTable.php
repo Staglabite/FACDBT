@@ -3,6 +3,7 @@
 // Namespace disesuaikan persis dengan struktur folder (menggunakan Original)
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\AppliesDefaultOrder;
 use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_SIMINVGROUPLOCATION as GroupLocation;
 use App\Traits\DataTableTrait;
@@ -16,6 +17,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF005DataTable extends DataTable
 {
     use DataTableTrait;
+    use AppliesDefaultOrder;
     use MasterServiceName;
 
     /**
@@ -39,10 +41,10 @@ class FACDBTF005DataTable extends DataTable
                 if (! empty($keyword)) {
                     // Menggunakan LIKE (atau ILIKE jika database mendukungnya) untuk pencarian teks
                     $query->whereAny([
-                        'LOCATION_NO',
-                        'ID_LOC',
-                        'location_group',
-                        'stream',
+                        'VLOCATIONNO',
+                        'VIDLOC',
+                        'VLOCGROUP',
+                        'VSTREAM',
                     ], 'LIKE', "%{$keyword}%");
                 }
             });
@@ -64,7 +66,8 @@ class FACDBTF005DataTable extends DataTable
             $query->whereIn('IID', $selectedIds);
         }
 
-        return $query->orderBy('LOCATION_NO', 'asc');
+        // Urutan bawaan; klik judul kolom menggantikannya
+        return $query->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('VLOCATIONNO', 'asc'));
     }
 
     /**
@@ -123,10 +126,10 @@ class FACDBTF005DataTable extends DataTable
                 ->searchable(false)
                 ->width(30)
                 ->addClass('text-center'),
-            Column::make('LOCATION_NO')->title('Location No'),
-            Column::make('ID_LOC')->title('ID Loc'),
-            Column::make('location_group')->title('Location Group'),
-            Column::make('stream')->title('Stream'),
+            Column::make('VLOCATIONNO')->title('Location No'),
+            Column::make('VIDLOC')->title('ID Loc'),
+            Column::make('VLOCGROUP')->title('Location Group'),
+            Column::make('VSTREAM')->title('Stream'),
             Column::computed('action')
                 ->exportable(false)
                 ->printable(false)

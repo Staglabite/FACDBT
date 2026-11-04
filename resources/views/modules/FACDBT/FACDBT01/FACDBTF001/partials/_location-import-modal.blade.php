@@ -12,7 +12,7 @@
                 <!-- ID diubah menjadi location-import -->
                 <form id="location-import" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="location-import-file" class="form-label">Select Excel File</label>
+                        <label for="location-import-file" class="form-label">Select File (CSV / Excel)</label>
                         <input type="file" class="form-control" id="location-import-file" name="file"
                             accept=".xlsx, .xls, .csv" required>
                         <i class="invalid-feedback"></i>

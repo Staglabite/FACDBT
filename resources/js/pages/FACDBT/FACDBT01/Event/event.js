@@ -18,7 +18,7 @@ class EventForm {
       e.preventDefault();
       this.#submit();
     });
-    $('#EVENT_TYPE').on('change', () => this.#togglePreHint());
+    $('#VEVENTTYPE').on('change', () => this.#togglePreHint());
   }
 
   async open(id = null) {
@@ -34,11 +34,11 @@ class EventForm {
         id === null ? Promise.resolve(null) : axios.get(`${ENDPOINT}/${id}`)
       ]);
       const data = event?.data?.data;
-      this.#fillPeriods(periods.data?.data || [], data ? String(data.TAKING_DATE).slice(0, 10) : null);
+      this.#fillPeriods(periods.data?.data || [], data ? String(data.DTAKINGDATE).slice(0, 10) : null);
 
       if (data) {
-        $('#EVENT_TYPE').val(data.EVENT_TYPE);
-        $('#DESCRIPTION').val(data.DESCRIPTION);
+        $('#VEVENTTYPE').val(data.VEVENTTYPE);
+        $('#VDESC').val(data.VDESC);
       }
       this.#togglePreHint();
       this.#modal.show();
@@ -49,7 +49,7 @@ class EventForm {
 
   // Periode yang sudah punya event lain tidak bisa dipilih (satu periode satu event)
   #fillPeriods(periods, selected) {
-    const $select = $('#TAKING_DATE').empty().append('<option value="">- Select Taking Period -</option>');
+    const $select = $('#DTAKINGDATE').empty().append('<option value="">- Select Taking Period -</option>');
 
     periods.forEach(p => {
       const taken = p.event_id !== null && String(p.event_id) !== String(this.#id);
@@ -71,7 +71,7 @@ class EventForm {
   }
 
   #togglePreHint() {
-    $('#event-pre-hint').toggleClass('d-none', $('#EVENT_TYPE').val() !== PRE);
+    $('#event-pre-hint').toggleClass('d-none', $('#VEVENTTYPE').val() !== PRE);
   }
 
   #submit() {
@@ -191,6 +191,9 @@ class MasterEvent {
       }, 500);
     });
 
+    // Peringatan Pre-Taking tanpa daftar part (data dari response tabel)
+    this.#table.on('xhr.dt', (e, settings, json) => this.#renderMissingParts(json?.missing_parts || []));
+
     // Pilihan baris (halaman yang terlihat)
     this.#table.on('draw.dt', () => {
       $('input[name="selected[]"]').each((_, el) => $(el).prop('checked', this.#selected.has(String($(el).val()))));
@@ -209,6 +212,14 @@ class MasterEvent {
       $(this).is(':checked') ? self.#selected.add(id) : self.#selected.delete(id);
       self.#refreshSelection();
     });
+  }
+
+  #renderMissingParts(dates) {
+    const $alert = $('#event-missing-parts');
+    $alert.toggleClass('d-none', dates.length === 0).toggleClass('d-flex', dates.length > 0);
+    $alert.find('span').text(dates.length
+      ? `Event Pre-Taking tanggal ${dates.join(', ')} belum memiliki daftar part, sehingga dashboard tidak menampilkan data. Upload daftar part lewat tombol daftar part pada tabel.`
+      : '');
   }
 
   #refreshSelection() {

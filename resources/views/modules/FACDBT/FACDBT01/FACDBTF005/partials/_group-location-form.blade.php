@@ -19,15 +19,15 @@
 
                             <!-- Location No -->
                             <div class="mb-3">
-                                <label for="LOCATION_NO" class="form-label">Location No</label>
-                                <input type="text" class="form-control" id="LOCATION_NO" name="LOCATION_NO" maxlength="50"
+                                <label for="VLOCATIONNO" class="form-label">Location No</label>
+                                <input type="text" class="form-control" id="VLOCATIONNO" name="VLOCATIONNO" maxlength="50"
                                     required aria-required="true" autofocus>
                             </div>
 
                             <!-- ID Loc -->
                             <div class="mb-3">
-                                <label for="ID_LOC" class="form-label">ID Loc</label>
-                                <input type="text" class="form-control" id="ID_LOC" name="ID_LOC" maxlength="50"
+                                <label for="VIDLOC" class="form-label">ID Loc</label>
+                                <input type="text" class="form-control" id="VIDLOC" name="VIDLOC" maxlength="50"
                                     required aria-required="true">
                             </div>
 
@@ -37,15 +37,15 @@
 
                             <!-- Location Group -->
                             <div class="mb-3">
-                                <label for="location_group" class="form-label">Location Group</label>
-                                <input type="text" class="form-control" id="location_group" name="location_group"
+                                <label for="VLOCGROUP" class="form-label">Location Group</label>
+                                <input type="text" class="form-control" id="VLOCGROUP" name="VLOCGROUP"
                                     maxlength="50" required aria-required="true">
                             </div>
 
                             <!-- Stream -->
                             <div class="mb-3">
-                                <label for="stream" class="form-label">Stream</label>
-                                <input type="text" class="form-control" id="stream" name="stream" maxlength="100">
+                                <label for="VSTREAM" class="form-label">Stream</label>
+                                <input type="text" class="form-control" id="VSTREAM" name="VSTREAM" maxlength="100">
                             </div>
 
                         </div>

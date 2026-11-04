@@ -10,7 +10,7 @@ class FACDBT_MASHSUBAREALINES extends BaseModel
     use HasFactory;
 
     // Mengarahkan ke koneksi MySQL eksternal
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
 
     // Nama tabel di database
     protected $table = 'PPCSOI_MSHSUBAREALINES';
@@ -70,10 +70,10 @@ class FACDBT_MASHSUBAREALINES extends BaseModel
 
     /**
      * Relasi ke model FACDBT_MSHLOCATION (Tabel Location Utama)
-     * Mengikat VLOCNO di tabel ini dengan location_no di tabel SIM_INV_LOCATION_TEST.
+     * Mengikat VLOCNO di tabel ini dengan VLOCATIONNO di tabel FACDBT_MSHLOCATIONS.
      */
     public function location()
     {
-        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'VLOCNO', 'location_no');
+        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'VLOCNO', 'VLOCATIONNO');
     }
 }

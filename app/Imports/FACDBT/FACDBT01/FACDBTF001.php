@@ -5,19 +5,29 @@ namespace App\Imports\FACDBT\FACDBT01;
 use App\Models\FACDBT01\FACDBT_MSHLOCATION as Location;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithStartRow;
 use PhpOffice\PhpSpreadsheet\Exception as SpreadsheetException;
 
-class FACDBTF001 implements ToCollection, WithHeadingRow, WithStartRow
+/**
+ * File dibaca per CHUNK_SIZE baris (WithChunkReading) supaya file besar tidak menghabiskan memori PHP;
+ * collection() dipanggil sekali per chunk, nomor baris Excel dilanjutkan lewat $nextRow.
+ */
+class FACDBTF001 implements ToCollection, WithHeadingRow, WithStartRow, WithChunkReading
 {
+    private const CHUNK_SIZE = 1000;
+
+    // Nomor baris Excel berikutnya (null = chunk pertama)
+    protected ?int $nextRow = null;
+
+    // [location_no => baris pertama] untuk cek Location No berulang di seluruh file
+    protected array $seen = [];
+
     protected $logs = [];
 
     protected $totalError = 0;
-
-    protected $createdBy = null;
 
     protected $columns = [
         'location_no',
@@ -33,17 +43,18 @@ class FACDBTF001 implements ToCollection, WithHeadingRow, WithStartRow
         return 2;
     }
 
+    public function chunkSize(): int
+    {
+        return self::CHUNK_SIZE;
+    }
+
     public function collection(Collection $collection): void
     {
-        if ($collection === null || $collection->isEmpty()) {
+        if ($this->nextRow === null && ($collection === null || $collection->isEmpty())) {
             throw new SpreadsheetException('The file is empty', 422);
         }
 
-        // Adjust based on how your system logs the user who created the record.
-        // Assuming your Auth::user() structure is similar to the template, adjust 'VUSERNAME' if necessary.
-        $this->createdBy = "'" . Auth::user()->VUSERNAME . "'"; 
-        $currentRowIndex = $this->startRow();
-        $seen = [];
+        $currentRowIndex = $this->nextRow ?? $this->startRow();
 
         foreach ($collection as $row) {
             // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
@@ -66,15 +77,17 @@ class FACDBTF001 implements ToCollection, WithHeadingRow, WithStartRow
 
             $key = $row['location_no'];
             if (! empty($key)) {
-                if (isset($seen[$key])) {
-                    $this->setLog($row, "Duplicate location_no {$row['location_no']} found in row {$seen[$key]}.");
+                if (isset($this->seen[$key])) {
+                    $this->setLog($row, "Duplicate location_no {$row['location_no']} found in row {$this->seen[$key]}.");
                 } else {
-                    $seen[$key] = $currentRowIndex;
+                    $this->seen[$key] = $currentRowIndex;
                 }
             }
 
             $currentRowIndex++;
         }
+
+        $this->nextRow = $currentRowIndex;
     }
 
     public function store()
@@ -105,9 +118,6 @@ class FACDBTF001 implements ToCollection, WithHeadingRow, WithStartRow
                 'row' => $unique,
                 'error_count' => 0,
                 'errors' => [],
-                'created_by' => $this->createdBy,
-                'created_at' => now(),
-                'updated_at' => now(),
             ]);
         }
 
@@ -120,7 +130,7 @@ class FACDBTF001 implements ToCollection, WithHeadingRow, WithStartRow
 
     public function mapRelations($row)
     {
-        // // Check if the location_no already exists in the INV_TAKING connection
+        // // Check if the location_no already exists in the FACDBT connection
         // $location = Location::where('location_no', $row['location_no'])
         //     ->first();
             

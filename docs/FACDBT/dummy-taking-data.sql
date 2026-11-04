@@ -4,7 +4,7 @@
 -- PERHATIAN
 -- - JANGAN dijalankan di database utama. SIM_INV_TAKING_CONCLUDING_TAB juga dibaca sistem taking/scanner,
 --   sehingga periode dummy (ROWSTATE Started) bisa membuat scan asli masuk ke periode yang salah.
--- - Jalankan di database TEST (koneksi INV_TAKING). Periode dummy memakai tanggal HARI INI,
+-- - Jalankan di database TEST (koneksi FACDBT). Periode dummy memakai tanggal HARI INI,
 --   sehingga menjadi periode aktif dan dashboard tidak lagi menampilkan periode asli.
 -- - Semua data dummy berawalan "DMY-" dan CREATED_BY = 'DUMMY'.
 --   Hapus dengan docs/FACDBT/dummy-taking-cleanup.sql.
@@ -54,52 +54,52 @@ SET @y   = YEAR(@d1);
 SET @inv = (SELECT COALESCE(MAX(CAST(INV_LIST_NO AS UNSIGNED)), 0) + 1 FROM SIM_INV_TAKING_BOOK_TAB);
 
 -- ---------------------------------------------------------------- Master Location
-INSERT INTO SIM_INV_LOCATION_TEST (location_no, location_group, site, warehouse, location_description, location_group_description) VALUES
-('DMY-ENG-01', 'DMY-ENG',  'DMY', 'DMY-WH-A', 'Dummy Engineering 1', 'Dummy Engineering'),
-('DMY-ENG-02', 'DMY-ENG',  'DMY', 'DMY-WH-A', 'Dummy Engineering 2', 'Dummy Engineering'),
-('DMY-PRD-01', 'DMY-PROD', 'DMY', 'DMY-WH-B', 'Dummy Production 1',  'Dummy Production'),
-('DMY-PRD-02', 'DMY-PROD', 'DMY', 'DMY-WH-B', 'Dummy Production 2',  'Dummy Production'),
-('DMY-WH-01',  'DMY-WH',   'DMY', 'DMY-WH-C', 'Dummy Warehouse 1',   'Dummy Warehouse'),
-('DMY-PPC-01', 'DMY-WH',   'DMY', 'DMY-WH-C', 'Dummy PPC Oil',       'Dummy Warehouse');
+INSERT INTO FACDBT_MSHLOCATIONS (VLOCATIONNO, VLOCGROUP, VSITE, VWAREHOUSE, VLOCDESC, VLOCGROUPDESC, VCREA, DCREA) VALUES
+('DMY-ENG-01', 'DMY-ENG',  'DMY', 'DMY-WH-A', 'Dummy Engineering 1', 'Dummy Engineering', 'DUMMY', NOW()),
+('DMY-ENG-02', 'DMY-ENG',  'DMY', 'DMY-WH-A', 'Dummy Engineering 2', 'Dummy Engineering', 'DUMMY', NOW()),
+('DMY-PRD-01', 'DMY-PROD', 'DMY', 'DMY-WH-B', 'Dummy Production 1',  'Dummy Production', 'DUMMY', NOW()),
+('DMY-PRD-02', 'DMY-PROD', 'DMY', 'DMY-WH-B', 'Dummy Production 2',  'Dummy Production', 'DUMMY', NOW()),
+('DMY-WH-01',  'DMY-WH',   'DMY', 'DMY-WH-C', 'Dummy Warehouse 1',   'Dummy Warehouse', 'DUMMY', NOW()),
+('DMY-PPC-01', 'DMY-WH',   'DMY', 'DMY-WH-C', 'Dummy PPC Oil',       'Dummy Warehouse', 'DUMMY', NOW());
 
 -- ---------------------------------------------------------------- Master Group Location (area = location_group)
-INSERT INTO SIM_INV_GROUP_LOCATION (LOCATION_NO, ID_LOC, location_group, stream) VALUES
-('DMY-ENG-01', 'DMY-ENG',  'DMY-ENG',  'DMY-STREAM'),
-('DMY-ENG-02', 'DMY-ENG',  'DMY-ENG',  'DMY-STREAM'),
-('DMY-PRD-01', 'DMY-PROD', 'DMY-PROD', 'DMY-STREAM'),
-('DMY-PRD-02', 'DMY-PROD', 'DMY-PROD', 'DMY-STREAM'),
-('DMY-WH-01',  'DMY-WH',   'DMY-WH',   'DMY-STREAM'),
-('DMY-PPC-01', 'DMY-WH',   'DMY-WH',   'DMY-STREAM');
+INSERT INTO FACDBT_MSHGROUPLOCATIONS (VLOCATIONNO, VIDLOC, VLOCGROUP, VSTREAM, VCREA, DCREA) VALUES
+('DMY-ENG-01', 'DMY-ENG',  'DMY-ENG',  'DMY-STREAM', 'DUMMY', NOW()),
+('DMY-ENG-02', 'DMY-ENG',  'DMY-ENG',  'DMY-STREAM', 'DUMMY', NOW()),
+('DMY-PRD-01', 'DMY-PROD', 'DMY-PROD', 'DMY-STREAM', 'DUMMY', NOW()),
+('DMY-PRD-02', 'DMY-PROD', 'DMY-PROD', 'DMY-STREAM', 'DUMMY', NOW()),
+('DMY-WH-01',  'DMY-WH',   'DMY-WH',   'DMY-STREAM', 'DUMMY', NOW()),
+('DMY-PPC-01', 'DMY-WH',   'DMY-WH',   'DMY-STREAM', 'DUMMY', NOW());
 
 -- ---------------------------------------------------------------- Master Part
-INSERT INTO SIM_INV_PART_TEST (part_no, inventory_part_description, accounting_group, seg, prod_group, part_group) VALUES
-('DMY-P01',  'Dummy Part 01', 'RM',  'DMY', 'DMY-FAM-A', '4W'),
-('DMY-P02',  'Dummy Part 02', 'WIP', 'DMY', 'DMY-FAM-A', '2W'),
-('DMY-P03',  'Dummy Part 03', 'FG',  'DMY', 'DMY-FAM-A', '4W'),
-('DMY-P04',  'Dummy Part 04', 'RM',  'DMY', 'DMY-FAM-B', '2W'),
-('DMY-P05',  'Dummy Part 05', 'WIP', 'DMY', 'DMY-FAM-B', '4W'),
-('DMY-P06',  'Dummy Part 06', 'FG',  'DMY', 'DMY-FAM-B', '2W'),
-('DMY-P07',  'Dummy Part 07', 'RM',  'DMY', 'DMY-FAM-C', '4W'),
-('DMY-P08',  'Dummy Part 08', 'WIP', 'DMY', 'DMY-FAM-C', '2W'),
-('DMY-P09',  'Dummy Part 09', 'FG',  'DMY', 'DMY-FAM-C', '4W'),
-('DMY-P10',  'Dummy Part 10', 'RM',  'DMY', 'DMY-FAM-C', '2W'),
-('DMY-OIL1', 'Dummy Oil 1',   'RM',  'DMY', 'DMY-OIL',   '4W'),
-('DMY-OIL2', 'Dummy Oil 2',   'RM',  'DMY', 'DMY-OIL',   '4W');
+INSERT INTO FACDBT_MSHPARTS (VPARTNO, VPARTDESC, VACCGROUP, VSEG, VPRODGROUP, VPARTGROUP, VCREA, DCREA) VALUES
+('DMY-P01',  'Dummy Part 01', 'RM',  'DMY', 'DMY-FAM-A', '4W', 'DUMMY', NOW()),
+('DMY-P02',  'Dummy Part 02', 'WIP', 'DMY', 'DMY-FAM-A', '2W', 'DUMMY', NOW()),
+('DMY-P03',  'Dummy Part 03', 'FG',  'DMY', 'DMY-FAM-A', '4W', 'DUMMY', NOW()),
+('DMY-P04',  'Dummy Part 04', 'RM',  'DMY', 'DMY-FAM-B', '2W', 'DUMMY', NOW()),
+('DMY-P05',  'Dummy Part 05', 'WIP', 'DMY', 'DMY-FAM-B', '4W', 'DUMMY', NOW()),
+('DMY-P06',  'Dummy Part 06', 'FG',  'DMY', 'DMY-FAM-B', '2W', 'DUMMY', NOW()),
+('DMY-P07',  'Dummy Part 07', 'RM',  'DMY', 'DMY-FAM-C', '4W', 'DUMMY', NOW()),
+('DMY-P08',  'Dummy Part 08', 'WIP', 'DMY', 'DMY-FAM-C', '2W', 'DUMMY', NOW()),
+('DMY-P09',  'Dummy Part 09', 'FG',  'DMY', 'DMY-FAM-C', '4W', 'DUMMY', NOW()),
+('DMY-P10',  'Dummy Part 10', 'RM',  'DMY', 'DMY-FAM-C', '2W', 'DUMMY', NOW()),
+('DMY-OIL1', 'Dummy Oil 1',   'RM',  'DMY', 'DMY-OIL',   '4W', 'DUMMY', NOW()),
+('DMY-OIL2', 'Dummy Oil 2',   'RM',  'DMY', 'DMY-OIL',   '4W', 'DUMMY', NOW());
 
 -- ---------------------------------------------------------------- Master Unit Cost (unit cost = mat + lab + foh)
-INSERT INTO SIM_INV_UNIT_COST_TEST (part_no, inventory_part_description, inventory_uom, accounting_group, on_hand_qty, mat_cost, lab_cost, foh_cost) VALUES
-('DMY-P01',  'Dummy Part 01', 'pcs', 'RM',  0,  600000,  250000,  150000),
-('DMY-P02',  'Dummy Part 02', 'pcs', 'WIP', 0, 1200000,  500000,  300000),
-('DMY-P03',  'Dummy Part 03', 'pcs', 'FG',  0, 1800000,  750000,  450000),
-('DMY-P04',  'Dummy Part 04', 'pcs', 'RM',  0, 2400000, 1000000,  600000),
-('DMY-P05',  'Dummy Part 05', 'pcs', 'WIP', 0, 3000000, 1250000,  750000),
-('DMY-P06',  'Dummy Part 06', 'pcs', 'FG',  0, 3600000, 1500000,  900000),
-('DMY-P07',  'Dummy Part 07', 'pcs', 'RM',  0, 4200000, 1750000, 1050000),
-('DMY-P08',  'Dummy Part 08', 'pcs', 'WIP', 0, 4800000, 2000000, 1200000),
-('DMY-P09',  'Dummy Part 09', 'pcs', 'FG',  0, 5400000, 2250000, 1350000),
-('DMY-P10',  'Dummy Part 10', 'pcs', 'RM',  0, 6000000, 2500000, 1500000),
-('DMY-OIL1', 'Dummy Oil 1',   'ml',  'RM',  0,   30000,   12500,    7500),
-('DMY-OIL2', 'Dummy Oil 2',   'ml',  'RM',  0,   24000,   10000,    6000);
+INSERT INTO FACDBT_MSHUNITCOSTS (VPARTNO, VPARTDESC, VUOM, VACCGROUP, NONHANDQTY, MMATCOST, MLABCOST, MFOHCOST, VCREA, DCREA) VALUES
+('DMY-P01',  'Dummy Part 01', 'pcs', 'RM',  0,  600000,  250000,  150000, 'DUMMY', NOW()),
+('DMY-P02',  'Dummy Part 02', 'pcs', 'WIP', 0, 1200000,  500000,  300000, 'DUMMY', NOW()),
+('DMY-P03',  'Dummy Part 03', 'pcs', 'FG',  0, 1800000,  750000,  450000, 'DUMMY', NOW()),
+('DMY-P04',  'Dummy Part 04', 'pcs', 'RM',  0, 2400000, 1000000,  600000, 'DUMMY', NOW()),
+('DMY-P05',  'Dummy Part 05', 'pcs', 'WIP', 0, 3000000, 1250000,  750000, 'DUMMY', NOW()),
+('DMY-P06',  'Dummy Part 06', 'pcs', 'FG',  0, 3600000, 1500000,  900000, 'DUMMY', NOW()),
+('DMY-P07',  'Dummy Part 07', 'pcs', 'RM',  0, 4200000, 1750000, 1050000, 'DUMMY', NOW()),
+('DMY-P08',  'Dummy Part 08', 'pcs', 'WIP', 0, 4800000, 2000000, 1200000, 'DUMMY', NOW()),
+('DMY-P09',  'Dummy Part 09', 'pcs', 'FG',  0, 5400000, 2250000, 1350000, 'DUMMY', NOW()),
+('DMY-P10',  'Dummy Part 10', 'pcs', 'RM',  0, 6000000, 2500000, 1500000, 'DUMMY', NOW()),
+('DMY-OIL1', 'Dummy Oil 1',   'ml',  'RM',  0,   30000,   12500,    7500, 'DUMMY', NOW()),
+('DMY-OIL2', 'Dummy Oil 2',   'ml',  'RM',  0,   24000,   10000,    6000, 'DUMMY', NOW());
 
 -- ---------------------------------------------------------------- Periode taking (aktif)
 INSERT INTO SIM_INV_TAKING_CONCLUDING_TAB (MONTH, YEAR, TAKING_DATE, CLOSE_DATE, ROWSTATE, NPK, NAME, CREATED_DATETIME, CREATED_BY) VALUES

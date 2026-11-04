@@ -55,10 +55,10 @@
                 </div>
             </div>
 
-            <div class="px-6 pb-4 small text-muted">
-                <div><b>Pre-Taking</b>: semua book ditransfer, dashboard hanya menampilkan part di daftar part event.</div>
-                <div><b>Taking TWH/Indirect</b>: hanya Location No yang mengandung "TWH".</div>
-                <div><b>Taking Besar/Direct</b>: semua Location No kecuali yang mengandung "TWH".</div>
+            {{-- Pre-Taking (periode belum ditutup) tanpa daftar part; diisi dari response tabel (event.js) --}}
+            <div class="alert alert-warning d-none align-items-center gap-2 mx-6 mb-4 py-2" role="alert" id="event-missing-parts">
+                <i class="icon-base ti tabler-alert-triangle"></i>
+                <span></span>
             </div>
 
             {{ $dataTable->table(['class' => 'table'], true) }}

@@ -34,7 +34,7 @@
                         <option value="">All Month</option>
                     </select>
                     <select class="form-select form-select-sm d-none" id="filter-event" style="width: 260px;" aria-label="Taking"></select>
-                    {{-- Filter jenis event (Master Event); tampil bila kolom EVENT_TYPE sudah ada --}}
+                    {{-- Filter jenis event (Master Event) --}}
                     <select class="form-select form-select-sm d-none" id="filter-event-type" style="width: 200px;" aria-label="Event">
                         <option value="">All Event</option>
                     </select>

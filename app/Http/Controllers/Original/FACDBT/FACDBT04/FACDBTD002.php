@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Original\FACDBT\FACDBT04;
 
+use App\Services\FACDBT\FacdbtTable;
 use App\Services\FACDBT\AreaName;
 use App\Services\FACDBT\RunningTakingPeriod;
 use App\Http\Controllers\Controller;
@@ -19,7 +20,7 @@ class FACDBTD002 extends Controller
     use FiltersTakingRange;
     use UsesTakingEvent;
 
-    private const CONN = 'INV_TAKING';
+    private const CONN = 'FACDBT';
     private const CACHE_TTL = 60;
 
     public function index()
@@ -41,7 +42,7 @@ class FACDBTD002 extends Controller
     }
 
     /**
-     * Progress per warehouse (SIM_INV_LOCATION_TEST.warehouse) untuk lokasi di SIM_INV_GROUP_LOCATION.
+     * Progress per warehouse (Master Location VWAREHOUSE) untuk lokasi di Master Group Location.
      * - % Item : item (part unik) taking terhadap item book
      * - % Qty  : qty taking terhadap qty book
      * Book & taking dicocokkan per lokasi.
@@ -113,28 +114,28 @@ class FACDBTD002 extends Controller
     }
 
     /**
-     * Pemetaan lokasi -> warehouse untuk lokasi di SIM_INV_GROUP_LOCATION (opsional difilter per group).
+     * Pemetaan lokasi -> warehouse untuk lokasi di Master Group Location (opsional difilter per group).
      * Dikerjakan di PHP karena join dengan TRIM() di kedua sisi membuat index tidak terpakai.
      *
      * @return array<string, string> [location_no => warehouse]
      */
     private function locationWarehouses($db, string $group): array
     {
-        $warehouses = $this->dashboardCache('FACDBTD002:warehouses:v1', function () use ($db) {
+        $warehouses = $this->dashboardCache('FACDBTD002:warehouses:v2', function () use ($db) {
             $map = [];
-            foreach ($db->table('SIM_INV_LOCATION_TEST')->select('location_no', 'warehouse')->get() as $row) {
-                $warehouse = trim((string) $row->warehouse);
-                $map[trim((string) $row->location_no)] = $warehouse !== '' ? $warehouse : 'UNKNOWN';
+            foreach (FacdbtTable::active($db, FacdbtTable::LOCATIONS)->select('VLOCATIONNO', 'VWAREHOUSE')->get() as $row) {
+                $warehouse = trim((string) $row->VWAREHOUSE);
+                $map[trim((string) $row->VLOCATIONNO)] = $warehouse !== '' ? $warehouse : 'UNKNOWN';
             }
 
             return $map;
         });
 
-        $locations = $db->table('SIM_INV_GROUP_LOCATION')
-            // Area gabungan (mis. QA) mencakup semua location_group-nya
-            ->when($group !== '', fn ($q) => $q->whereIn(DB::raw('UPPER(TRIM(location_group))'), array_map('strtoupper', AreaName::groupsOf($group))))
+        $locations = FacdbtTable::active($db, FacdbtTable::GROUP_LOCATIONS)
+            // Area gabungan (mis. QA) mencakup semua location group-nya
+            ->when($group !== '', fn ($q) => $q->whereIn(DB::raw('UPPER(TRIM(VLOCGROUP))'), array_map('strtoupper', AreaName::groupsOf($group))))
             ->distinct()
-            ->pluck('LOCATION_NO');
+            ->pluck('VLOCATIONNO');
 
         $result = [];
         foreach ($locations as $loc) {

@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Original\FACDBT01;
 
+use App\DataTables\Original\FACDBT01\Concerns\AppliesDefaultOrder;
 use App\DataTables\Original\FACDBT01\Concerns\MasterServiceName;
 use App\Models\FACDBT01\FACDBT_MSHUNITCOST as UnitCost; // Mengambil model Unit Cost
 use App\Traits\DataTableTrait;
@@ -15,6 +16,7 @@ use Yajra\DataTables\Services\DataTable;
 class FACDBTF003DataTable extends DataTable
 {
     use DataTableTrait;
+    use AppliesDefaultOrder;
     use MasterServiceName;
 
     /**
@@ -26,26 +28,26 @@ class FACDBTF003DataTable extends DataTable
     {
         return (new EloquentDataTable($query))
             ->addColumn('checkbox', function ($row) {
-                // Menggunakan part_no sebagai value dari checkbox
-                return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->part_no . '">';
+                // IID sebagai value dari checkbox
+                return '<input type="checkbox" class="form-check-input" name="selected[]" value="' . $row->IID . '">';
             })
             ->addColumn('action', fn($data) => $this->getActionButton($data))
             ->rawColumns(['checkbox', 'action'])
-            ->setRowId('part_no') // Menggunakan part_no sebagai Row ID
+            ->setRowId('IID') // IID sebagai Row ID
             ->filter(function ($query) {
                 $keyword = request('keyword');
 
                 if (! empty($keyword)) {
                     // Menggunakan LIKE untuk pencarian teks pada kolom Unit Cost
                     $query->whereAny([
-                        'part_no', 
-                        'inventory_part_description', 
-                        'inventory_uom', 
-                        'accounting_group', 
-                        'on_hand_qty', 
-                        'mat_cost', 
-                        'lab_cost',
-                        'foh_cost'
+                        'VPARTNO', 
+                        'VPARTDESC', 
+                        'VUOM', 
+                        'VACCGROUP', 
+                        'NONHANDQTY', 
+                        'MMATCOST', 
+                        'MLABCOST',
+                        'MFOHCOST'
                     ], 'LIKE', "%{$keyword}%");
                 }
             });
@@ -63,10 +65,11 @@ class FACDBTF003DataTable extends DataTable
         // Menangkap filter selected_ids jika ada request dari JS (Fitur Export Selected)
         if (request()->has('selected_ids') && !empty(request('selected_ids'))) {
             $selectedIds = explode(',', request('selected_ids'));
-            $query->whereIn('part_no', $selectedIds);
+            $query->whereIn('IID', $selectedIds);
         }
 
-        return $query->orderBy('part_no', 'asc');
+        // Urutan bawaan; klik judul kolom menggantikannya
+        return $query->when(!$this->hasColumnOrder(), fn ($q) => $q->orderBy('VPARTNO', 'asc'));
     }
 
     /**
@@ -125,14 +128,14 @@ class FACDBTF003DataTable extends DataTable
                 ->searchable(false)
                 ->width(30)
                 ->addClass('text-center'),
-            Column::make('part_no')->title('Part No'),
-            Column::make('inventory_part_description')->title('Description'),
-            Column::make('inventory_uom')->title('UOM'),
-            Column::make('accounting_group')->title('Accounting Group'),
-            Column::make('on_hand_qty')->title('On Hand Qty'),
-            Column::make('mat_cost')->title('Material Cost'),
-            Column::make('lab_cost')->title('Labor Cost'),
-            Column::make('foh_cost')->title('FOH Cost'),
+            Column::make('VPARTNO')->title('Part No'),
+            Column::make('VPARTDESC')->title('Description'),
+            Column::make('VUOM')->title('UOM'),
+            Column::make('VACCGROUP')->title('Accounting Group'),
+            Column::make('NONHANDQTY')->title('On Hand Qty'),
+            Column::make('MMATCOST')->title('Material Cost'),
+            Column::make('MLABCOST')->title('Labor Cost'),
+            Column::make('MFOHCOST')->title('FOH Cost'),
             Column::computed('action')
                 ->exportable(false)
                 ->printable(false)
@@ -157,7 +160,7 @@ class FACDBTF003DataTable extends DataTable
                 'service' => $this->masterService('003', 'Update'), // Disesuaikan untuk Master Unit Cost
                 'icon' => 'pencil',
                 'class' => 'edit-unitcost', // Class tombol edit
-                'id' => $data->part_no, 
+                'id' => $data->IID, 
             ],
             [
                 'action' => 'delete',
@@ -165,7 +168,7 @@ class FACDBTF003DataTable extends DataTable
                 'icon' => 'trash',
                 'class' => 'delete-unitcost', // Class tombol delete
                 'title' => 'Delete unit cost',
-                'id' => $data->part_no,
+                'id' => $data->IID,
             ],
         ];
 

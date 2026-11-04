@@ -2,7 +2,7 @@
 
 ## Tabel history
 
-- `SIM_INV_UNIT_COST_TEST` tetap menjadi master cost terkini (satu baris per part), tanpa kolom periode.
+- `FACDBT_MSHUNITCOSTS` (Master Unit Cost) tetap menjadi master cost terkini (satu baris per part), tanpa kolom periode.
 - Tabel baru (contoh `SIM_INV_TAKING_HISTORY`) diisi sekali saat periode taking ditutup, sebagai foto hasil akhir:
   - Periode: MONTH, YEAR, INV_LIST_NO, TAKING_DATE, CLOSE_DATE
   - Barang: LOCATION_NO, PART_NO, location_group, accounting_group, part_group saat itu

@@ -2,58 +2,55 @@
 
 namespace App\Models\FACDBT01;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\FACDBT01\Concerns\HasAuditColumns;
+use App\Services\FACDBT\FacdbtTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Master Unit Cost (FACDBTF003). Unit cost dashboard = MMATCOST + MLABCOST + MFOHCOST; VUOM 'ml' = part oil.
+ */
 class FACDBT_MSHUNITCOST extends Model
 {
     use HasFactory;
+    use HasAuditColumns;
 
-    // Mengarahkan ke koneksi MySQL eksternal
-    protected $connection = 'INV_TAKING';
+    protected $connection = 'FACDBT';
+    protected $table = FacdbtTable::UNIT_COSTS;
 
-    // Nama tabel di database berdasarkan dump SQL
-    protected $table = 'SIM_INV_UNIT_COST_TEST';
-
-    // Primary Key adalah 'id' bertipe integer auto increment
-    protected $primaryKey = 'id';
+    protected $primaryKey = 'IID';
     public $incrementing = true;
     protected $keyType = 'int';
 
-    // Tabel ini tidak memiliki timestamps bawaan Laravel
     public $timestamps = false;
 
-    // Field kolom sesuai dump SQL SIM_INV_UNIT_COST_TEST
     protected $fillable = [
-        'part_no',
-        'inventory_part_description',
-        'inventory_uom',
-        'accounting_group',
-        'on_hand_qty',
-        'mat_cost',
-        'lab_cost',
-        'foh_cost',
+        'VPARTNO',
+        'VPARTDESC',
+        'VUOM',
+        'VACCGROUP',
+        'NONHANDQTY',
+        'MMATCOST',
+        'MLABCOST',
+        'MFOHCOST',
     ];
 
-    // Casting tipe data
     protected $casts = [
-        'id' => 'integer',
-        'part_no' => 'string',
-        'inventory_part_description' => 'string',
-        'inventory_uom' => 'string',
-        'accounting_group' => 'string',
-        'on_hand_qty' => 'string',
-        'mat_cost' => 'decimal:2',
-        'lab_cost' => 'decimal:2',
-        'foh_cost' => 'decimal:2',
+        'IID' => 'integer',
+        'MMATCOST' => 'decimal:2',
+        'MLABCOST' => 'decimal:2',
+        'MFOHCOST' => 'decimal:2',
+        'DCREA' => 'datetime:Y-m-d H:i:s',
+        'DMODI' => 'datetime:Y-m-d H:i:s',
+        'DDELETE' => 'datetime:Y-m-d H:i:s',
     ];
 
     /**
      * Relasi balik ke model FACDBT_MSHPART
-     * Unit Cost dimiliki oleh 1 Part berdasarkan part_no.
+     * Unit Cost dimiliki oleh 1 Part berdasarkan Part No.
      */
     public function part()
     {
-        return $this->belongsTo(FACDBT_MSHPART::class, 'part_no', 'part_no');
+        return $this->belongsTo(FACDBT_MSHPART::class, 'VPARTNO', 'VPARTNO');
     }
 }
