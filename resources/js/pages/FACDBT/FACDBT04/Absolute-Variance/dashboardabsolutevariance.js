@@ -124,18 +124,35 @@ class DashboardAbsoluteVariance {
         if (!el) return;
 
         el.textContent = text;
-        if (fit) this.fitText(el);
+        if (fit) {
+            this.fitText(el);
+            this.watchFit(el);
+        }
     }
 
-    // Satu baris: ukuran huruf diperkecil bertahap sampai angka muat di lebar card
+    // Satu baris: ukuran huruf diperkecil bertahap sampai angka muat di lebar card.
+    // Class fs-3 Bootstrap memakai !important, jadi ukuran inline juga harus !important supaya berlaku.
     fitText(el) {
         el.style.whiteSpace = 'nowrap';
-        el.style.fontSize = '';
+        el.style.removeProperty('font-size');
         let size = parseFloat(getComputedStyle(el).fontSize);
         while (el.scrollWidth > el.clientWidth && size > 12) {
             size -= 1;
-            el.style.fontSize = `${size}px`;
+            el.style.setProperty('font-size', `${size}px`, 'important');
         }
+    }
+
+    // Sesuaikan lagi saat lebar card berubah (resize window, sidebar dibuka / ditutup)
+    watchFit(el) {
+        if (el.dataset.fitWatched || typeof ResizeObserver === 'undefined') return;
+        el.dataset.fitWatched = '1';
+
+        let width = el.parentElement.clientWidth;
+        new ResizeObserver(() => {
+            if (el.parentElement.clientWidth === width) return;
+            width = el.parentElement.clientWidth;
+            this.fitText(el);
+        }).observe(el.parentElement);
     }
 
     // Contoh: -57123456 -> "-57M" ("+ 0" supaya nilai kecil negatif tidak tampil "-0M")
