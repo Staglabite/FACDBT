@@ -4,7 +4,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const LAYER_CLASS = 'fd-dim-layer';
 
 /**
- * Tutup kategori selain selectedIndex dengan lapisan putih transparan.
+ * Tutup kategori selain selectedIndex (satu index, atau array index) dengan lapisan putih transparan.
  * - horizontal : kategori tersusun ke bawah (bar horizontal)
  * - seriesIndex: series yang posisinya dipakai sebagai pusat kategori (chart vertikal)
  * selectedIndex < 0 / null = tidak ada pilihan (lapisan dihapus).
@@ -15,7 +15,8 @@ export function dimCategories(chartCtx, count, selectedIndex, { horizontal = fal
     if (!host) return;
 
     host.querySelectorAll(`.${LAYER_CLASS}`).forEach(n => n.remove());
-    if (selectedIndex === null || selectedIndex === undefined || selectedIndex < 0 || count === 0) return;
+    const selected = new Set([].concat(selectedIndex ?? []).filter(i => Number.isInteger(i) && i >= 0));
+    if (selected.size === 0 || count === 0) return;
 
     const layer = document.createElementNS(SVG_NS, 'g');
     layer.setAttribute('class', LAYER_CLASS);
@@ -35,13 +36,13 @@ export function dimCategories(chartCtx, count, selectedIndex, { horizontal = fal
     if (horizontal) {
         const band = g.gridHeight / count;
         for (let i = 0; i < count; i++) {
-            if (i !== selectedIndex) addRect(-g.translateX, band * i, g.gridWidth + g.translateX, band);
+            if (!selected.has(i)) addRect(-g.translateX, band * i, g.gridWidth + g.translateX, band);
         }
     } else {
         const xs = (g.seriesXvalues && g.seriesXvalues[seriesIndex]) || [];
         const step = xs.length >= 2 && Number.isFinite(xs[1] - xs[0]) ? xs[1] - xs[0] : g.gridWidth / count;
         for (let i = 0; i < count; i++) {
-            if (i === selectedIndex) continue;
+            if (selected.has(i)) continue;
             const cx = Number.isFinite(xs[i]) ? xs[i] : step * i + step / 2;
             // Sampai ke bawah grid supaya label sumbu X ikut pudar
             addRect(cx - step / 2, 0, step, g.gridHeight + 60);

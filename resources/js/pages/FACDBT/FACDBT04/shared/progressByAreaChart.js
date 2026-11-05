@@ -19,8 +19,8 @@ const DEFAULT_SERIES = [
 
 /**
  * Gambar chart di elemen el. items: [{ area, pct_progress, pct_remaining, ... }, ...].
- * Opsional filter interaktif: onSelect(area) dipanggil saat area diklik, selected() = area yang dipilih
- * (area lain dipudarkan). series mengganti nama / kolom nilai kedua series (lihat DEFAULT_SERIES).
+ * Opsional filter interaktif: onSelect(area) dipanggil saat area diklik, selected() = area (atau array area)
+ * yang dipilih (area lain dipudarkan). series mengganti nama / kolom nilai kedua series (lihat DEFAULT_SERIES).
  * Mengembalikan instance ApexCharts, atau null bila tidak ada data.
  */
 export function renderProgressByAreaChart(el, items, { height = 400, animate = true, emptyText = 'No Data Available for selected time', onSelect = null, selected = null, series = DEFAULT_SERIES } = {}) {
@@ -32,7 +32,7 @@ export function renderProgressByAreaChart(el, items, { height = 400, animate = t
     el.innerHTML = '';
     const categories    = items.map(d => d.area);
     const colors        = [THEME.remaining, THEME.progress];
-    const dim = ctx => dimCategories(ctx, items.length, selected ? items.findIndex(d => d.area === selected()) : -1);
+    const dim = ctx => dimCategories(ctx, items.length, selected ? [].concat(selected() ?? []).map(a => items.findIndex(d => d.area === a)) : -1);
     const select = index => {
         if (items[index]) onSelect(items[index].area);
     };
