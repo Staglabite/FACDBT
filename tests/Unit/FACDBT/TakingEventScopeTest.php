@@ -8,7 +8,7 @@ use Illuminate\Database\Connection;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Data yang dihitung dashboard per event (Master Event): Pre-Taking = part di daftar event,
+ * Data yang dihitung dashboard per event (Master Event): Pre-Taking = pasangan part + lokasi di daftar event,
  * TWH = PART_NO mengandung "TW1" (huruf besar / kecil sama), Direct = selain itu, tanpa event = semua.
  */
 class TakingEventScopeTest extends TestCase
@@ -30,7 +30,7 @@ class TakingEventScopeTest extends TestCase
         if ($withEventTables) {
             $audit = 'VCREA TEXT, DCREA TEXT, VMODI TEXT, DMODI TEXT, VDELETE TEXT, DDELETE TEXT';
             $db->statement("CREATE TABLE FACDBT_MSHEVENTS (IID INTEGER PRIMARY KEY, DTAKINGDATE TEXT, VEVENTTYPE TEXT, {$audit})");
-            $db->statement("CREATE TABLE FACDBT_MSDEVENTPARTS (IID INTEGER PRIMARY KEY, IEVENTID INTEGER, VPARTNO TEXT, {$audit})");
+            $db->statement("CREATE TABLE FACDBT_MSDEVENTPARTS (IID INTEGER PRIMARY KEY, IEVENTID INTEGER, VPARTNO TEXT, VLOCATIONNO TEXT, {$audit})");
             $db->table('FACDBT_MSHEVENTS')->insert([
                 ['IID' => 1, 'DTAKINGDATE' => '2026-03-02', 'VEVENTTYPE' => 'PRE', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
                 ['IID' => 2, 'DTAKINGDATE' => '2026-03-05', 'VEVENTTYPE' => 'twh', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
@@ -38,9 +38,11 @@ class TakingEventScopeTest extends TestCase
                 ['IID' => 3, 'DTAKINGDATE' => '2026-04-01', 'VEVENTTYPE' => 'TWH', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => '2026-03-20 10:00:00'],
             ]);
             $db->table('FACDBT_MSDEVENTPARTS')->insert([
-                ['IEVENTID' => 1, 'VPARTNO' => 'P1', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
-                ['IEVENTID' => 1, 'VPARTNO' => 'TW1-55', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => '2026-03-01 09:00:00'],
-                ['IEVENTID' => 2, 'VPARTNO' => 'P3', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
+                ['IEVENTID' => 1, 'VPARTNO' => 'P1', 'VLOCATIONNO' => 'PROD-1A', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
+                ['IEVENTID' => 1, 'VPARTNO' => 'TW1-55', 'VLOCATIONNO' => 'QA-01', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => '2026-03-01 09:00:00'],
+                ['IEVENTID' => 2, 'VPARTNO' => 'P3', 'VLOCATIONNO' => 'L-02', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => null],
+                // Part di daftar tetapi lokasinya tidak ada di data
+                ['IEVENTID' => 1, 'VPARTNO' => 'ab-tw1-9', 'VLOCATIONNO' => 'PROD-2A', 'DCREA' => '2026-03-01 08:00:00', 'DDELETE' => '2026-03-01 09:00:00'],
             ]);
         }
 
@@ -64,8 +66,11 @@ class TakingEventScopeTest extends TestCase
         // Lokasi "TWH" tidak berpengaruh; yang dilihat PART_NO
         $this->assertSame(['L-02/ab-tw1-9', 'QA-01/TW1-55'], $this->rows($db, new TakingEvent(2, TakingEvent::TWH)));
         $this->assertSame(['PROD-1A/P1', 'TWH-01/P1'], $this->rows($db, new TakingEvent(2, TakingEvent::DIRECT)));
-        // Hanya part aktif di daftar event 1 (TW1-55 sudah dihapus dari daftar)
-        $this->assertSame(['PROD-1A/P1', 'TWH-01/P1'], $this->rows($db, new TakingEvent(1, TakingEvent::PRE)));
+        // Hanya pasangan part + lokasi aktif di daftar event 1: P1 di TWH-01 tidak ikut, TW1-55 sudah dihapus dari daftar
+        $this->assertSame(['PROD-1A/P1'], $this->rows($db, new TakingEvent(1, TakingEvent::PRE)));
+        // Kolom dengan alias: lokasi memakai alias yang sama
+        $this->assertSame(['PROD-1A/P1'], TakingEvent::scope($db->table('SIM_INV_TAKING_DATA_TAB as t'), new TakingEvent(1, TakingEvent::PRE), 't.PART_NO')
+            ->get()->map(fn ($r) => "{$r->LOCATION_NO}/{$r->PART_NO}")->all());
     }
 
     public function test_event_of_period(): void

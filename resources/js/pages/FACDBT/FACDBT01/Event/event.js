@@ -132,17 +132,43 @@ class EventParts {
         toast.success(response.data.message);
         this.#modal.hide();
         this.#onSuccess();
+        this.#warnUnknownLocations(response.data?.data?.unknown_locations || []);
       })
       .catch(error => {
         const errors = error.response?.data?.data?.error_data || [];
         if (errors.length) {
           const $list = $('#event-parts-errors').removeClass('d-none');
-          errors.slice(0, 50).forEach(item => $list.append($('<li>').text(`Row ${item.row} (${item.part_no}): ${item.errors.join(', ')}`)));
+          errors.slice(0, 50).forEach(item => $list.append($('<li>').text(
+            `Row ${item.row} (${item.part_no || '-'} / ${item.location_no || '-'}): ${item.errors.join(', ')}`
+          )));
         }
         const fileError = error.response?.data?.errors?.file?.[0];
         toast.error(fileError || error.response?.data?.message || 'Failed to upload part list');
       })
       .finally(() => $button.prop('disabled', false));
+  }
+
+  // Part list tetap tersimpan; Location No yang tidak ada di Master Location hanya diberi peringatan
+  #warnUnknownLocations(locations) {
+    if (!locations.length) return;
+
+    const shown = locations.slice(0, 100);
+    const $list = $('<ul class="text-start small mb-0">');
+    shown.forEach(loc => $list.append($('<li>').text(`Location No ${loc} tidak ada di Master Location`)));
+    if (locations.length > shown.length) {
+      $list.append($('<li>').text(`... dan ${locations.length - shown.length} lokasi lainnya`));
+    }
+
+    Swal.fire({
+      icon: 'warning',
+      title: 'Location No tidak ada di Master Location',
+      html: $('<div>').append(
+        $('<p>').text(`${locations.length} Location No tidak terdaftar di Master Location. Part list tetap tersimpan.`),
+        $list
+      ).html(),
+      customClass: { confirmButton: 'btn btn-primary' },
+      buttonsStyling: false
+    });
   }
 }
 

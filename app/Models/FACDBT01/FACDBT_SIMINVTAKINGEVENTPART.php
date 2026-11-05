@@ -7,7 +7,7 @@ use App\Services\FACDBT\TakingEvent;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Part yang dihitung dashboard saat event Pre-Taking (Master Event, FACDBTF006).
+ * Pasangan part + lokasi yang dihitung dashboard saat event Pre-Taking (Master Event, FACDBTF006).
  */
 class FACDBT_SIMINVTAKINGEVENTPART extends Model
 {
@@ -25,6 +25,7 @@ class FACDBT_SIMINVTAKINGEVENTPART extends Model
     protected $fillable = [
         'IEVENTID',
         'VPARTNO',
+        'VLOCATIONNO',
     ];
 
     protected $casts = [

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  * - taking : SIM_INV_TAKING_DATA_TAB, CREATED_DATETIME di rentang yang sama (tanggal scan)
  * - master (lokasi, area, part, unit cost) disalin saat snapshot supaya history tidak ikut berubah.
  * - event periode (Master Event) membatasi book & taking seperti di dashboard; jenisnya disimpan di VEVENTTYPE.
- *   Pre-Taking: hanya part di daftar part event; setelah history periode tertutup tersimpan, daftar part
+ *   Pre-Taking: hanya pasangan part + lokasi di daftar part event; setelah history periode tertutup tersimpan, daftar part
  *   event (FACDBT_MSDEVENTPARTS) dihapus (soft delete).
  * - history periode yang dibuat ulang menggantikan history lama (dihapus permanen, bukan soft delete).
  */
@@ -118,11 +118,14 @@ class TakingHistoryService
             return;
         }
 
-        $key = fn ($part) => mb_strtolower(rtrim((string) $part));
+        // [part|lokasi => [part_no, location_no]] dari history periode itu
+        $key = fn ($part, $loc) => mb_strtolower(rtrim((string) $part)) . '|' . mb_strtolower(rtrim((string) $loc));
         $parts = [];
-        foreach (FacdbtTable::active($db, self::TABLE)->whereDate('DTAKINGDATE', $takingDay->toDateString())->distinct()->pluck('VPARTNO') as $part) {
-            if (trim((string) $part) !== '') {
-                $parts[$key($part)] ??= trim((string) $part);
+        foreach (FacdbtTable::active($db, self::TABLE)->whereDate('DTAKINGDATE', $takingDay->toDateString())->distinct()->get(['VPARTNO', 'VLOCATIONNO']) as $r) {
+            $part = trim((string) $r->VPARTNO);
+            $loc  = trim((string) $r->VLOCATIONNO);
+            if ($part !== '' && $loc !== '') {
+                $parts[$key($part, $loc)] ??= [$part, $loc];
             }
         }
         if (empty($parts)) {
@@ -131,10 +134,10 @@ class TakingHistoryService
 
         $now = now()->format('Y-m-d H:i:s');
 
-        // Baris part yang pernah dihapus dipulihkan; part yang belum pernah ada ditambahkan
+        // Baris part yang pernah dihapus dipulihkan; pasangan part + lokasi yang belum pernah ada ditambahkan
         $deleted = [];
-        foreach ($db->table(TakingEvent::PART_TABLE)->where('IEVENTID', $event->id)->get(['IID', 'VPARTNO']) as $row) {
-            $deleted[$key($row->VPARTNO)] = $row->IID;
+        foreach ($db->table(TakingEvent::PART_TABLE)->where('IEVENTID', $event->id)->get(['IID', 'VPARTNO', 'VLOCATIONNO']) as $row) {
+            $deleted[$key($row->VPARTNO, $row->VLOCATIONNO)] = $row->IID;
         }
 
         $restore = array_values(array_intersect_key($deleted, $parts));
@@ -149,9 +152,10 @@ class TakingHistoryService
 
         $new = array_values(array_diff_key($parts, $deleted));
         foreach (array_chunk($new, 1000) as $chunk) {
-            $db->table(TakingEvent::PART_TABLE)->insert(array_map(fn ($part) => [
+            $db->table(TakingEvent::PART_TABLE)->insert(array_map(fn ($line) => [
                 'IEVENTID' => $event->id,
-                'VPARTNO' => $part,
+                'VPARTNO' => $line[0],
+                'VLOCATIONNO' => $line[1],
                 'VCREA' => $user,
                 'DCREA' => $now,
             ], $chunk));

@@ -21,13 +21,15 @@ use Maatwebsite\Excel\Facades\Excel as FacadesExcel;
 
 /**
  * Master Event: jenis taking tiap periode, menentukan data yang dihitung dashboard (lihat TakingEvent).
- * Event Pre-Taking punya daftar part (import CSV / Excel kolom "Part No"); hanya part itu yang dihitung dashboard.
+ * Event Pre-Taking punya daftar part (import CSV / Excel kolom "Part No" & "Location No"); hanya pasangan part +
+ * lokasi itu yang dihitung dashboard.
  */
 class FACDBTF006 extends Controller
 {
     private const CONN = 'FACDBT';
 
     private const PART_TITLE = 'Part No';
+    private const LOCATION_TITLE = 'Location No';
 
     public function index(FACDBTF006DataTable $dataTable, TakingHistoryService $history)
     {
@@ -129,7 +131,8 @@ class FACDBTF006 extends Controller
     }
 
     /**
-     * Ganti daftar part Pre-Taking event dengan isi file (CSV / Excel, kolom "Part No").
+     * Ganti daftar part Pre-Taking event dengan isi file (CSV / Excel, kolom "Part No" & "Location No").
+     * Location No yang tidak ada di Master Location tetap disimpan, dan dikembalikan sebagai peringatan.
      */
     public function importParts(TakingEventPartImportRequest $request, TakingEventModel $event)
     {
@@ -143,8 +146,8 @@ class FACDBTF006 extends Controller
             return Response::error(message: 'Error reading the file: ' . $e->getMessage());
         }
 
-        if (!$import->hasPartColumn()) {
-            return response()->json(['success' => false, 'message' => 'Column "' . self::PART_TITLE . '" not found. Please use the template.'], 422);
+        if (!$import->hasColumns()) {
+            return response()->json(['success' => false, 'message' => 'Column "' . self::PART_TITLE . '" and "' . self::LOCATION_TITLE . '" are required. Please use the template.'], 422);
         }
         if (!empty($import->errors())) {
             return response()->json([
@@ -161,7 +164,36 @@ class FACDBTF006 extends Controller
 
         $count = $this->replaceParts($event, $parts);
 
-        return Response::success(message: 'Part list replaced with ' . number_format($count) . ' part(s)');
+        return Response::success(
+            data: ['unknown_locations' => $this->unknownLocations(array_column($parts, 1))],
+            message: 'Part list replaced with ' . number_format($count) . ' part / location row(s)'
+        );
+    }
+
+    /**
+     * Location No yang tidak ada (aktif) di Master Location.
+     *
+     * @param  array<int, string>  $locations
+     * @return array<int, string>
+     */
+    private function unknownLocations(array $locations): array
+    {
+        $wanted = [];
+        foreach ($locations as $loc) {
+            $wanted[mb_strtolower($loc)] ??= $loc;
+        }
+
+        $known = [];
+        foreach (array_chunk(array_values($wanted), 1000) as $chunk) {
+            foreach (FacdbtTable::active(DB::connection(self::CONN), FacdbtTable::LOCATIONS)->whereIn('VLOCATIONNO', $chunk)->pluck('VLOCATIONNO') as $loc) {
+                $known[mb_strtolower(trim((string) $loc))] = true;
+            }
+        }
+
+        $unknown = array_values(array_diff_key($wanted, $known));
+        sort($unknown);
+
+        return $unknown;
     }
 
     /**
@@ -169,15 +201,15 @@ class FACDBTF006 extends Controller
      */
     public function exportParts(TakingEventModel $event)
     {
-        $query = TakingEventPart::query()->where('IEVENTID', $event->IID)->orderBy('VPARTNO');
+        $query = TakingEventPart::query()->where('IEVENTID', $event->IID)->orderBy('VPARTNO')->orderBy('VLOCATIONNO');
 
-        return (new MasterDataExport($query, ['VPARTNO' => self::PART_TITLE]))
+        return (new MasterDataExport($query, ['VPARTNO' => self::PART_TITLE, 'VLOCATIONNO' => self::LOCATION_TITLE]))
             ->download('Event_Part_' . Carbon::parse($event->DTAKINGDATE)->format('Ymd') . '.csv');
     }
 
     public function downloadTemplate()
     {
-        return MasterDataExport::template([self::PART_TITLE], 'Event_Part_Template.csv');
+        return MasterDataExport::template([self::PART_TITLE, self::LOCATION_TITLE], 'Event_Part_Template.csv');
     }
 
     private function fields(Request $request): array
@@ -186,30 +218,23 @@ class FACDBTF006 extends Controller
     }
 
     /**
-     * Ganti daftar part event (soft delete): part yang tidak ada di file dihapus, part yang pernah dihapus
-     * dan ada lagi di file dipulihkan, part baru ditambahkan.
+     * Ganti daftar part event (soft delete): pasangan part + lokasi yang tidak ada di file dihapus, yang pernah
+     * dihapus dan ada lagi di file dipulihkan, yang baru ditambahkan.
      *
-     * @param  array<int, string>  $parts
-     * @return int jumlah part aktif
+     * @param  array<string, array{0: string, 1: string}>  $wanted  [kunci => [part_no, location_no]] (Import::key())
+     * @return int jumlah baris part aktif
      */
-    private function replaceParts(TakingEventModel $event, array $parts): int
+    private function replaceParts(TakingEventModel $event, array $wanted): int
     {
-        // Sama seperti MySQL: Part No dibandingkan tanpa beda huruf besar / kecil & spasi di belakang
-        $key = fn ($part) => mb_strtolower(rtrim((string) $part));
-        $wanted = [];
-        foreach ($parts as $part) {
-            $wanted[$key($part)] ??= $part;
-        }
-
-        DB::connection(self::CONN)->transaction(function () use ($event, $wanted, $key) {
+        DB::connection(self::CONN)->transaction(function () use ($event, $wanted) {
             $table = fn () => DB::connection(self::CONN)->table(TakingEvent::PART_TABLE)->where('IEVENTID', $event->IID);
             $user  = FacdbtTable::user();
             $now   = now()->format('Y-m-d H:i:s');
 
-            // [part => [IID, sudah dihapus?]] termasuk baris yang sudah dihapus
+            // [part|lokasi => [IID, sudah dihapus?]] termasuk baris yang sudah dihapus
             $existing = [];
-            foreach ($table()->get(['IID', 'VPARTNO', 'DDELETE']) as $row) {
-                $existing[$key($row->VPARTNO)] = [$row->IID, $row->DDELETE !== null];
+            foreach ($table()->get(['IID', 'VPARTNO', 'VLOCATIONNO', 'DDELETE']) as $row) {
+                $existing[Import::key($row->VPARTNO, $row->VLOCATIONNO)] = [$row->IID, $row->DDELETE !== null];
             }
 
             $remove  = [];
@@ -236,9 +261,10 @@ class FACDBTF006 extends Controller
 
             $new = array_diff_key($wanted, $existing);
             foreach (array_chunk(array_values($new), 1000) as $chunk) {
-                DB::connection(self::CONN)->table(TakingEvent::PART_TABLE)->insert(array_map(fn ($part) => [
+                DB::connection(self::CONN)->table(TakingEvent::PART_TABLE)->insert(array_map(fn ($line) => [
                     'IEVENTID' => $event->IID,
-                    'VPARTNO' => $part,
+                    'VPARTNO' => $line[0],
+                    'VLOCATIONNO' => $line[1],
                     'VCREA' => $user,
                     'DCREA' => $now,
                 ], $chunk));

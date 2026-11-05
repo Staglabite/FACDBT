@@ -8,17 +8,18 @@
             </div>
             <div class="modal-body">
                 <p class="mb-4">
-                    Taking Date <b id="event-parts-date">-</b>: <b id="event-parts-count">0</b> part.
+                    Taking Date <b id="event-parts-date">-</b>: <b id="event-parts-count">0</b> part / location.
                     <a href="javascript:void(0)" id="event-parts-export" class="ms-2">
                         <i class="icon-base ti tabler-download"></i> Export part list
                     </a>
                 </p>
                 <form id="event-parts-form" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="event-parts-file" class="form-label">Select File (CSV / Excel, column "Part No")</label>
+                        <label for="event-parts-file" class="form-label">Select File (CSV / Excel, column "Part No" &amp; "Location No")</label>
                         <input type="file" class="form-control" id="event-parts-file" name="file"
                             accept=".xlsx, .xls, .csv" required>
-                        <div class="form-text">Upload akan <b>mengganti</b> seluruh daftar part event ini.</div>
+                        <div class="form-text">Upload akan <b>mengganti</b> seluruh daftar part event ini. Part No dan Location No wajib diisi;
+                            hanya part di lokasi tersebut yang dihitung (part yang sama di lokasi lain tidak ikut).</div>
                     </div>
                 </form>
                 <ul class="text-danger small d-none" id="event-parts-errors"></ul>
