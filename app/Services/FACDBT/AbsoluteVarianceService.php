@@ -45,7 +45,8 @@ class AbsoluteVarianceService extends VarianceDashboardService
             $varQty = $qtyTaking - $qtyBook;
             $varAmt = $varQty * $unitCost;
 
-            if ($varQty == 0 && $varAmt == 0) {
+            // Tabel hanya untuk variance + / -: lokasi-part dengan Var Qty 0 tidak ditampilkan
+            if (round($varQty, 2) == 0) {
                 continue;
             }
 

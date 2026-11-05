@@ -42,8 +42,11 @@ class NettVarianceService extends VarianceDashboardService
             $perPart[$part]['amount'] += $varAmt;
         }
 
-        $negative = array_filter($perPart, fn ($p) => $this->isNegative($p['qty'], $p['amount']));
-        $positive = array_diff_key($perPart, $negative);
+        // Tabel hanya untuk variance + / -: part dengan Var Qty 0 (mis. lebih di satu lokasi = kurang di lokasi lain)
+        // tidak ditampilkan; total nett tidak berubah karena variance-nya 0
+        $withVariance = array_filter($perPart, fn ($p) => round($p['qty'], 2) != 0);
+        $negative = array_filter($withVariance, fn ($p) => $this->isNegative($p['qty'], $p['amount']));
+        $positive = array_diff_key($withVariance, $negative);
 
         // Urutan tabel tetap: positive dari Var Amount terbesar, negative dari yang paling minus
         uasort($positive, fn ($a, $b) => $b['amount'] <=> $a['amount'] ?: $b['qty'] <=> $a['qty']);
