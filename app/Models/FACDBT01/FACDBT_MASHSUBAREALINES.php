@@ -1,0 +1,79 @@
+<?php
+
+namespace App\Models\FACDBT01;
+
+use App\Models\BaseModel;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
+class FACDBT_MASHSUBAREALINES extends BaseModel
+{
+    use HasFactory;
+
+    // Mengarahkan ke koneksi MySQL eksternal
+    protected $connection = 'FACDBT';
+
+    // Nama tabel di database
+    protected $table = 'PPCSOI_MSHSUBAREALINES';
+
+    // Primary Key adalah 'IID' bertipe integer auto increment
+    protected $primaryKey = 'IID';
+    public $incrementing = true;
+    protected $keyType = 'int';
+
+    // Matikan timestamps bawaan Laravel karena menggunakan custom kolom tanggal
+    public $timestamps = false;
+
+    // Kolom yang boleh diisi sesuai struktur DDL
+    protected $fillable = [
+        'VAREACODE',
+        'VSUBAREACODE',
+        'VLOCNO',
+        'VLOCDESC',
+        'VLOCGROUP',
+        'VLOCGROUPDESC',
+        'VWAREHOUSEID',
+        'ISTATUS',
+        'VCREA',
+        'DCREA',
+        'VMODI',
+        'DMODI',
+        'VDELETE',
+        'DDELETE',
+    ];
+
+    // Casting tipe data
+    protected $casts = [
+        'IID' => 'integer',
+        'ISTATUS' => 'integer',
+        'DCREA' => 'datetime',
+        'DMODI' => 'datetime',
+        'DDELETE' => 'datetime',
+    ];
+
+    /**
+     * Relasi ke model FACDBT_MSHAREAS (Tabel Area)
+     * Mengikat VAREACODE dengan VAREACODE di tabel Area.
+     */
+    public function area()
+    {
+        return $this->belongsTo(FACDBT_MSHAREAS::class, 'VAREACODE', 'VAREACODE');
+    }
+
+    /**
+     * Relasi ke model FACDBT_MSHSUBAREAS (Tabel Sub Area)
+     * Mengikat VSUBAREACODE dengan VSUBAREACODE di tabel Sub Area.
+     */
+    public function subArea()
+    {
+        return $this->belongsTo(FACDBT_MSHSUBAREAS::class, 'VSUBAREACODE', 'VSUBAREACODE');
+    }
+
+    /**
+     * Relasi ke model FACDBT_MSHLOCATION (Tabel Location Utama)
+     * Mengikat VLOCNO di tabel ini dengan VLOCATIONNO di tabel FACDBT_MSHLOCATIONS.
+     */
+    public function location()
+    {
+        return $this->belongsTo(FACDBT_MSHLOCATION::class, 'VLOCNO', 'VLOCATIONNO');
+    }
+}

@@ -1,0 +1,123 @@
+Table HITUAM_MSHAPPLICATIONS {
+  IID bigint [pk, increment]
+  VPROJECT_DESC varchar
+  VDEPT varchar
+  VPIC varchar
+  VPUBLISH varchar
+  VPREFIXPROJECT varchar
+  VPORTALACCESS varchar
+  VPORTAL_NAME varchar
+  VOPERATIONAL varchar
+  VSTDZATION varchar
+  VDATABASE varchar
+  IORDER_PROJECT int
+  VICON varchar
+  VCREA varchar
+  VMODI varchar
+  VDELETE varchar
+  DCREA timestamp
+  DMODI timestamp
+  DDELETE timestamp
+}
+
+Table HITUAM_MSHMENUS {
+  IID bigint [pk, increment]
+  VAPPID varchar
+  VFLAG varchar
+  VNAME varchar
+  IPARENT bigint
+  VTYPE_APP varchar
+  VICON varchar
+  NSORT_APP int
+  VURL varchar
+  VENVAPP varchar
+  IPROJECT_ID bigint [ref: > HITUAM_MSHAPPLICATIONS.IID]
+  VCREA varchar
+  VMODI varchar
+  VDELETE varchar
+  DCREA timestamp
+  DMODI timestamp
+  DDELETE timestamp
+}
+
+Table HITUAM_MSHSERVICES {
+  IID bigint [pk, increment]
+  VNAME varchar
+  VDESC varchar
+  VURL varchar
+  VMETHOD varchar
+  DBEGINEFF date
+  DENDEFF date
+  VMENUID bigint [ref: > HITUAM_MSHMENUS.IID]
+  VCREA varchar
+  VMODI varchar
+  VDELETE varchar
+  DCREA timestamp
+  DMODI timestamp
+  DDELETE timestamp
+}
+
+Table HITUAM_MSHROLES {
+  IID bigint [pk, increment]
+  VROLENAME varchar [unique]
+  VROLEDESC varchar
+  BSTATUS bool
+  VCREA varchar
+  VMODI varchar
+  VDELETE varchar
+  DCREA timestamp
+  DMODI timestamp
+  DDELETE timestamp
+}
+
+Table HITUAM_MSHUSERS {
+  IID bigint [pk, increment]
+  VNIK varchar
+  VNAME varchar
+  VUSERNAME varchar
+  VPHONE varchar
+  VLDAP varchar
+  VEMAIL varchar
+  VPHOTO varchar
+  VPASSWORD varchar
+  DLASTLOGIN timestamp
+  VCREA varchar
+  VMODI varchar
+  VDELETE varchar
+  DCREA timestamp
+  DMODI timestamp
+  DDELETE timestamp
+}
+
+// Pivote users & roles
+Table HITUAM_MSHUSER_ROLES {
+  IID bigint [pk, increment]
+  IUSER_ID bigint [ref: > HITUAM_MSHUSERS.IID]
+  IROLE_ID bigint [ref: > HITUAM_MSHROLES.IID]
+  VCREA varchar
+  VMODI varchar
+  VDELETE varchar
+  DCREA timestamp
+  DMODI timestamp
+  DDELETE timestamp
+}
+
+// Pivote roles & services
+Table HITUAM_MSHROLE_SERVICES {
+  IID bigint [pk, increment]
+  IROLE_ID bigint [ref: > HITUAM_MSHROLES.IID]
+  ISERVICE_ID bigint [ref: > HITUAM_MSHSERVICES.IID]
+  VCREA varchar
+  VMODI varchar
+  VDELETE varchar
+  DCREA timestamp
+  DMODI timestamp
+  DDELETE timestamp
+}
+
+Table HITUAM_MSHUSER_SESSIONS {
+  IID bigint [pk, increment]
+  IUSER_ID bigint [ref: > HITUAM_MSHUSERS.IID]
+  IPROJECT_ID bigint [ref: > HITUAM_MSHAPPLICATIONS.IID]
+  VTOKENS varchar
+}

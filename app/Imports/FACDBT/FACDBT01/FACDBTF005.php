@@ -1,0 +1,167 @@
+<?php
+
+namespace App\Imports\FACDBT\FACDBT01;
+
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithStartRow;
+use PhpOffice\PhpSpreadsheet\Exception as SpreadsheetException;
+
+/**
+ * File dibaca per CHUNK_SIZE baris (WithChunkReading) supaya file besar tidak menghabiskan memori PHP;
+ * collection() dipanggil sekali per chunk, nomor baris Excel dilanjutkan lewat $nextRow.
+ */
+class FACDBTF005 implements ToCollection, WithHeadingRow, WithStartRow, WithChunkReading
+{
+    private const CHUNK_SIZE = 1000;
+
+    // Nomor baris Excel berikutnya (null = chunk pertama)
+    protected ?int $nextRow = null;
+
+    protected $logs = [];
+
+    protected $totalError = 0;
+
+    // Kolom hasil heading row Excel (slug dari heading template)
+    protected $columns = [
+        'location_no',
+        'id_loc',
+        'location_group',
+        'stream',
+    ];
+
+    // Kolom yang wajib diisi (stream boleh kosong)
+    protected $requiredColumns = [
+        'location_no',
+        'id_loc',
+        'location_group',
+    ];
+
+    // Mapping kolom Excel ke kolom tabel FACDBT_MSHGROUPLOCATIONS
+    protected $columnMap = [
+        'location_no' => 'VLOCATIONNO',
+        'id_loc' => 'VIDLOC',
+        'location_group' => 'VLOCGROUP',
+        'stream' => 'VSTREAM',
+    ];
+
+    public function startRow(): int
+    {
+        return 2;
+    }
+
+    public function chunkSize(): int
+    {
+        return self::CHUNK_SIZE;
+    }
+
+    public function collection(Collection $collection): void
+    {
+        if ($this->nextRow === null && ($collection === null || $collection->isEmpty())) {
+            throw new SpreadsheetException('The file is empty', 422);
+        }
+
+        $currentRowIndex = $this->nextRow ?? $this->startRow();
+
+        foreach ($collection as $row) {
+            // Baris kosong (sisa format di Excel) dilewati, nomor baris tetap mengikuti Excel
+            if (collect($row)->every(fn ($value) => $value === null || trim((string) $value) === '')) {
+                $currentRowIndex++;
+                continue;
+            }
+
+            $row['row'] = $currentRowIndex;
+            $row = $row->toArray();
+
+            foreach ($this->columns as $col) {
+                $row[$col] = isset($row[$col]) && $row[$col] !== '' ? trim((string) $row[$col]) : null;
+            }
+
+            $this->setLog($row);
+            $this->required($row, $this->requiredColumns);
+            $this->maxLength($row, $this->requiredColumns, 50);
+            $this->maxLength($row, ['stream'], 100);
+
+            // Baris berulang tidak dianggap error (location_group tidak unik);
+            // baris dengan Location No, ID Loc & Location Group yang sama digabung di store()
+
+            $currentRowIndex++;
+        }
+
+        $this->nextRow = $currentRowIndex;
+    }
+
+    public function store()
+    {
+        return collect($this->logs)
+            ->where('error_count', 0)
+            ->values()
+            ->map(function ($item) {
+                $data = [];
+                foreach ($this->columnMap as $excelColumn => $dbColumn) {
+                    $data[$dbColumn] = $item[$excelColumn];
+                }
+
+                return $data;
+            })
+            // Baris berulang disimpan sekali; stream memakai baris terakhir
+            ->keyBy(fn ($data) => mb_strtolower(implode('|', [$data['VLOCATIONNO'], $data['VIDLOC'], $data['VLOCGROUP']])))
+            ->values()
+            ->toArray();
+    }
+
+    public function required($row, $columns)
+    {
+        $emptyColumns = array_filter($columns, fn($column) => ! isset($row[$column]) || $row[$column] === null || $row[$column] === '');
+
+        foreach ($emptyColumns as $col) {
+            $this->setLog($row, "The {$col} field is required.");
+        }
+    }
+
+    public function maxLength($row, $columns, $max)
+    {
+        foreach ($columns as $col) {
+            if (isset($row[$col]) && mb_strlen($row[$col]) > $max) {
+                $this->setLog($row, "The {$col} field must not be greater than {$max} characters.");
+            }
+        }
+    }
+
+    protected function setLog($row, $error = null)
+    {
+        $unique = $row['row'];
+        if (! isset($this->logs[$unique])) {
+            $this->logs[$unique] = array_merge(Arr::only($row, $this->columns), [
+                'row' => $unique,
+                'error_count' => 0,
+                'errors' => [],
+            ]);
+        }
+
+        if ($error !== null) {
+            $this->totalError++;
+            $this->logs[$unique]['error_count']++;
+            $this->logs[$unique]['errors'][] = $error;
+        }
+    }
+
+    public function getResult()
+    {
+        $correctLogs = collect($this->logs)->where('error_count', '=', 0)->count();
+        $incorrectLogs = collect($this->logs)->where('error_count', '>', 0)->count();
+        $errorLogs = collect($this->logs)->where('error_count', '>', 0);
+
+        return (object) [
+            'totalLogs' => count($this->logs),
+            'totalCorrectLogs' => $correctLogs,
+            'totalErrorLogs' => $incorrectLogs,
+            'totalError' => $this->totalError,
+            'logs' => array_values($this->logs),
+            'errorLogs' => $errorLogs,
+        ];
+    }
+}

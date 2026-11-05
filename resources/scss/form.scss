@@ -1,0 +1,20 @@
+.form-label:has(+ .form-select[required])::after,
+.form-label:has(+ input[required])::after,
+.form-label:has(+ textarea[required])::after,
+.form-label:has(+ .input-group input[required])::after {
+    content: ' *';
+    color: red;
+}
+
+.col-form-label:has(~ div .form-control[required])::after,
+.col-form-label:has(~ div .form-select[required])::after,
+.col-form-label:has(~ div textarea[required])::after,
+.col-form-label:has(~ div .input-group input[required])::after {
+    content: ' *';
+    color: red;
+}
+
+.form-label[data-required]::after {
+    content: ' *';
+    color: red;
+}

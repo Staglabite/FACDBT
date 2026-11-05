@@ -1,0 +1,174 @@
+[
+    {
+        "VGR_NUMBER": "GR001",
+        "VDELIVERY_NUMBER": "DEL001",
+        "VPO_NUMBER": "PO001",
+        "VCURRENCY": "IDR",
+        "VVENDOR_CODE": "03098",
+        "VVENDOR_NAME": "TIDAK DIPAKAI",
+        "VSTATUS": "PENDING",
+        "DGR": "2025-12-08 10:30:00",
+        "DSYNC": null,
+        "DAPPROVE": null,
+        "DDISPUTE": null,
+        "details": [
+            {
+                "VMATERIAL_CODE": "MAT001",
+                "VDESCRIPTION": "Material 1",
+                "IQTY": 100,
+                "UOM": "PCS",
+                "VPRICE": "50000",
+                "VAMOUNT": "5000000"
+            },
+            {
+                "VMATERIAL_CODE": "MAT002",
+                "VDESCRIPTION": "Material 2",
+                "IQTY": 50,
+                "UOM": "BOX",
+                "VPRICE": "75000",
+                "VAMOUNT": "3750000"
+            }
+        ]
+    },
+    {
+        "VGR_NUMBER": "GR002",
+        "VDELIVERY_NUMBER": "DEL002",
+        "VPO_NUMBER": "PO002",
+        "VCURRENCY": "IDR",
+        "VVENDOR_CODE": "03098",
+        "VVENDOR_NAME": "TIDAK DIPAKAI",
+        "VSTATUS": "APPROVED",
+        "DGR": "2025-12-07 14:15:00",
+        "DSYNC": "2025-12-07 14:20:00",
+        "DAPPROVE": "2025-12-07 15:00:00",
+        "DDISPUTE": null,
+        "details": [
+            {
+                "VMATERIAL_CODE": "MAT003",
+                "VDESCRIPTION": "Material 3",
+                "IQTY": 600,
+                "UOM": "KG",
+                "VPRICE": "9396",
+                "VAMOUNT": "5637600"
+            }
+        ]
+    },
+    {
+        "VGR_NUMBER": "GR003",
+        "VDELIVERY_NUMBER": "DEL003",
+        "VPO_NUMBER": "PO003",
+        "VCURRENCY": "IDR",
+        "VVENDOR_CODE": "03099",
+        "VVENDOR_NAME": "Vendor Lain",
+        "VSTATUS": "DISPUTED",
+        "DGR": "2025-12-06 08:45:00",
+        "DSYNC": "2025-12-06 09:00:00",
+        "DAPPROVE": "2025-12-06 10:30:00",
+        "DDISPUTE": "2025-12-06 16:00:00",
+        "details": [
+            {
+                "VMATERIAL_CODE": "MAT004",
+                "VDESCRIPTION": "Material 4",
+                "IQTY": 75,
+                "UOM": "PCS",
+                "VPRICE": "100000",
+                "VAMOUNT": "7500000"
+            },
+            {
+                "VMATERIAL_CODE": "MAT005",
+                "VDESCRIPTION": "Material 5",
+                "IQTY": 30,
+                "UOM": "BOX",
+                "VPRICE": "150000",
+                "VAMOUNT": "4500000"
+            }
+        ]
+    },
+    {
+        "VGR_NUMBER": "GR004",
+        "VDELIVERY_NUMBER": "DEL004",
+        "VPO_NUMBER": "PO003",
+        "VCURRENCY": "IDR",
+        "VVENDOR_CODE": "03010",
+        "VVENDOR_NAME": "Vendor Lain lain",
+        "VSTATUS": "NEW",
+        "DGR": "2026-01-06 08:45:00",
+        "DSYNC": "2026-01-06 09:00:00",
+        "details": [
+            {
+                "VMATERIAL_CODE": "MAT005",
+                "VDESCRIPTION": "Material 5",
+                "IQTY": 50,
+                "UOM": "PCS",
+                "VPRICE": "200000",
+                "VAMOUNT": "7000000"
+            },
+            {
+                "VMATERIAL_CODE": "MAT006",
+                "VDESCRIPTION": "Material 6",
+                "IQTY": 40,
+                "UOM": "BOX",
+                "VPRICE": "250000",
+                "VAMOUNT": "5000000"
+            }
+        ]
+    },
+    {
+        "VGR_NUMBER": "GR005",
+        "VDELIVERY_NUMBER": "DEL005",
+        "VPO_NUMBER": "PO004",
+        "VCURRENCY": "IDR",
+        "VVENDOR_CODE": "03011",
+        "VVENDOR_NAME": "Vendor Baru",
+        "VSTATUS": "NEW",
+        "DGR": "2026-02-10 11:20:00",
+        "DSYNC": "2026-01-06 09:00:00",
+        "details": [
+            {
+                "VMATERIAL_CODE": "MAT007",
+                "VDESCRIPTION": "Material 7",
+                "IQTY": 120,
+                "UOM": "PCS",
+                "VPRICE": "30000",
+                "VAMOUNT": "3600000"
+            },
+            {
+                "VMATERIAL_CODE": "MAT008",
+                "VDESCRIPTION": "Material 8",
+                "IQTY": 80,
+                "UOM": "BOX",
+                "VPRICE": "45000",
+                "VAMOUNT": "3600000"
+            },
+            {
+                "VMATERIAL_CODE": "MAT009",
+                "VDESCRIPTION": "Material 9",
+                "IQTY": 60,
+                "UOM": "KG",
+                "VPRICE": "60000",
+                "VAMOUNT": "3600000"
+            }
+        ]
+    },
+    {
+        "VGR_NUMBER": "GR006",
+        "VDELIVERY_NUMBER": "DEL006",
+        "VPO_NUMBER": "PO005",
+        "VCURRENCY": "IDR",
+        "VVENDOR_CODE": "03012",
+        "VVENDOR_NAME": "Vendor Eksis",
+        "VSTATUS": "NEW",
+        "DGR": "2026-03-15 09:10:00",
+        "DSYNC": "2026-03-15 09:30:00",
+        "details": [
+            {
+                "VMATERIAL_CODE": "MAT010",
+                "VDESCRIPTION": "Material 10",
+                "IQTY": 90,
+                "UOM": "PCS",
+                "VPRICE": "80000",
+                "VAMOUNT": "7200000"
+            }
+        ]
+    }
+]

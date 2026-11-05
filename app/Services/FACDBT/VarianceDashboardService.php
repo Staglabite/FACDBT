@@ -1,0 +1,144 @@
+<?php
+
+namespace App\Services\FACDBT;
+
+use App\Http\Controllers\Original\FACDBT\FACDBT04\Concerns\BuildsVarianceLines;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Dasar perhitungan dashboard variance dengan filter TIME & AREA serta tabel detail part
+ * (Nett Variance FACDBTD003, Absolute Variance FACDBTD004).
+ */
+abstract class VarianceDashboardService
+{
+    use BuildsVarianceLines;
+
+    protected const CONN = 'FACDBT';
+    protected const CACHE_TTL = 60;
+
+    /**
+     * Prefix cache key, berbeda per dashboard.
+     */
+    abstract protected function cachePrefix(): string;
+
+    /**
+     * Payload kosong saat periode taking / book belum ada.
+     */
+    abstract protected function emptyResult(): array;
+
+    /**
+     * Hitung payload dari variance per (lokasi, part) yang sudah difilter area.
+     *
+     * @param  iterable<array{0: string, 1: string, 2: float, 3: float, 4: float, 5: string}>  $lines
+     *         [[location_no, part_no, qty_book, qty_taking, unit_cost, area], ...]
+     */
+    abstract protected function build(iterable $lines, array $names): array;
+
+    /**
+     * Payload dashboard untuk filter request `from` / `to` (rentang scan taking; tanpa filter: seluruh periode taking)
+     * dan `areas[]` (tanpa filter: semua area). Hasil di-cache supaya ringkasan & DataTable memakai hasil yang sama.
+     */
+    public function compute(Request $request): array
+    {
+        $db = DB::connection(self::CONN);
+
+        $period = $this->resolvePeriod($db);
+        if ($period === null) {
+            return $this->emptyResult();
+        }
+
+        [$takingFrom, $takingTo] = $this->takingRange($request, $period['takingDate'], $period['closeDate']);
+        $selected = collect((array) $request->input('areas', []))
+            ->map(fn ($a) => trim((string) $a))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        $cacheKey = $this->cachePrefix() . ':' . md5(implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo'], $takingFrom, $takingTo, implode(',', $selected)]));
+
+        return $this->dashboardCache($cacheKey, function () use ($db, $period, $takingFrom, $takingTo, $selected) {
+            $areas      = $this->locationAreas($db);
+            $areaFilter = array_flip($selected);
+
+            $lines   = [];
+            $perArea = [];
+            foreach ($this->varianceLines($db, $period, $takingFrom, $takingTo) as $line) {
+                $area = $areas[$line[0]] ?? 'UNKNOWN';
+                // Chart Nett Variance by Area selalu memuat semua area (area yang tidak dipilih dipudarkan di browser)
+                $perArea[$area] = ($perArea[$area] ?? 0.0) + ($line[3] - $line[2]) * $line[4];
+                if ($areaFilter && !isset($areaFilter[$area])) {
+                    continue;
+                }
+
+                $line[] = $area;
+                $lines[] = $line;
+            }
+
+            $result = $this->build($lines, $this->partNames($db));
+            $result['by_area'] = $this->areaSeries($perArea);
+
+            return $result;
+        });
+    }
+
+    /**
+     * Minus: amount < 0, atau amount 0 (unit cost kosong) tetapi qty minus.
+     */
+    protected function isNegative(float $qty, float $amount): bool
+    {
+        return $amount < 0 || ($amount == 0 && $qty < 0);
+    }
+
+    /**
+     * @param  array<string, float>  $perArea
+     */
+    protected function areaSeries(array $perArea): array
+    {
+        return collect($perArea)
+            ->map(fn ($v, $area) => ['area' => (string) $area, 'value' => round($v, 2)])
+            ->sortByDesc('value')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Baris tabel detail + total qty & amount.
+     *
+     * @param  array<string, array{qty: float, amount: float}>  $parts
+     */
+    protected function detail(array $parts, array $names): array
+    {
+        $rows = [];
+        foreach ($parts as $partNo => $p) {
+            $rows[] = [
+                'name'    => $names[$partNo] ?? 'UNKNOWN',
+                'part_no' => (string) $partNo,
+                'qty'     => round($p['qty'], 2),
+                'amount'  => round($p['amount'], 2),
+            ];
+        }
+
+        return [
+            'qty'    => round(array_sum(array_column($rows, 'qty')), 2),
+            'amount' => round(array_sum(array_column($rows, 'amount')), 2),
+            'rows'   => $rows,
+        ];
+    }
+
+    /**
+     * @return array<string, string> [Part No => deskripsi part Master Part]
+     */
+    protected function partNames($db): array
+    {
+        return $this->dashboardCache('FACDBT04:part-names:v2', function () use ($db) {
+            return FacdbtTable::active($db, FacdbtTable::PARTS)
+                ->select('VPARTNO', 'VPARTDESC')
+                ->get()
+                ->mapWithKeys(fn ($r) => [(string) $r->VPARTNO => trim((string) $r->VPARTDESC) ?: 'UNKNOWN'])
+                ->all();
+        });
+    }
+}
