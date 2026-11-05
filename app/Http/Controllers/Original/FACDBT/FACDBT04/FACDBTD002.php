@@ -45,7 +45,7 @@ class FACDBTD002 extends Controller
      * Progress per warehouse (Master Location VWAREHOUSE) untuk lokasi di Master Group Location.
      * - % Item : item (part unik) taking terhadap item book
      * - % Qty  : qty taking terhadap qty book
-     * Book & taking dicocokkan per lokasi.
+     * Book & taking dicocokkan per lokasi: taking (lokasi, part) yang tidak ada di book diabaikan.
      * - Filter waktu dipilih : hanya taking yang di-scan di rentang Dari - Sampai; tanpa filter: seluruh periode.
      * - Filter group dipilih : semua warehouse dari lokasi di group tersebut (`group`, atau beberapa area `groups[]`
      *                          saat warehouse diklik dan warehouse itu ada di beberapa area).
@@ -91,6 +91,14 @@ class FACDBTD002 extends Controller
                 ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo]),
             'QTY'
         ));
+
+        // Progress diukur terhadap book: taking hanya dihitung untuk (lokasi, part) yang ada di book lokasi itu.
+        // Part yang di-scan di lokasi lain (book-nya di lokasi berbeda) tidak menambah progress lokasi ini.
+        $bookKeys = [];
+        foreach ($book as [$loc, $part]) {
+            $bookKeys[$loc . '|' . $part] = true;
+        }
+        $taking = array_values(array_filter($taking, fn ($r) => isset($bookKeys[$r[0] . '|' . $r[1]])));
 
         $bookTotals   = $this->totalsPerWarehouse($book, $locations);
         $takingTotals = $this->totalsPerWarehouse($taking, $locations);
