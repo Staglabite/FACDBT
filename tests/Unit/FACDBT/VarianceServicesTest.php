@@ -68,8 +68,8 @@ class VarianceServicesTest extends TestCase
         $this->assertSame(['P1', 'P4'], $this->partNos($result['negative']));
         $this->assertEquals(-100, $result['negative']['amount']);
 
-        // P2 pas (0) & P3 lebih dengan unit cost kosong -> tidak minus
-        $this->assertSame(['P2', 'P3'], $this->partNos($result['positive']));
+        // P2 pas di semua lokasi (Var Qty 0) tidak ditampilkan; P3 lebih dengan unit cost kosong -> tidak minus
+        $this->assertSame(['P3'], $this->partNos($result['positive']));
         $this->assertEquals(0, $result['positive']['amount']);
 
         // by area: A = +200 + 0 + 0, B = -300 + 0; urut dari terbesar
@@ -125,12 +125,25 @@ class VarianceServicesTest extends TestCase
         $this->assertSame(['A@L2', 'A@L1', 'B@L1', 'C@L3'], array_map(fn ($r) => $r['part_no'] . '@' . $r['location_no'], $rows));
     }
 
+    public function test_nett_hides_parts_without_variance_in_any_location(): void
+    {
+        $this->lines = [
+            ['L1', 'P9', 5, 7, 10, 'A'], ['L2', 'P9', 7, 5, 10, 'A'], // lebih +2 & kurang -2: nett 0, tetap tampil
+            ['L1', 'P8', 4, 4, 10, 'A'], ['L2', 'P8', 3, 3, 10, 'A'], // semua lokasi pas: tidak tampil
+        ];
+        $result = $this->build(new NettVarianceService);
+
+        $this->assertSame(['P9'], $this->partNos($result['positive']));
+        $this->assertEquals(0, $result['positive']['rows'][0]['qty']);
+        $this->assertSame([], $result['negative']['rows']);
+    }
+
     public function test_unknown_part_name(): void
     {
         $result = $this->build(new NettVarianceService);
-        $names  = array_column($result['positive']['rows'], 'name', 'part_no');
+        $names  = array_column(array_merge($result['positive']['rows'], $result['negative']['rows']), 'name', 'part_no');
 
-        $this->assertSame('SEAL', $names['P2']);
+        $this->assertSame('PIPE', $names['P1']);
         $this->assertSame('UNKNOWN', $names['P3']);
     }
 }

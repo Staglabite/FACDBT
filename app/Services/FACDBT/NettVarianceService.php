@@ -9,12 +9,14 @@ namespace App\Services\FACDBT;
  * Variance qty = qty taking - qty book (dicocokkan per lokasi lalu dijumlah per part),
  * variance amount = variance qty x unit cost.
  * Part dengan nett variance amount tidak minus masuk "positive", yang minus masuk "negative".
+ * Part yang semua lokasinya (di filter area) Var Qty 0 tidak ditampilkan; lebih / kurang antar lokasi yang
+ * saling menutup (nett 0) tetap ditampilkan.
  */
 class NettVarianceService extends VarianceDashboardService
 {
     protected function cachePrefix(): string
     {
-        return 'FACDBTD003:data:v8';
+        return 'FACDBTD003:data:v9';
     }
 
     protected function emptyResult(): array
@@ -32,6 +34,8 @@ class NettVarianceService extends VarianceDashboardService
     {
         $perArea = [];
         $perPart = [];
+        // Part yang punya minimal satu lokasi dengan Var Qty tidak 0
+        $hasVariance = [];
         foreach ($lines as [, $part, $qtyBook, $qtyTaking, $unitCost, $area]) {
             $varQty = $qtyTaking - $qtyBook;
             $varAmt = $varQty * $unitCost;
@@ -40,8 +44,12 @@ class NettVarianceService extends VarianceDashboardService
             $perPart[$part] ??= ['qty' => 0.0, 'amount' => 0.0];
             $perPart[$part]['qty']    += $varQty;
             $perPart[$part]['amount'] += $varAmt;
+            if (round($varQty, 2) != 0) {
+                $hasVariance[$part] = true;
+            }
         }
 
+        $perPart = array_intersect_key($perPart, $hasVariance);
         $negative = array_filter($perPart, fn ($p) => $this->isNegative($p['qty'], $p['amount']));
         $positive = array_diff_key($perPart, $negative);
 
