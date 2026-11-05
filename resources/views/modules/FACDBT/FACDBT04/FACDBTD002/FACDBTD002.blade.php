@@ -35,7 +35,7 @@
         </button>
     </div>
     <div class="card-body pt-0 pb-2">
-        <div class="small text-muted">Klik area pada chart untuk memfilter Progress by Loc.</div>
+        <div class="small text-muted">Klik area pada chart untuk memfilter Progress by Loc. Klik warehouse pada Progress by Loc untuk melihat area-nya dan semua warehouse di area tersebut.</div>
         <div id="chart-counting-progress"></div>
     </div>
 </div>

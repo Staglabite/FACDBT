@@ -47,12 +47,14 @@ class FACDBTD002 extends Controller
      * - % Qty  : qty taking terhadap qty book
      * Book & taking dicocokkan per lokasi.
      * - Filter waktu dipilih : hanya taking yang di-scan di rentang Dari - Sampai; tanpa filter: seluruh periode.
-     * - Filter group dipilih : semua warehouse dari lokasi di group tersebut.
+     * - Filter group dipilih : semua warehouse dari lokasi di group tersebut (`group`, atau beberapa area `groups[]`
+     *                          saat warehouse diklik dan warehouse itu ada di beberapa area).
      * - Tanpa filter group   : hanya warehouse yang sudah punya progress (taking > 0) dari keseluruhan.
+     * `areas` = [warehouse => [area, ...]] untuk warehouse yang tampil, dipakai saat chart warehouse diklik.
      */
     public function getData(Request $request)
     {
-        $empty = ['item' => [], 'qty' => []];
+        $empty = ['item' => [], 'qty' => [], 'areas' => (object) []];
         $db = DB::connection(self::CONN);
 
         $period = $this->resolvePeriod($db);
@@ -61,9 +63,15 @@ class FACDBTD002 extends Controller
         }
 
         [$takingFrom, $takingTo] = $this->takingRange($request, $period['takingDate'], $period['closeDate']);
-        $group       = trim((string) $request->get('group', ''));
+        $groups = collect((array) $request->input('groups', []))
+            ->push($request->input('group', ''))
+            ->map(fn ($g) => trim((string) $g))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
-        $locations = $this->locationWarehouses($db, $group);
+        $locations = $this->locationWarehouses($db, $groups);
         if (empty($locations)) {
             return response()->json($empty);
         }
@@ -97,9 +105,11 @@ class FACDBTD002 extends Controller
             ];
         })->values();
 
-        if ($group === '') {
+        if (empty($groups)) {
             $rows = $rows->filter(fn ($r) => $r['pct_item'] > 0 || $r['pct_qty'] > 0)->values();
         }
+
+        $areasOf = $this->warehouseAreas($db);
 
         // Tiap chart diurutkan dari progress terbesar
         $sortBy = fn (string $key) => $rows->sortByDesc($key)
@@ -108,32 +118,28 @@ class FACDBTD002 extends Controller
             ->all();
 
         return response()->json([
-            'item' => $sortBy('pct_item'),
-            'qty'  => $sortBy('pct_qty'),
+            'item'  => $sortBy('pct_item'),
+            'qty'   => $sortBy('pct_qty'),
+            'areas' => (object) $rows->mapWithKeys(fn ($r) => [$r['warehouse'] => $areasOf[$r['warehouse']] ?? []])->all(),
         ]);
     }
 
     /**
-     * Pemetaan lokasi -> warehouse untuk lokasi di Master Group Location (opsional difilter per group).
+     * Pemetaan lokasi -> warehouse untuk lokasi di Master Group Location (opsional difilter beberapa area).
      * Dikerjakan di PHP karena join dengan TRIM() di kedua sisi membuat index tidak terpakai.
      *
+     * @param  array<int, string>  $groups  area terpilih; kosong = semua
      * @return array<string, string> [location_no => warehouse]
      */
-    private function locationWarehouses($db, string $group): array
+    private function locationWarehouses($db, array $groups): array
     {
-        $warehouses = $this->dashboardCache('FACDBTD002:warehouses:v2', function () use ($db) {
-            $map = [];
-            foreach (FacdbtTable::active($db, FacdbtTable::LOCATIONS)->select('VLOCATIONNO', 'VWAREHOUSE')->get() as $row) {
-                $warehouse = trim((string) $row->VWAREHOUSE);
-                $map[trim((string) $row->VLOCATIONNO)] = $warehouse !== '' ? $warehouse : 'UNKNOWN';
-            }
+        $warehouses = $this->warehouseOfLocations($db);
 
-            return $map;
-        });
+        // Area gabungan (mis. QA) mencakup semua location group-nya
+        $groupNames = collect($groups)->flatMap(fn ($g) => AreaName::groupsOf($g))->map(fn ($g) => strtoupper($g))->unique()->values()->all();
 
         $locations = FacdbtTable::active($db, FacdbtTable::GROUP_LOCATIONS)
-            // Area gabungan (mis. QA) mencakup semua location group-nya
-            ->when($group !== '', fn ($q) => $q->whereIn(DB::raw('UPPER(TRIM(VLOCGROUP))'), array_map('strtoupper', AreaName::groupsOf($group))))
+            ->when(!empty($groupNames), fn ($q) => $q->whereIn(DB::raw('UPPER(TRIM(VLOCGROUP))'), $groupNames))
             ->distinct()
             ->pluck('VLOCATIONNO');
 
@@ -144,6 +150,46 @@ class FACDBTD002 extends Controller
         }
 
         return $result;
+    }
+
+    /**
+     * @return array<string, array<int, string>> [warehouse => [area, ...]] dari lokasi warehouse di Master Group Location
+     */
+    private function warehouseAreas($db): array
+    {
+        return $this->dashboardCache('FACDBTD002:warehouse-areas:v1', function () use ($db) {
+            $warehouses = $this->warehouseOfLocations($db);
+            $map = [];
+            foreach (FacdbtTable::active($db, FacdbtTable::GROUP_LOCATIONS)->get(['VLOCATIONNO', 'VLOCGROUP']) as $r) {
+                $area = AreaName::of($r->VLOCGROUP);
+                if ($area !== '') {
+                    $map[$warehouses[trim((string) $r->VLOCATIONNO)] ?? 'UNKNOWN'][$area] = true;
+                }
+            }
+
+            return array_map(function ($areas) {
+                $areas = array_keys($areas);
+                sort($areas);
+
+                return $areas;
+            }, $map);
+        });
+    }
+
+    /**
+     * @return array<string, string> [location_no => warehouse] dari Master Location
+     */
+    private function warehouseOfLocations($db): array
+    {
+        return $this->dashboardCache('FACDBTD002:warehouses:v2', function () use ($db) {
+            $map = [];
+            foreach (FacdbtTable::active($db, FacdbtTable::LOCATIONS)->select('VLOCATIONNO', 'VWAREHOUSE')->get() as $row) {
+                $warehouse = trim((string) $row->VWAREHOUSE);
+                $map[trim((string) $row->VLOCATIONNO)] = $warehouse !== '' ? $warehouse : 'UNKNOWN';
+            }
+
+            return $map;
+        });
     }
 
     /**
