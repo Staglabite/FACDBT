@@ -42,14 +42,13 @@ class FACDBTD002 extends Controller
     }
 
     /**
-     * Progress per warehouse (Master Location VWAREHOUSE) untuk lokasi di Master Group Location.
-     * - % Item : item (part unik) taking terhadap item book
-     * - % Qty  : qty taking terhadap qty book
-     * Book & taking dicocokkan per lokasi: taking (lokasi, part) yang tidak ada di book diabaikan.
+     * Progress per warehouse (kolom WAREHOUSE di tabel book & taking).
+     * - % Item : jumlah part unik taking di warehouse / jumlah part unik book di warehouse x 100
+     * - % Qty  : total qty taking di warehouse / total qty book di warehouse x 100
      * - Filter waktu dipilih : hanya taking yang di-scan di rentang Dari - Sampai; tanpa filter: seluruh periode.
-     * - Filter group dipilih : semua warehouse dari lokasi di group tersebut (`group`, atau beberapa area `groups[]`
+     * - Filter area dipilih  : hanya baris dari lokasi di area tersebut (`group`, atau beberapa area `groups[]`
      *                          saat warehouse diklik dan warehouse itu ada di beberapa area).
-     * - Tanpa filter group   : hanya warehouse yang sudah punya progress (taking > 0) dari keseluruhan.
+     * - Tanpa filter area    : hanya warehouse yang sudah punya progress (taking > 0).
      * `areas` = [warehouse => [area, ...]] untuk warehouse yang tampil, dipakai saat chart warehouse diklik.
      */
     public function getData(Request $request)
@@ -71,37 +70,40 @@ class FACDBTD002 extends Controller
             ->values()
             ->all();
 
-        $locations = $this->locationWarehouses($db, $groups);
-        if (empty($locations)) {
-            return response()->json($empty);
+        $locationAreas = $this->locationAreas($db);
+
+        // Lokasi yang termasuk area terpilih; null = semua lokasi
+        $allowed = null;
+        if (!empty($groups)) {
+            $allowed = [];
+            foreach ($locationAreas as $loc => $areas) {
+                if (array_intersect($areas, $groups)) {
+                    $allowed[$loc] = true;
+                }
+            }
+            if (empty($allowed)) {
+                return response()->json($empty);
+            }
         }
 
-        // Agregasi per (lokasi, part) tidak bergantung pada filter group, jadi cache-nya dipakai bersama
+        // Agregasi per (warehouse, lokasi, part) tidak bergantung pada filter area, jadi cache-nya dipakai bersama
         $base = implode('|', [$period['takingDate'], $period['closeDate'], $period['invListNo']]);
 
-        $book = $this->dashboardCache('FACDBTD002:book:v2:' . md5($base), fn () => $this->perLocationPart(
+        $book = $this->dashboardCache('FACDBTD002:book:v3:' . md5($base), fn () => $this->perWarehouseLocationPart(
             $db->table('SIM_INV_TAKING_BOOK_TAB')
                 ->whereBetween('CREATED_DATETIME', [$period['takingDate'], $period['closeDate']])
                 ->where('INV_LIST_NO', $period['invListNo']),
             'QUANTITY'
         ));
 
-        $taking = $this->dashboardCache('FACDBTD002:taking:v3:' . md5($base . '|' . $takingFrom . '|' . $takingTo), fn () => $this->perLocationPart(
+        $taking = $this->dashboardCache('FACDBTD002:taking:v4:' . md5($base . '|' . $takingFrom . '|' . $takingTo), fn () => $this->perWarehouseLocationPart(
             $db->table('SIM_INV_TAKING_DATA_TAB')
                 ->whereBetween('CREATED_DATETIME', [$takingFrom, $takingTo]),
             'QTY'
         ));
 
-        // Progress diukur terhadap book: taking hanya dihitung untuk (lokasi, part) yang ada di book lokasi itu.
-        // Part yang di-scan di lokasi lain (book-nya di lokasi berbeda) tidak menambah progress lokasi ini.
-        $bookKeys = [];
-        foreach ($book as [$loc, $part]) {
-            $bookKeys[$loc . '|' . $part] = true;
-        }
-        $taking = array_values(array_filter($taking, fn ($r) => isset($bookKeys[$r[0] . '|' . $r[1]])));
-
-        $bookTotals   = $this->totalsPerWarehouse($book, $locations);
-        $takingTotals = $this->totalsPerWarehouse($taking, $locations);
+        $bookTotals   = $this->totalsPerWarehouse($book, $allowed);
+        $takingTotals = $this->totalsPerWarehouse($taking, $allowed);
 
         $rows = collect($bookTotals)->map(function ($b, $warehouse) use ($takingTotals) {
             $t = $takingTotals[$warehouse] ?? ['items' => 0, 'qty' => 0.0];
@@ -117,7 +119,7 @@ class FACDBTD002 extends Controller
             $rows = $rows->filter(fn ($r) => $r['pct_item'] > 0 || $r['pct_qty'] > 0)->values();
         }
 
-        $areasOf = $this->warehouseAreas($db);
+        $areasOf = $this->warehouseAreas($book, $locationAreas);
 
         // Tiap chart diurutkan dari progress terbesar
         $sortBy = fn (string $key) => $rows->sortByDesc($key)
@@ -133,104 +135,81 @@ class FACDBTD002 extends Controller
     }
 
     /**
-     * Pemetaan lokasi -> warehouse untuk lokasi di Master Group Location (opsional difilter beberapa area).
-     * Dikerjakan di PHP karena join dengan TRIM() di kedua sisi membuat index tidak terpakai.
-     *
-     * @param  array<int, string>  $groups  area terpilih; kosong = semua
-     * @return array<string, string> [location_no => warehouse]
+     * @return array<string, array<int, string>> [location_no => [area, ...]] dari Master Group Location
      */
-    private function locationWarehouses($db, array $groups): array
+    private function locationAreas($db): array
     {
-        $warehouses = $this->warehouseOfLocations($db);
-
-        // Area gabungan (mis. QA) mencakup semua location group-nya
-        $groupNames = collect($groups)->flatMap(fn ($g) => AreaName::groupsOf($g))->map(fn ($g) => strtoupper($g))->unique()->values()->all();
-
-        $locations = FacdbtTable::active($db, FacdbtTable::GROUP_LOCATIONS)
-            ->when(!empty($groupNames), fn ($q) => $q->whereIn(DB::raw('UPPER(TRIM(VLOCGROUP))'), $groupNames))
-            ->distinct()
-            ->pluck('VLOCATIONNO');
-
-        $result = [];
-        foreach ($locations as $loc) {
-            $loc = trim((string) $loc);
-            $result[$loc] = $warehouses[$loc] ?? 'UNKNOWN';
-        }
-
-        return $result;
-    }
-
-    /**
-     * @return array<string, array<int, string>> [warehouse => [area, ...]] dari lokasi warehouse di Master Group Location
-     */
-    private function warehouseAreas($db): array
-    {
-        return $this->dashboardCache('FACDBTD002:warehouse-areas:v1', function () use ($db) {
-            $warehouses = $this->warehouseOfLocations($db);
+        return $this->dashboardCache('FACDBTD002:location-areas:v1', function () use ($db) {
             $map = [];
             foreach (FacdbtTable::active($db, FacdbtTable::GROUP_LOCATIONS)->get(['VLOCATIONNO', 'VLOCGROUP']) as $r) {
                 $area = AreaName::of($r->VLOCGROUP);
                 if ($area !== '') {
-                    $map[$warehouses[trim((string) $r->VLOCATIONNO)] ?? 'UNKNOWN'][$area] = true;
+                    $map[trim((string) $r->VLOCATIONNO)][$area] = true;
                 }
             }
 
-            return array_map(function ($areas) {
-                $areas = array_keys($areas);
-                sort($areas);
-
-                return $areas;
-            }, $map);
+            return array_map(fn ($areas) => array_keys($areas), $map);
         });
     }
 
     /**
-     * @return array<string, string> [location_no => warehouse] dari Master Location
+     * @param  array<int, array{0: string, 1: string, 2: string, 3: float}>  $book
+     * @param  array<string, array<int, string>>  $locationAreas
+     * @return array<string, array<int, string>> [warehouse => [area, ...]] dari lokasi book warehouse tersebut
      */
-    private function warehouseOfLocations($db): array
+    private function warehouseAreas(array $book, array $locationAreas): array
     {
-        return $this->dashboardCache('FACDBTD002:warehouses:v2', function () use ($db) {
-            $map = [];
-            foreach (FacdbtTable::active($db, FacdbtTable::LOCATIONS)->select('VLOCATIONNO', 'VWAREHOUSE')->get() as $row) {
-                $warehouse = trim((string) $row->VWAREHOUSE);
-                $map[trim((string) $row->VLOCATIONNO)] = $warehouse !== '' ? $warehouse : 'UNKNOWN';
+        $map = [];
+        foreach ($book as [$warehouse, $loc]) {
+            foreach ($locationAreas[$loc] ?? [] as $area) {
+                $map[$warehouse][$area] = true;
             }
+        }
 
-            return $map;
-        });
+        return array_map(function ($areas) {
+            $areas = array_keys($areas);
+            sort($areas);
+
+            return $areas;
+        }, $map);
     }
 
     /**
-     * Agregasi tabel besar (book / taking) per (LOCATION_NO, PART_NO) tanpa join.
+     * Agregasi tabel besar (book / taking) per (WAREHOUSE, LOCATION_NO, PART_NO) tanpa join.
      *
-     * @return array<int, array{0: string, 1: string, 2: float}> [[location_no, part_no, qty], ...]
+     * @return array<int, array{0: string, 1: string, 2: string, 3: float}> [[warehouse, location_no, part_no, qty], ...]
      */
-    private function perLocationPart($query, string $qtyColumn): array
+    private function perWarehouseLocationPart($query, string $qtyColumn): array
     {
         return $this->eventScope($query, DB::connection(self::CONN))
-            ->groupBy('LOCATION_NO', 'PART_NO')
-            ->select('LOCATION_NO', 'PART_NO', DB::raw("SUM({$qtyColumn}) as qty"))
+            ->groupBy('WAREHOUSE', 'LOCATION_NO', 'PART_NO')
+            ->select('WAREHOUSE', 'LOCATION_NO', 'PART_NO', DB::raw("SUM({$qtyColumn}) as qty"))
             ->get()
-            ->map(fn ($r) => [trim((string) $r->LOCATION_NO), (string) $r->PART_NO, (float) $r->qty])
+            ->map(function ($r) {
+                $warehouse = trim((string) $r->WAREHOUSE);
+
+                return [$warehouse !== '' ? $warehouse : 'UNKNOWN', trim((string) $r->LOCATION_NO), (string) $r->PART_NO, (float) $r->qty];
+            })
             ->all();
     }
 
     /**
-     * @param  array<int, array{0: string, 1: string, 2: float}>  $rows
-     * @param  array<string, string>  $locations  [location_no => warehouse]
+     * Total per warehouse: part unik & jumlah qty.
+     *
+     * @param  array<int, array{0: string, 1: string, 2: string, 3: float}>  $rows
+     * @param  array<string, bool>|null  $allowed  lokasi area terpilih; null = semua lokasi
      * @return array<string, array{items: int, qty: float}>
      */
-    private function totalsPerWarehouse(array $rows, array $locations): array
+    private function totalsPerWarehouse(array $rows, ?array $allowed): array
     {
         $parts  = [];
         $totals = [];
 
-        foreach ($rows as [$loc, $part, $qty]) {
-            if (!isset($locations[$loc])) {
+        foreach ($rows as [$warehouse, $loc, $part, $qty]) {
+            if ($allowed !== null && !isset($allowed[$loc])) {
                 continue;
             }
 
-            $warehouse = $locations[$loc];
             $parts[$warehouse][$part] = true;
             $totals[$warehouse]['qty'] = ($totals[$warehouse]['qty'] ?? 0.0) + $qty;
         }
